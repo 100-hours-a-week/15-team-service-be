@@ -76,3 +76,4 @@ Desktop.ini
 
 ### Linux ###
 *~
+\n# Local configuration file\nsrc/main/resources/application.yml
