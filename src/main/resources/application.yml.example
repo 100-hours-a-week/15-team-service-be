@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: CommitMe
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/<your-db-name>?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+    username: <your-db-username>
+    password: <your-db-password>
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.type.descriptor.sql: trace
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
