@@ -94,7 +94,7 @@ jobs:
       - name: Build
         run: ./gradlew --no-daemon clean build
 
-      # Step 6) Formatting check (Spotless)
+      # Step 6) Formatting check
       - name: Spotless Check
         run: ./gradlew --no-daemon spotlessCheck
 			
