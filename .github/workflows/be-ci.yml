@@ -89,7 +89,7 @@ jobs:
       # 너무 무거우면 trivy에 아래 내용으로 추가, 변경
       #    scanners: "vuln"      # secret 대신 vuln(취약점) 사용
       #    severity: "CRITICAL,HIGH" # 심각한 취약점만 검출 (필요 시 MEDIUM 추가)
-          
+
       # Step 5) Build (Gradle)
       - name: Build
         run: ./gradlew --no-daemon clean build
