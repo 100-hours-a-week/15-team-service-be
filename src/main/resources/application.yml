@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: CommitMe
+  profiles:
+    default: dev
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
