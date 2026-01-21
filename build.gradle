@@ -73,6 +73,8 @@ tasks.register("copyOasToSwagger", Copy) {
     into(swaggerOutDir)
 }
 
+
+
 /**
  * processResources는 swagger 디렉토리가 "있을 때만" 포함한다.
  * (없으면 그냥 넘어감)
@@ -81,7 +83,7 @@ tasks.register("copyOasToSwagger", Copy) {
  * "누가 만들어주는 output을 쓰는지" 관계를 명확하게 한다.
  */
 tasks.named("processResources") {
-    inputs.files(tasks.named("copyOasToSwagger"))
+    //inputs.files(tasks.named("copyOasToSwagger"))
     from(swaggerOutDir) {
         into("swagger")
     }
