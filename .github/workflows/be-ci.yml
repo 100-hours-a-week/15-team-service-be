@@ -75,7 +75,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-java${{ matrix.java-version }}-gradle-${{ hashFiles('**/*.gradle*', '**/settings.gradle*', '**/gradle-wrapper.properties', '**/gradle.properties') }}
+          key: "${{ runner.os }}-java${{ matrix.java-version }}-gradle-${{ hashFiles('**/*.gradle*', '**/settings.gradle*', '**/gradle-wrapper.properties', '**/gradle.properties') }}"
 			
 			# [추가] OWASP Dependency Check
       - name: OWASP Dependency Check
