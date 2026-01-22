@@ -11,12 +11,14 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
@@ -32,6 +34,8 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 	) throws IOException {
 		Object details = authentication.getDetails();
 		if (!(details instanceof AuthLoginResult(String accessToken, String refreshToken, boolean onboardingCompleted))) {
+			log.warn("[Auth][LoginSuccess] 인증 상세값 타입 불일치: 사유=AuthLoginResult 아님, detailsType={}",
+					details == null ? "null" : details.getClass().getName());
 			response.setStatus(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus().value());
 			response.setContentType("application/json");
 			response.setCharacterEncoding("UTF-8");
@@ -46,7 +50,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
 		ResponseCookie accessCookie = ResponseCookie.from("access_token", accessToken)
 				.httpOnly(true)
-				.secure(false)
+				.secure(true)
 				.sameSite("Lax")
 				.path("/")
 				.maxAge(jwtProperties.getAccessExpiration())
@@ -55,7 +59,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
 		ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", refreshToken)
 				.httpOnly(true)
-				.secure(false)
+				.secure(true)
 				.sameSite("Lax")
 				.path("/auth/token")
 				.maxAge(jwtProperties.getRefreshExpiration())
@@ -64,7 +68,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
 		ResponseCookie expireState = ResponseCookie.from("state", "")
 				.httpOnly(true)
-				.secure(false)
+				.secure(true)
 				.sameSite("Lax")
 				.path("/auth/github")
 				.maxAge(Duration.ZERO)

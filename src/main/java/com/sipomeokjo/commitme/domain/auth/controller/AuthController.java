@@ -29,7 +29,7 @@ public class AuthController {
 		
 		ResponseCookie cookie = ResponseCookie.from("state", state)
 				.httpOnly(true)
-				.secure(false)
+				.secure(true)
 				.sameSite("Lax")
 				.path("/auth/github")
 				.maxAge(Duration.ofMinutes(10))
