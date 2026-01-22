@@ -8,6 +8,7 @@ on:
       - completed
     branches:
       - main
+      - ci/be-ci
 
 concurrency:
   group: cd-myapi-main
@@ -18,6 +19,8 @@ permissions:
 
 jobs:
   deploy:
+    # CI가 '성공'했을 때만 CD 실행
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -27,9 +30,9 @@ jobs:
       - name: Download Artifact from CI
         uses: dawidd6/action-download-artifact@v2
         with:
-          workflow: backend-ci.yml # ci.yml 파일명 또는 name
+          workflow: be-ci.yml # ci.yml 파일명 또는 name
           run_id: ${{ github.event.workflow_run.id }}
-          name: backend-build-artifact # CI에서 업로드한 아티팩트 이름
+          name: be-artifacts-java21 # CI에서 업로드한 아티팩트 이름
           path: deploy/
 
       # 2) EC2로 JAR 파일 전송 (SCP)
@@ -41,7 +44,7 @@ jobs:
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
           source: "deploy/*.jar"
-          target: "/home/ubuntu/temp_deploy/"
+          target: "/home/${{ secrets.DEPLOY_USER }}/temp_deploy/"
           strip_components: 1
 
       # 3) 서버 접속 및 빅뱅 배포 스크립트 실행 (SSH)
