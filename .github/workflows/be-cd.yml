@@ -44,7 +44,7 @@ jobs:
       # - name: Check File Path
       #   run: ls -R deploy/
 
-      # 2) EC2로 JAR 파일 전송 (SCP)
+      # 2) EC2로 JAR 파일 전송 (SCP), 보안그룹 0.0.0.0/0 추가
       - name: Transfer JAR to Server
         uses: appleboy/scp-action@v0.1.7 # 특정 버전 사용
         with:
