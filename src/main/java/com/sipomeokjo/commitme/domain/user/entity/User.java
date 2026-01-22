@@ -17,6 +17,7 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Builder;
 
 @Getter
 @Entity
@@ -28,11 +29,11 @@ public class User extends BaseEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "position_id", nullable = false)
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "position_id")
 	private Position position;
 
-	@Column(nullable = false, length = 10)
+	@Column(length = 10)
 	private String name;
 
 	@Column(length = 20)
@@ -47,4 +48,15 @@ public class User extends BaseEntity {
 
 	@Column(name = "deleted_at")
 	private Instant deletedAt;
+
+	@Builder
+	public User(Long id, Position position, String name, String phone, String profileImageUrl, UserStatus status, Instant deletedAt) {
+		this.id = id;
+		this.position = position;
+		this.name = name;
+		this.phone = phone;
+		this.profileImageUrl = profileImageUrl;
+		this.status = status;
+		this.deletedAt = deletedAt;
+	}
 }

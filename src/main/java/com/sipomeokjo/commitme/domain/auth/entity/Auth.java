@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Builder;
 
 @Getter
 @Entity
@@ -51,4 +52,22 @@ public class Auth extends BaseEntity {
     @Column(name = "token_expires_at")
     private LocalDateTime tokenExpiresAt;
 
+    @Builder
+    public Auth(Long id, User user, AuthProvider provider, String providerUserId, String providerUsername, String accessToken, String tokenScopes, LocalDateTime tokenExpiresAt) {
+        this.id = id;
+        this.user = user;
+        this.provider = provider;
+        this.providerUserId = providerUserId;
+        this.providerUsername = providerUsername;
+        this.accessToken = accessToken;
+        this.tokenScopes = tokenScopes;
+        this.tokenExpiresAt = tokenExpiresAt;
+    }
+
+    public void updateTokenInfo(String providerUsername, String accessToken, String tokenScopes, LocalDateTime tokenExpiresAt) {
+        this.providerUsername = providerUsername;
+        this.accessToken = accessToken;
+        this.tokenScopes = tokenScopes;
+        this.tokenExpiresAt = tokenExpiresAt;
+    }
 }
