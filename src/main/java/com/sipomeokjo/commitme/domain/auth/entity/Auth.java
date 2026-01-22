@@ -46,7 +46,7 @@ public class Auth extends BaseEntity {
     @Column(name = "access_token", nullable = false, columnDefinition = "TEXT")
     private String accessToken;
 
-    @Column(name = "token_scopes", columnDefinition = "json")
+    @Column(name = "token_scopes", columnDefinition = "TEXT")
     private String tokenScopes;
 
     @Column(name = "token_expires_at")
