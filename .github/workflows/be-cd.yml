@@ -7,9 +7,7 @@ on:
     workflows: ["BE CI"] # ci.yml의 'name' 값과 정확히 일치
     types:
       - completed
-    branches:
-      - main
-      - ci/be-ci
+    branches: ["main", "ci/be-ci"]
 
 concurrency:
   group: cd-myapi-main
