@@ -6,6 +6,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -25,7 +27,12 @@ public class JwtFilter extends OncePerRequestFilter {
 		String token = resolveToken(request);
 		
 		if(token != null && tokenProvider.validateToken(token)) {
-			Authentication authentication = tokenProvider.getAuthentication(token);
+			
+			CustomUserDetails customUserDetails = new CustomUserDetails(tokenProvider.getUserId(token));
+			
+			Authentication authentication =
+					new UsernamePasswordAuthenticationToken(customUserDetails, null, List.of());
+			
 			SecurityContextHolder.getContext().setAuthentication(authentication);
 		}
 		
@@ -41,8 +48,7 @@ public class JwtFilter extends OncePerRequestFilter {
 		return Arrays.stream(cookies)
 				.filter(cookie -> cookie.getName().equals("access_token"))
 				.map(Cookie::getValue)
-				.filter(value -> value.startsWith("Bearer "))
-				.map(value -> value.substring(7))
+				.filter(value -> !value.isBlank())
 				.findFirst()
 				.orElse(null);
 	}
