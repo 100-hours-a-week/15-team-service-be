@@ -56,12 +56,12 @@ jobs:
       # 3) 서버 접속 및 빅뱅 배포 스크립트 실행 (SSH)
       - name: Execute Big Bang Deployment
         uses: appleboy/ssh-action@v0.1.7
-        env:
-          APP_ROOT: ${{ secrets.APP_ROOT }}
-          TEMP_DIR: ${{ secrets.TEMP_DIR }}
-          BACKUP_DIR: ${{ secrets.BACKUP_DIR }}
-          SERVICE_NAME: ${{ secrets.SERVICE_NAME }} # systemd 서비스 이름
-          JAR_NAME: ${{ secrets.JAR_NAME }}
+        # env:
+        #   APP_ROOT: ${{ secrets.APP_ROOT }}
+        #   TEMP_DIR: ${{ secrets.TEMP_DIR }}
+        #   BACKUP_DIR: ${{ secrets.BACKUP_DIR }}
+        #   SERVICE_NAME: ${{ secrets.SERVICE_NAME }} # systemd 서비스 이름
+        #   JAR_NAME: ${{ secrets.JAR_NAME }}
 
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -70,9 +70,19 @@ jobs:
           port: ${{ secrets.PORT }}
           script_stop: true
           
-          envs: APP_ROOT, TEMP_DIR, SERVICE_NAME, JAR_NAME
+          # envs: APP_ROOT, TEMP_DIR, SERVICE_NAME, JAR_NAME
           
           script: |
+            # 1. 변수 설정 (GitHub Secrets 값을 여기서 바로 꽂아넣음)
+            APP_ROOT="/home/${{ secrets.DEPLOY_USER }}/app"
+            TEMP_DIR="/home/${{ secrets.DEPLOY_USER }}/temp_deploy"
+            BACKUP_DIR="/home/${{ secrets.DEPLOY_USER }}/backup"
+            SERVICE_NAME="${{ secrets.SERVICE_NAME }}"
+            JAR_NAME="${{ secrets.JAR_NAME }}"
+            HEALTH_URL="http://localhost:8080/actuator/health"
+            HEALTH_TIMEOUT="60"
+            HEALTH_INTERVAL="5"
+
             echo "[Deploy] Big Bang 배포 시작..."
 
             # 사전 준비: 디렉토리 생성
