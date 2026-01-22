@@ -37,9 +37,9 @@ jobs:
           name: be-artifacts-java21 # CI에서 업로드한 아티팩트 이름
           path: deploy/
 
-      # 디버깅용: 파일이 어디 있는지 전체 출력
-      - name: Check File Path
-        run: ls -R deploy/
+      # # 디버깅용: 파일이 어디 있는지 전체 출력 (deploy/build/libs/)
+      # - name: Check File Path
+      #   run: ls -R deploy/
 
       # 2) EC2로 JAR 파일 전송 (SCP)
       - name: Transfer JAR to Server
