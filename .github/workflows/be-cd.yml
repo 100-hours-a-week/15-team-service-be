@@ -110,19 +110,38 @@ jobs:
 
             # 3. 새 파일 교체
             # find 명령어로 jar 파일 유무를 확실하게 체크
-            if [ -n "$(find $TEMP_DIR -maxdepth 1 -name '*.jar' -print -quit)" ]; then
-                mv $TEMP_DIR/*.jar $APP_ROOT/$JAR_NAME
-                chmod +x $APP_ROOT/$JAR_NAME
-                echo "[4/6] 파일 교체 완료"
+            FOUND_JAR=$(find $TEMP_DIR -name '*.jar' ! -name '*-plain.jar' | head -n 1)
+
+            if [ -n "$FOUND_JAR" ]; then
+                echo "파일 발견: $FOUND_JAR"
+                mv "$FOUND_JAR" "$APP_ROOT/$JAR_NAME"
+                chmod +x "$APP_ROOT/$JAR_NAME"
+                echo "파일 교체 및 권한 부여 완료"
             else
-                echo "[4/6] 오류: 배포할 JAR 파일을 찾을 수 없습니다."
-                # 롤백 시도 (기존 백업이 있다면)
+                echo "❌ 오류: $TEMP_DIR 안에 실행 가능한 JAR 파일이 없습니다!"
+                echo "폴더 구조 확인:"
+                ls -R $TEMP_DIR
+                
+                # 롤백 시도
                 if [ -f "$BACKUP_DIR/server_$TIMESTAMP.jar" ]; then
                     mv $BACKUP_DIR/server_$TIMESTAMP.jar $APP_ROOT/$JAR_NAME
                     sudo systemctl start $SERVICE_NAME
                 fi
                 exit 1
             fi
+            # if [ -n "$(find $TEMP_DIR -maxdepth 1 -name '*.jar' -print -quit)" ]; then
+            #     mv $TEMP_DIR/*.jar $APP_ROOT/$JAR_NAME
+            #     chmod +x $APP_ROOT/$JAR_NAME
+            #     echo "[4/6] 파일 교체 완료"
+            # else
+            #     echo "[4/6] 오류: 배포할 JAR 파일을 찾을 수 없습니다."
+            #     # 롤백 시도 (기존 백업이 있다면)
+            #     if [ -f "$BACKUP_DIR/server_$TIMESTAMP.jar" ]; then
+            #         mv $BACKUP_DIR/server_$TIMESTAMP.jar $APP_ROOT/$JAR_NAME
+            #         sudo systemctl start $SERVICE_NAME
+            #     fi
+            #     exit 1
+            # fi
 
             # 5. 서비스 재시작 (Start)
             echo "[5/6] 서비스 시작..."
