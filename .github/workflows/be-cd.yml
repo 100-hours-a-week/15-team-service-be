@@ -50,6 +50,11 @@ jobs:
       # 3) 서버 접속 및 빅뱅 배포 스크립트 실행 (SSH)
       - name: Execute Big Bang Deployment
         uses: appleboy/ssh-action@master
+        envs: APP_ROOT, TEMP_DIR, SERVICE_NAME, JAR_NAME
+        APP_ROOT: ${{ secrets.APP_ROOT }}
+        TEMP_DIR: ${{ secrets.TEMP_DIR }}
+        BACKUP_DIR: ${{ secrets.BACKUP_DIR }}
+        SERVICE_NAME: ${{ secrets.SERVICE_NAME }} # systemd 서비스 이름
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
@@ -57,11 +62,6 @@ jobs:
           port: ${{ secrets.PORT }}
           script_stop: true
           
-          envs: APP_ROOT, TEMP_DIR, SERVICE_NAME, JAR_NAME
-          APP_ROOT: ${{ secrets.APP_ROOT }}
-          TEMP_DIR: ${{ secrets.TEMP_DIR }}
-          BACKUP_DIR: ${{ secrets.BACKUP_DIR }}
-          SERVICE_NAME: ${{ secrets.SERVICE_NAME }} # systemd 서비스 이름
           JAR_NAME: ${{ secrets.JAR_NAME }}
           
           script: |
