@@ -1,6 +1,6 @@
 package com.sipomeokjo.commitme.api.exception;
 
-import com.sipomeokjo.commitme.api.response.ApiResponse;
+import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.http.ResponseEntity;
@@ -18,12 +18,9 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class GlobalExceptionHandler {
 
 	@ExceptionHandler(BusinessException.class)
-	public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
+	public ResponseEntity<APIResponse<Void>> handleBusinessException(BusinessException e) {
 		ErrorCode errorCode = e.getErrorCode();
-		
-		return ResponseEntity.status(errorCode.getHttpStatus()).body(
-				new ApiResponse<>(errorCode.getCode(), errorCode.getMessage(), null)
-		);
+		return APIResponse.onFailure(errorCode);
 	}
 	
 	@ExceptionHandler({
@@ -34,29 +31,20 @@ public class GlobalExceptionHandler {
 			MissingServletRequestParameterException.class,
 			HttpMessageNotReadableException.class
 	})
-	public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception e) {
+	public ResponseEntity<APIResponse<Void>> handleBadRequest(Exception e) {
 		ErrorCode errorCode = ErrorCode.BAD_REQUEST;
-		
-		return ResponseEntity.status(errorCode.getHttpStatus()).body(
-				new ApiResponse<>(errorCode.getCode(), errorCode.getMessage(), null)
-		);
+		return APIResponse.onFailure(errorCode);
 	}
 	
 	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-	public ResponseEntity<ApiResponse<Void>> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e) {
+	public ResponseEntity<APIResponse<Void>> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e) {
 		ErrorCode errorCode = ErrorCode.METHOD_NOT_ALLOWED;
-		
-		return ResponseEntity.status(errorCode.getHttpStatus()).body(
-				new ApiResponse<>(errorCode.getCode(), errorCode.getMessage(), null)
-		);
+		return APIResponse.onFailure(errorCode);
 	}
 	
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
+	public ResponseEntity<APIResponse<Void>> handleException(Exception e) {
 		ErrorCode errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
-		
-		return ResponseEntity.status(errorCode.getHttpStatus()).body(
-				new ApiResponse<>(errorCode.getCode(), errorCode.getMessage(), null)
-		);
+		return APIResponse.onFailure(errorCode);
 	}
 }

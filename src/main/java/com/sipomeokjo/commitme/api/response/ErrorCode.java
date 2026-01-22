@@ -4,7 +4,7 @@ import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-public enum ErrorCode {
+public enum ErrorCode implements ResponseCode {
 	BAD_REQUEST(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "잘못된 요청입니다."),
 	NAME_INVALID_INPUT(HttpStatus.BAD_REQUEST, "NAME_INVALID_INPUT", "이름은 공백을 제외하고 2자 이상 입력해야 합니다."),
 	POSITION_SELECTION_REQUIRED(HttpStatus.BAD_REQUEST, "POSITION_SELECTION_REQUIRED", "하나의 포지션을 선택해야 합니다."),

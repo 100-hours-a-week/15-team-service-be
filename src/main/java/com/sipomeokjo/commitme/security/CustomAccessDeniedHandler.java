@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sipomeokjo.commitme.api.response.ApiResponse;
+import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,6 +25,6 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
 		response.setContentType("application/json");
 		response.setCharacterEncoding("UTF-8");
-		objectMapper.writeValue(response.getOutputStream(), ApiResponse.onFailure(ErrorCode.FORBIDDEN));
+		objectMapper.writeValue(response.getOutputStream(), APIResponse.body(ErrorCode.FORBIDDEN));
 	}
 }

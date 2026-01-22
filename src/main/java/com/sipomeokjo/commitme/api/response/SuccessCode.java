@@ -4,7 +4,7 @@ import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
-public enum SuccessCode {
+public enum SuccessCode implements ResponseCode {
     OK(HttpStatus.OK, "SUCCESS", "요청이 성공적으로 처리되었습니다."),
     LOGIN_URL_ISSUED(HttpStatus.OK, "SUCCESS", "로그인 URL 발급에 성공했습니다."),
     LOGIN_SUCCESS(HttpStatus.OK, "SUCCESS", "로그인에 성공했습니다."),
