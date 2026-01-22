@@ -92,7 +92,8 @@ jobs:
 
       # Step 5) Build (Gradle)
       - name: Build
-        run: ./gradlew --no-daemon clean build
+        run: ./gradlew --no-daemon clean build -x test
+        # run: ./gradlew --no-daemon clean build
 
       # Step 6) Tests + JaCoCo Report 생성
       # JUnit5, Mockito, REST Assured 
@@ -110,7 +111,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: be-artifacts-java21
+          name: be-artifacts-java${{ matrix.java-version }}
           path: |
             build/test-results/test/
             build/reports/tests/test/
