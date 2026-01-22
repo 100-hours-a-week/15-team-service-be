@@ -52,7 +52,7 @@ jobs:
 
       # Step 1.2) CodeQL Init (SAST 준비)
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: java
 
@@ -94,9 +94,9 @@ jobs:
       - name: Build
         run: ./gradlew --no-daemon clean build
 
-      # # Step 6) Formatting check (Spotless)
-      # - name: Spotless Check
-      #   run: ./gradlew --no-daemon spotlessCheck
+      # Step 6) Formatting check (Spotless)
+      - name: Spotless Check
+        run: ./gradlew --no-daemon spotlessCheck
 			
       # Step 7) Tests + JaCoCo Report 생성
       # JUnit5, Mockito, REST Assured 
@@ -114,7 +114,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: be-artifacts-java${{ matrix.java-version }}
+          name: be-artifacts-java21
           path: |
             build/test-results/test/
             build/reports/tests/test/
