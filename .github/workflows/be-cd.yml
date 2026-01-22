@@ -57,12 +57,13 @@ jobs:
           port: ${{ secrets.PORT }}
           script_stop: true
           
-          env: APP_ROOT, TEMP_DIR, SERVICE_NAME, JAR_NAME
+          envs: APP_ROOT, TEMP_DIR, SERVICE_NAME, JAR_NAME
           APP_ROOT: ${{ secrets.APP_ROOT }}
           TEMP_DIR: ${{ secrets.TEMP_DIR }}
           BACKUP_DIR: ${{ secrets.BACKUP_DIR }}
           SERVICE_NAME: ${{ secrets.SERVICE_NAME }} # systemd 서비스 이름
           JAR_NAME: ${{ secrets.JAR_NAME }}
+          
           script: |
             echo "[Deploy] Big Bang 배포 시작..."
 
