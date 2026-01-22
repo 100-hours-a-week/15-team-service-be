@@ -2,5 +2,5 @@ package com.sipomeokjo.commitme.domain.policy.entity;
 
 public enum PolicyType {
     PRIVACY,
-    OTHER
+    PHONE_PRIVACY
 }

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Builder;
 
 @Getter
 @Entity
@@ -17,4 +18,10 @@ public class Position {
 
 	@Column(name = "name", nullable = false, length = 80)
 	private String name;
+
+	@Builder
+	public Position(Long id, String name) {
+		this.id = id;
+		this.name = name;
+	}
 }
