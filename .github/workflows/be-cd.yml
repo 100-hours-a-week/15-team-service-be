@@ -2,6 +2,7 @@ name: Backend CD Pipeline (Big Bang)
 
 # 1. 트리거: 'Backend CI Pipeline' 워크플로우가 'main' 브랜치에서 '완료'되었을 때 실행
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["BE CI"] # ci.yml의 'name' 값과 정확히 일치
     types:
