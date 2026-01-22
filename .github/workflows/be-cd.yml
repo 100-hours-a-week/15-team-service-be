@@ -83,6 +83,11 @@ jobs:
             mkdir -p $APP_ROOT
             mkdir -p $TEMP_DIR
             mkdir -p $BACKUP_DIR
+            
+            # [디버깅] 도대체 파일이 어디에 있는지 눈으로 확인 (로그에 찍힘)
+            echo "--- 파일 위치 확인 (ls -R) ---"
+            ls -R $TEMP_DIR
+            echo "------------------------------"
 
             # 3. 서비스 중지
             echo "[2/6] 서비스 종료 중..."
