@@ -2,6 +2,8 @@ name: Backend CD Pipeline (Big Bang)
 
 # 1. 트리거: 'Backend CI Pipeline' 워크플로우가 'main' 브랜치에서 '완료'되었을 때 실행
 on:
+  push:              # [임시 추가] CD 파일 수정해서 올리면 바로 실행되게 함
+      branches: [ "ci/be-ci" ]
   workflow_dispatch:
   workflow_run:
     workflows: ["BE CI"] # ci.yml의 'name' 값과 정확히 일치
@@ -11,7 +13,7 @@ on:
 
 concurrency:
   group: cd-myapi-main
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
