@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sipomeokjo.commitme.api.response.ApiResponse;
+import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -25,11 +25,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
 		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 		response.setContentType("application/json");
 		response.setCharacterEncoding("UTF-8");
-		ApiResponse<Void> body = new ApiResponse<>(
-				ErrorCode.UNAUTHORIZED.getCode(),
-				ErrorCode.UNAUTHORIZED.getMessage(),
-				null
-		);
+		APIResponse<Void> body = APIResponse.body(ErrorCode.UNAUTHORIZED);
 		objectMapper.writeValue(response.getOutputStream(), body);
 	}
 }
