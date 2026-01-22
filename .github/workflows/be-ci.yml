@@ -108,6 +108,12 @@ jobs:
           SPRING_DATASOURCE_USERNAME: sa
           SPRING_DATASOURCE_PASSWORD: 
           SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+
+          # 2. 보안/인증 관련 더미 값 (이게 없어서 에러 났을 확률 99%)
+          # 변수명이 달라도 얻어걸리도록 자주 쓰는 이름 다 넣음
+          JWT_SECRET: "my_test_jwt_secret_key_must_be_long_enough_12345"
+          JWT_SECRET_KEY: "my_test_jwt_secret_key_must_be_long_enough_12345"
+          SECURITY_JWT_SECRET: "my_test_jwt_secret_key_must_be_long_enough_12345"
         run: ./gradlew --no-daemon test
         
       # # Step 6) Tests (JUnit5 + Mockito + REST Assured)
