@@ -56,80 +56,80 @@ jobs:
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
           script_stop: true
-          env:
-            APP_ROOT: ${{ secrets.APP_ROOT }}
-            TEMP_DIR: ${{ secrets.TEMP_DIR }}
-            SERVICE_NAME: ${{ secrets.SERVICE_NAME }} # systemd 서비스 이름
-            JAR_NAME: ${{ secrets.JAR_NAME }}
-          script: |
-            echo "[Deploy] Big Bang 배포 시작..."
+        env:
+          APP_ROOT: ${{ secrets.APP_ROOT }}
+          TEMP_DIR: ${{ secrets.TEMP_DIR }}
+          SERVICE_NAME: ${{ secrets.SERVICE_NAME }} # systemd 서비스 이름
+          JAR_NAME: ${{ secrets.JAR_NAME }}
+        script: |
+          echo "[Deploy] Big Bang 배포 시작..."
 
-            # 사전 준비: 디렉토리 생성
-            mkdir -p $APP_ROOT
-            mkdir -p $TEMP_DIR
-            mkdir -p $BACKUP_DIR
+          # 사전 준비: 디렉토리 생성
+          mkdir -p $APP_ROOT
+          mkdir -p $TEMP_DIR
+          mkdir -p $BACKUP_DIR
 
-            # 1. 서비스 중단 (Stop) - 실패해도 계속 진행하도록 || true 추가
-            echo "[2/6] 서비스 종료 중..."
-            sudo systemctl stop $SERVICE_NAME || true
+          # 1. 서비스 중단 (Stop) - 실패해도 계속 진행하도록 || true 추가
+          echo "[2/6] 서비스 종료 중..."
+          sudo systemctl stop $SERVICE_NAME || true
 
-            # 2. 기존 파일 백업
-            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-            if [ -f "$APP_ROOT/$JAR_NAME" ]; then
-                mv $APP_ROOT/$JAR_NAME $BACKUP_DIR/server_$TIMESTAMP.jar
-                echo "[3/6] 백업 완료: server_$TIMESTAMP.jar"
-            else
-                echo "[3/6] 기존 파일 없음 (백업 생략)"
-            fi
+          # 2. 기존 파일 백업
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          if [ -f "$APP_ROOT/$JAR_NAME" ]; then
+              mv $APP_ROOT/$JAR_NAME $BACKUP_DIR/server_$TIMESTAMP.jar
+              echo "[3/6] 백업 완료: server_$TIMESTAMP.jar"
+          else
+              echo "[3/6] 기존 파일 없음 (백업 생략)"
+          fi
 
-            # 3. 새 파일 교체
-            # find 명령어로 jar 파일 유무를 확실하게 체크
-            if [ -n "$(find $TEMP_DIR -maxdepth 1 -name '*.jar' -print -quit)" ]; then
-                mv $TEMP_DIR/*.jar $APP_ROOT/$JAR_NAME
-                chmod +x $APP_ROOT/$JAR_NAME
-                echo "[4/6] 파일 교체 완료"
-            else
-                echo "[4/6] 오류: 배포할 JAR 파일을 찾을 수 없습니다."
-                # 롤백 시도 (기존 백업이 있다면)
-                if [ -f "$BACKUP_DIR/server_$TIMESTAMP.jar" ]; then
-                   mv $BACKUP_DIR/server_$TIMESTAMP.jar $APP_ROOT/$JAR_NAME
-                   sudo systemctl start $SERVICE_NAME
-                fi
-                exit 1
-            fi
-
-            # 5. 서비스 재시작 (Start)
-            echo "[5/6] 서비스 시작..."
-            sudo systemctl start $SERVICE_NAME
-
-            # 6. Health Check (Spring Boot Actuator 경로 확인 필요)
-            echo "[6/6] Health Check 진행 중..."
-            elapsed=0
-            # 성공(200 OK)할 때까지 루프, 타임아웃 시 실패 처리
-            until [ "$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL")" = "200" ]; do
-              if [ "$elapsed" -ge "$HEALTH_TIMEOUT" ]; then
-                echo "Health check failed after ${HEALTH_TIMEOUT}s"
-                echo "롤백 프로세스 가동..."
-                
-                sudo systemctl stop "$SERVICE_NAME"
-                # 실패한 파일 격리
-                mv "$APP_ROOT/$JAR_NAME" "$APP_ROOT/$JAR_NAME.failed_$TIMESTAMP"
-                
-                # 백업 복구
-                if [ -f "$BACKUP_DIR/server_$TIMESTAMP.jar" ]; then
-                    mv "$BACKUP_DIR/server_$TIMESTAMP.jar" "$APP_ROOT/$JAR_NAME"
-                    sudo systemctl start "$SERVICE_NAME"
-                    echo "이전 버전 복구 완료"
-                else
-                    echo "복구할 백업 파일 없음"
-                fi
-                exit 1
+          # 3. 새 파일 교체
+          # find 명령어로 jar 파일 유무를 확실하게 체크
+          if [ -n "$(find $TEMP_DIR -maxdepth 1 -name '*.jar' -print -quit)" ]; then
+              mv $TEMP_DIR/*.jar $APP_ROOT/$JAR_NAME
+              chmod +x $APP_ROOT/$JAR_NAME
+              echo "[4/6] 파일 교체 완료"
+          else
+              echo "[4/6] 오류: 배포할 JAR 파일을 찾을 수 없습니다."
+              # 롤백 시도 (기존 백업이 있다면)
+              if [ -f "$BACKUP_DIR/server_$TIMESTAMP.jar" ]; then
+                  mv $BACKUP_DIR/server_$TIMESTAMP.jar $APP_ROOT/$JAR_NAME
+                  sudo systemctl start $SERVICE_NAME
               fi
-              
-              echo "대기 중... (${elapsed}s / ${HEALTH_TIMEOUT}s)"
-              sleep "$HEALTH_INTERVAL"
-              elapsed=$((elapsed + HEALTH_INTERVAL))
-            done
+              exit 1
+          fi
 
-            echo "[6/6] 배포 성공! (Health Check: 200 OK)"
-            rm -rf "$TEMP_DIR"/*.jar
+          # 5. 서비스 재시작 (Start)
+          echo "[5/6] 서비스 시작..."
+          sudo systemctl start $SERVICE_NAME
+
+          # 6. Health Check (Spring Boot Actuator 경로 확인 필요)
+          echo "[6/6] Health Check 진행 중..."
+          elapsed=0
+          # 성공(200 OK)할 때까지 루프, 타임아웃 시 실패 처리
+          until [ "$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL")" = "200" ]; do
+            if [ "$elapsed" -ge "$HEALTH_TIMEOUT" ]; then
+              echo "Health check failed after ${HEALTH_TIMEOUT}s"
+              echo "롤백 프로세스 가동..."
+              
+              sudo systemctl stop "$SERVICE_NAME"
+              # 실패한 파일 격리
+              mv "$APP_ROOT/$JAR_NAME" "$APP_ROOT/$JAR_NAME.failed_$TIMESTAMP"
+              
+              # 백업 복구
+              if [ -f "$BACKUP_DIR/server_$TIMESTAMP.jar" ]; then
+                  mv "$BACKUP_DIR/server_$TIMESTAMP.jar" "$APP_ROOT/$JAR_NAME"
+                  sudo systemctl start "$SERVICE_NAME"
+                  echo "이전 버전 복구 완료"
+              else
+                  echo "복구할 백업 파일 없음"
+              fi
+              exit 1
+            fi
+            
+            echo "대기 중... (${elapsed}s / ${HEALTH_TIMEOUT}s)"
+            sleep "$HEALTH_INTERVAL"
+            elapsed=$((elapsed + HEALTH_INTERVAL))
+          done
+
+          echo "[6/6] 배포 성공! (Health Check: 200 OK)"
+          rm -rf "$TEMP_DIR"/*.jar
