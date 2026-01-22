@@ -9,6 +9,7 @@ on:
       - completed
     branches:
       - main
+      - ci/be-ci
 
 concurrency:
   group: cd-myapi-main
