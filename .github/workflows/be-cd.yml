@@ -49,7 +49,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
-          source: "deploy/*.jar"
+          source: "deploy/build/libs/*.jar"
           target: "/home/${{ secrets.DEPLOY_USER }}/temp_deploy/"
           strip_components: 1
 
