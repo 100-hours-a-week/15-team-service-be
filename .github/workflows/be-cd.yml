@@ -64,7 +64,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
-          script_stop: true
+          # script_stop: true
           
           script: |
             # 1. 변수 설정
