@@ -14,6 +14,7 @@ import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenReposi
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
+import com.sipomeokjo.commitme.security.AccessTokenCipher;
 import com.sipomeokjo.commitme.security.AccessTokenProvider;
 import com.sipomeokjo.commitme.security.JwtProperties;
 import com.sipomeokjo.commitme.security.RefreshTokenProvider;
@@ -37,6 +38,7 @@ public class AuthCommandService {
 	private final AuthRepository authRepository;
 	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final AccessTokenCipher accessTokenCipher;
 	private final AccessTokenProvider accessTokenProvider;
 	private final RefreshTokenProvider refreshTokenProvider;
 	private final GithubProperties githubProperties;
@@ -49,6 +51,7 @@ public class AuthCommandService {
 			AuthRepository authRepository,
 			UserRepository userRepository,
 			RefreshTokenRepository refreshTokenRepository,
+			AccessTokenCipher accessTokenCipher,
 			AccessTokenProvider accessTokenProvider,
 			RefreshTokenProvider refreshTokenProvider,
 			GithubProperties githubProperties,
@@ -59,6 +62,7 @@ public class AuthCommandService {
 		this.authRepository = authRepository;
 		this.userRepository = userRepository;
 		this.refreshTokenRepository = refreshTokenRepository;
+		this.accessTokenCipher = accessTokenCipher;
 		this.accessTokenProvider = accessTokenProvider;
 		this.refreshTokenProvider = refreshTokenProvider;
 		this.githubProperties = githubProperties;
@@ -92,7 +96,7 @@ public class AuthCommandService {
 					.provider(AuthProvider.GITHUB)
 					.providerUserId(String.valueOf(githubUser.id()))
 					.providerUsername(githubUser.login())
-					.accessToken(tokenResponse.accessToken())
+					.accessToken(accessTokenCipher.encrypt(tokenResponse.accessToken()))
 					.tokenScopes(normalizeScopes(tokenResponse.scope()))
 					.tokenExpiresAt(null)
 					.build();
@@ -101,7 +105,7 @@ public class AuthCommandService {
 			user = auth.getUser();
 			auth.updateTokenInfo(
 					githubUser.login(),
-					tokenResponse.accessToken(),
+					accessTokenCipher.encrypt(tokenResponse.accessToken()),
 					normalizeScopes(tokenResponse.scope()),
 					null
 			);
