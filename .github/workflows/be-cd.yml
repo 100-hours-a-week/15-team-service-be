@@ -130,6 +130,6 @@ jobs:
               sleep "$HEALTH_INTERVAL"
               elapsed=$((elapsed + HEALTH_INTERVAL))
             done
-            
+
             echo "[6/6] 배포 성공! (Health Check: 200 OK)"
             rm -rf "$TEMP_DIR"/*.jar
