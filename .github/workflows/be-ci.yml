@@ -15,7 +15,7 @@ on:
       - "**/*.yml"
       - "**/*.yaml"
   push:
-    branches: [ "main", "ci/be-ci" ]
+    branches: [ "main" ]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -92,7 +92,7 @@ jobs:
 
       # Step 5) Build (Gradle)
       - name: Build
-        run: ./gradlew --no-daemon clean build -x test
+        run: ./gradlew --no-daemon clean build
         # run: ./gradlew --no-daemon clean build
 
       # # Step 6) Tests + JaCoCo Report 생성
@@ -100,7 +100,7 @@ jobs:
       # - name: Tests & JaCoCo Coverage
       #   run: ./gradlew --no-daemon test jacocoTestReport
       
-      # Step 6) Tests + JaCoCo Report 생성
+      # Step 6) Tests Report 생성
       # JUnit5, Mockito, REST Assured 
       - name: Tests
         run: ./gradlew --no-daemon build -x test
@@ -125,7 +125,7 @@ jobs:
       #     SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
       #   run: ./gradlew --no-daemon test
 
-      # Step 7.5) CodeQL Analyze (SAST 실행/업로드)
+      # Step 7) CodeQL Analyze (SAST 실행/업로드)
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
