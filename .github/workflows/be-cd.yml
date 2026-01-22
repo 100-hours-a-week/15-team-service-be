@@ -39,7 +39,7 @@ jobs:
 
       # 2) EC2로 JAR 파일 전송 (SCP)
       - name: Transfer JAR to Server
-        uses: appleboy/scp-action@0.1.7 # 특정 버전 사용
+        uses: appleboy/scp-action@v0.1.7 # 특정 버전 사용
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
