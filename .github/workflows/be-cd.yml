@@ -50,7 +50,7 @@ jobs:
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
           source: "deploy/build/libs/*.jar"
-          target: "/home/${{ secrets.DEPLOY_USER }}/temp_deploy/"
+          target: "/home/${{ secrets.DEPLOY_USER }}/temp_deploy/build/libs/"
           strip_components: 1
 
       # 3) 서버 접속 및 빅뱅 배포 스크립트 실행 (SSH)
