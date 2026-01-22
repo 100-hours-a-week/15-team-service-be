@@ -100,9 +100,21 @@ jobs:
       # - name: Tests & JaCoCo Coverage
       #   run: ./gradlew --no-daemon test jacocoTestReport
 
+      # Step 6) Tests (JUnit5 + Mockito + REST Assured)
+      - name: Run Tests
+        env:
+          # [핵심 2] Spring Boot가 CI MySQL에 붙도록 환경변수 덮어쓰기
+          SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/testdb
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: root
+          SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+          SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+        # [핵심 3] jacocoTestReport는 플러그인 없으므로 제거하고 test만 실행
+        run: ./gradlew --no-daemon test
+
       # Step 7.5) CodeQL Analyze (SAST 실행/업로드)
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:java"
 
