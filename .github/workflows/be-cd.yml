@@ -68,7 +68,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
-          script_stop: true
+          # script_stop: true
           
           # envs: APP_ROOT, TEMP_DIR, SERVICE_NAME, JAR_NAME
           
