@@ -9,6 +9,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
+import org.springframework.util.StringUtils;
 
 public class AuthLoginAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
 
@@ -25,6 +26,14 @@ public class AuthLoginAuthenticationFilter extends AbstractAuthenticationProcess
 	@Override
 	public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
 			throws AuthenticationException {
+		String error = request.getParameter("error");
+		if (StringUtils.hasText(error)) {
+			if ("access_denied".equals(error)) {
+				throw new AuthLoginAuthenticationException(ErrorCode.OAUTH_ACCESS_DENIED);
+			}
+			throw new AuthLoginAuthenticationException(ErrorCode.BAD_REQUEST);
+		}
+
 		String code = request.getParameter("code");
 		String state = request.getParameter("state");
 		String stateCookie = extractStateCookie(request);

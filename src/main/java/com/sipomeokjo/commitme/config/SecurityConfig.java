@@ -50,20 +50,23 @@ public class SecurityConfig {
 				.csrf(AbstractHttpConfigurer::disable)
 				.sessionManagement(session
 					-> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(auth -> auth
-						.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
-						.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
-						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-						.requestMatchers(
-								"/auth/github/loginUrl",
-								"/auth/github",
-								"/auth/token",
-								"/actuator/health",
-								"/swagger-ui/**",
-								"/v3/api-docs/**"
-						).permitAll()
-						.anyRequest().authenticated()
-				)
+					.authorizeHttpRequests(auth -> auth
+							.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
+							.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
+							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+							.requestMatchers(
+									"/auth/github/loginUrl",
+									"/auth/github",
+									"/auth/token",
+									"/actuator/health",
+									"/swagger/**",
+									"/swagger-ui/**",
+									"/swagger-ui.html",
+									"/v3/api-docs/**"
+							).permitAll()
+							.requestMatchers(HttpMethod.POST, "/user/onboarding").hasRole("PENDING")
+							.anyRequest().hasRole("ACTIVE")
+					)
 				.logout(logout -> logout
 						.logoutUrl("/auth/logout")
 						.logoutSuccessHandler(authLogoutSuccessHandler)

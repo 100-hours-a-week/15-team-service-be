@@ -59,4 +59,12 @@ public class User extends BaseEntity {
 		this.status = status;
 		this.deletedAt = deletedAt;
 	}
+
+	public void updateOnboarding(Position position, String name, String phone, String profileImageUrl, UserStatus status) {
+		this.position = position;
+		this.name = name;
+		this.phone = phone;
+		this.profileImageUrl = profileImageUrl;
+		this.status = status;
+	}
 }

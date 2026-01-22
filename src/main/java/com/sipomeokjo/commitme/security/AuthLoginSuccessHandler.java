@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sipomeokjo.commitme.api.response.ApiResponse;
+import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
@@ -24,6 +24,7 @@ import org.springframework.stereotype.Component;
 public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
 	private final JwtProperties jwtProperties;
+	private final CookieProperties cookieProperties;
 	private final ObjectMapper objectMapper;
 
 	@Override
@@ -39,18 +40,14 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 			response.setStatus(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus().value());
 			response.setContentType("application/json");
 			response.setCharacterEncoding("UTF-8");
-			ApiResponse<Void> body = new ApiResponse<>(
-					ErrorCode.INTERNAL_SERVER_ERROR.getCode(),
-					ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
-					null
-			);
+			APIResponse<Void> body = APIResponse.body(ErrorCode.INTERNAL_SERVER_ERROR);
 			objectMapper.writeValue(response.getOutputStream(), body);
 			return;
 		}
 
 		ResponseCookie accessCookie = ResponseCookie.from("access_token", accessToken)
 				.httpOnly(true)
-				.secure(true)
+				.secure(cookieProperties.isSecure())
 				.sameSite("Lax")
 				.path("/")
 				.maxAge(jwtProperties.getAccessExpiration())
@@ -59,7 +56,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
 		ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", refreshToken)
 				.httpOnly(true)
-				.secure(true)
+				.secure(cookieProperties.isSecure())
 				.sameSite("Lax")
 				.path("/auth/token")
 				.maxAge(jwtProperties.getRefreshExpiration())
@@ -68,7 +65,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
 		ResponseCookie expireState = ResponseCookie.from("state", "")
 				.httpOnly(true)
-				.secure(true)
+				.secure(cookieProperties.isSecure())
 				.sameSite("Lax")
 				.path("/auth/github")
 				.maxAge(Duration.ZERO)
@@ -76,11 +73,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 		response.addHeader(HttpHeaders.SET_COOKIE, expireState.toString());
 
 		LoginResultResponse data = new LoginResultResponse(onboardingCompleted);
-		ApiResponse<LoginResultResponse> body = new ApiResponse<>(
-				SuccessCode.LOGIN_SUCCESS.getCode(),
-				SuccessCode.LOGIN_SUCCESS.getMessage(),
-				data
-		);
+		APIResponse<LoginResultResponse> body = APIResponse.body(SuccessCode.LOGIN_SUCCESS, data);
 		response.setStatus(SuccessCode.LOGIN_SUCCESS.getHttpStatus().value());
 		response.setContentType("application/json");
 		response.setCharacterEncoding("UTF-8");

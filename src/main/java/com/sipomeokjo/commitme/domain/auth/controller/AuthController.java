@@ -1,9 +1,10 @@
 package com.sipomeokjo.commitme.domain.auth.controller;
 
-import com.sipomeokjo.commitme.api.response.ApiResponse;
+import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.auth.dto.LoginUrlResponse;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
+import com.sipomeokjo.commitme.security.CookieProperties;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import lombok.AllArgsConstructor;
@@ -22,14 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 	
 	private final AuthQueryService authQueryService;
+	private final CookieProperties cookieProperties;
 
 	@GetMapping("/github/loginUrl")
-	public ResponseEntity<ApiResponse<LoginUrlResponse>> getLoginUrl(HttpServletResponse response) {
+	public ResponseEntity<APIResponse<LoginUrlResponse>> getLoginUrl(HttpServletResponse response) {
 		String state = authQueryService.generateState();
 		
 		ResponseCookie cookie = ResponseCookie.from("state", state)
 				.httpOnly(true)
-				.secure(true)
+				.secure(cookieProperties.isSecure())
 				.sameSite("Lax")
 				.path("/auth/github")
 				.maxAge(Duration.ofMinutes(10))
@@ -38,7 +40,7 @@ public class AuthController {
 		
 		String loginUrl = authQueryService.getLoginUrl(state);
 		LoginUrlResponse data = new LoginUrlResponse(loginUrl);
-		return ApiResponse.onSuccess(SuccessCode.LOGIN_URL_ISSUED, data);
+		return APIResponse.onSuccess(SuccessCode.LOGIN_URL_ISSUED, data);
 	}
 	
 }
