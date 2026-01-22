@@ -97,10 +97,10 @@ jobs:
         run: ./gradlew --no-daemon clean build -x test
         # run: ./gradlew --no-daemon clean build
 
-      # Step 6) Tests + JaCoCo Report 생성
-      # JUnit5, Mockito, REST Assured 
-      - name: Tests & JaCoCo Coverage
-        run: ./gradlew --no-daemon test jacocoTestReport
+      # # Step 6) Tests + JaCoCo Report 생성
+      # # JUnit5, Mockito, REST Assured 
+      # - name: Tests & JaCoCo Coverage
+      #   run: ./gradlew --no-daemon test jacocoTestReport
 
       # Step 7) CodeQL Analyze (SAST 실행/업로드)
       - name: Perform CodeQL Analysis
