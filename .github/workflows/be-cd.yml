@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: cd-myapi-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
