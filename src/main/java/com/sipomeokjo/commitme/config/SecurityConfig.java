@@ -4,6 +4,7 @@ import com.sipomeokjo.commitme.security.AuthLoginAuthenticationFilter;
 import com.sipomeokjo.commitme.security.AuthLoginAuthenticationProvider;
 import com.sipomeokjo.commitme.security.AuthLoginFailureHandler;
 import com.sipomeokjo.commitme.security.AuthLoginSuccessHandler;
+import com.sipomeokjo.commitme.security.AuthLogoutSuccessHandler;
 import com.sipomeokjo.commitme.security.CustomAccessDeniedHandler;
 import com.sipomeokjo.commitme.security.CustomAuthenticationEntryPoint;
 import com.sipomeokjo.commitme.security.JwtFilter;
@@ -34,6 +35,7 @@ public class SecurityConfig {
 	private final AuthLoginAuthenticationProvider authLoginAuthenticationProvider;
 	private final AuthLoginSuccessHandler authLoginSuccessHandler;
 	private final AuthLoginFailureHandler authLoginFailureHandler;
+	private final AuthLogoutSuccessHandler authLogoutSuccessHandler;
 	
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -50,6 +52,7 @@ public class SecurityConfig {
 					-> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
+						.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
 						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 						.requestMatchers(
 								"/auth/github/loginUrl",
@@ -60,6 +63,11 @@ public class SecurityConfig {
 								"/v3/api-docs/**"
 						).permitAll()
 						.anyRequest().authenticated()
+				)
+				.logout(logout -> logout
+						.logoutUrl("/auth/logout")
+						.logoutSuccessHandler(authLogoutSuccessHandler)
+						.permitAll()
 				)
 				.exceptionHandling(exception ->exception
 						.authenticationEntryPoint(customAuthenticationEntryPoint)

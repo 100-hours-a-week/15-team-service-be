@@ -9,12 +9,17 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
-import org.springframework.security.web.util.matcher.RegexRequestMatcher;
 
 public class AuthLoginAuthenticationFilter extends AbstractAuthenticationProcessingFilter {
 
 	public AuthLoginAuthenticationFilter() {
-		super(new RegexRequestMatcher("^/auth/github$", HttpMethod.GET.name()));
+		super(request -> {
+			String uri = request.getRequestURI();
+			if (!HttpMethod.GET.matches(request.getMethod())) {
+				return false;
+			}
+			return "/auth/github".equals(uri);
+		});
 	}
 
 	@Override
