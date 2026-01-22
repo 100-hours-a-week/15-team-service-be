@@ -55,7 +55,7 @@ jobs:
 
       # 3) 서버 접속 및 빅뱅 배포 스크립트 실행 (SSH)
       - name: Execute Big Bang Deployment
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v0.1.7
         env:
           APP_ROOT: ${{ secrets.APP_ROOT }}
           TEMP_DIR: ${{ secrets.TEMP_DIR }}
