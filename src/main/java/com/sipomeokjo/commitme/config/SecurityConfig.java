@@ -5,6 +5,8 @@ import com.sipomeokjo.commitme.security.AuthLoginAuthenticationProvider;
 import com.sipomeokjo.commitme.security.AuthLoginFailureHandler;
 import com.sipomeokjo.commitme.security.AuthLoginSuccessHandler;
 import com.sipomeokjo.commitme.security.AuthLogoutSuccessHandler;
+import com.sipomeokjo.commitme.security.CookieProperties;
+import com.sipomeokjo.commitme.security.CryptoProperties;
 import com.sipomeokjo.commitme.security.CustomAccessDeniedHandler;
 import com.sipomeokjo.commitme.security.CustomAuthenticationEntryPoint;
 import com.sipomeokjo.commitme.security.JwtFilter;
@@ -26,7 +28,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, CryptoProperties.class})
 public class SecurityConfig {
 
 	private final JwtFilter jwtFilter;
