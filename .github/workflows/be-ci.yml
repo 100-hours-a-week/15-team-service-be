@@ -99,7 +99,17 @@ jobs:
       # # JUnit5, Mockito, REST Assured 
       # - name: Tests & JaCoCo Coverage
       #   run: ./gradlew --no-daemon test jacocoTestReport
-
+      
+      # Step 6) Tests (JUnit5 + Mockito + REST Assured)
+      - name: Run Tests
+        env:
+          # RDS 대신 GitHub Actions 내부 메모리 DB 사용
+          SPRING_DATASOURCE_URL: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+          SPRING_DATASOURCE_USERNAME: sa
+          SPRING_DATASOURCE_PASSWORD: 
+          SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+        run: ./gradlew --no-daemon test
+        
       # # Step 6) Tests (JUnit5 + Mockito + REST Assured)
       # - name: Run Tests
       #   env:
