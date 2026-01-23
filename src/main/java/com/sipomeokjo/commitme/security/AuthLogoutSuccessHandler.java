@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sipomeokjo.commitme.api.response.ApiResponse;
+import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 public class AuthLogoutSuccessHandler implements LogoutSuccessHandler {
 
 	private final ObjectMapper objectMapper;
+	private final CookieProperties cookieProperties;
 
 	@Override
 	public void onLogoutSuccess(
@@ -30,7 +31,7 @@ public class AuthLogoutSuccessHandler implements LogoutSuccessHandler {
 	) throws IOException {
 		ResponseCookie expireAccess = ResponseCookie.from("access_token", "")
 				.httpOnly(true)
-				.secure(true)
+				.secure(cookieProperties.isSecure())
 				.sameSite("Lax")
 				.path("/")
 				.maxAge(Duration.ZERO)
@@ -39,18 +40,14 @@ public class AuthLogoutSuccessHandler implements LogoutSuccessHandler {
 
 		ResponseCookie expireRefresh = ResponseCookie.from("refresh_token", "")
 				.httpOnly(true)
-				.secure(true)
+				.secure(cookieProperties.isSecure())
 				.sameSite("Lax")
 				.path("/auth/token")
 				.maxAge(Duration.ZERO)
 				.build();
 		response.addHeader(HttpHeaders.SET_COOKIE, expireRefresh.toString());
 
-		ApiResponse<Void> body = new ApiResponse<>(
-				SuccessCode.LOGOUT_SUCCESS.getCode(),
-				SuccessCode.LOGOUT_SUCCESS.getMessage(),
-				null
-		);
+		APIResponse<Void> body = APIResponse.body(SuccessCode.LOGOUT_SUCCESS);
 		response.setStatus(SuccessCode.LOGOUT_SUCCESS.getHttpStatus().value());
 		response.setContentType("application/json");
 		response.setCharacterEncoding("UTF-8");

@@ -1,7 +1,11 @@
 package com.sipomeokjo.commitme.security;
 
+import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import java.time.Instant;
 import java.util.List;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -23,13 +27,16 @@ public class AccessTokenProvider {
 	private final JwtEncoder jwtEncoder;
 	private final JwtDecoder jwtDecoder;
 	
-	public String createAccessToken(long userId) {
+	private static final String CLAIM_STATUS = "status";
+	
+	public String createAccessToken(long userId, UserStatus status) {
 		Instant now = Instant.now();
 		
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 				.issuedAt(now)
 				.expiresAt(now.plus(jwtProperties.getAccessExpiration()))
 				.subject(String.valueOf(userId))
+				.claim(CLAIM_STATUS, status.name())
 				.build();
 		
 		JwsHeader jwsHeader = JwsHeader.with(MacAlgorithm.HS256).build();
@@ -43,6 +50,12 @@ public class AccessTokenProvider {
 	public Long getUserId(String token) {
 		Jwt jwt = parseClaims(token);
 		return Long.parseLong(jwt.getSubject());
+	}
+
+	public String getStatus(String token) {
+		Jwt jwt = parseClaims(token);
+		Object status = jwt.getClaims().get(CLAIM_STATUS);
+		return status == null ? null : status.toString();
 	}
 	
 	public Instant getIssuedAt(String token) {
@@ -65,6 +78,14 @@ public class AccessTokenProvider {
 	
 	public Authentication getAuthentication(String accessToken) {
 		Long userId = getUserId(accessToken);
-		return new UsernamePasswordAuthenticationToken(userId, accessToken, List.of());
+		String status = getStatus(accessToken);
+		if (status == null || status.isBlank()) {
+			return new UsernamePasswordAuthenticationToken(userId, accessToken, List.of());
+		}
+		
+		List<GrantedAuthority> authorities =
+				List.of(new SimpleGrantedAuthority("ROLE_" + status));
+		
+		return new UsernamePasswordAuthenticationToken(userId, accessToken, authorities);
 	}
 }

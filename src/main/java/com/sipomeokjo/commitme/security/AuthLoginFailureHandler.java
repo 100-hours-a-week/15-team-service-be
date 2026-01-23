@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sipomeokjo.commitme.api.response.ApiResponse;
+import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -39,11 +39,7 @@ public class AuthLoginFailureHandler implements AuthenticationFailureHandler {
 		response.setStatus(errorCode.getHttpStatus().value());
 		response.setContentType("application/json");
 		response.setCharacterEncoding("UTF-8");
-		ApiResponse<Void> body = new ApiResponse<>(
-				errorCode.getCode(),
-				errorCode.getMessage(),
-				null
-		);
+		APIResponse<Void> body = APIResponse.body(errorCode);
 		objectMapper.writeValue(response.getOutputStream(), body);
 	}
 }

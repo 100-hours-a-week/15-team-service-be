@@ -14,13 +14,12 @@ import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenReposi
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
+import com.sipomeokjo.commitme.security.AccessTokenCipher;
 import com.sipomeokjo.commitme.security.AccessTokenProvider;
 import com.sipomeokjo.commitme.security.JwtProperties;
 import com.sipomeokjo.commitme.security.RefreshTokenProvider;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -29,8 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -41,41 +38,42 @@ public class AuthCommandService {
 	private final AuthRepository authRepository;
 	private final UserRepository userRepository;
 	private final RefreshTokenRepository refreshTokenRepository;
+	private final AccessTokenCipher accessTokenCipher;
 	private final AccessTokenProvider accessTokenProvider;
 	private final RefreshTokenProvider refreshTokenProvider;
 	private final GithubProperties githubProperties;
 	private final JwtProperties jwtProperties;
-	private final ObjectMapper objectMapper;
 	private final RestClient githubOAuthClient;
 	private final RestClient githubApiClient;
+	private static final Pattern SCOPE_WHITESPACE = Pattern.compile("\\s+");
 
 	public AuthCommandService(
 			AuthRepository authRepository,
 			UserRepository userRepository,
 			RefreshTokenRepository refreshTokenRepository,
+			AccessTokenCipher accessTokenCipher,
 			AccessTokenProvider accessTokenProvider,
 			RefreshTokenProvider refreshTokenProvider,
 			GithubProperties githubProperties,
 			JwtProperties jwtProperties,
-			ObjectMapper objectMapper,
 			@Qualifier("githubOAuthClient") RestClient githubOAuthClient,
 			@Qualifier("githubApiClient") RestClient githubApiClient
 	) {
 		this.authRepository = authRepository;
 		this.userRepository = userRepository;
 		this.refreshTokenRepository = refreshTokenRepository;
+		this.accessTokenCipher = accessTokenCipher;
 		this.accessTokenProvider = accessTokenProvider;
 		this.refreshTokenProvider = refreshTokenProvider;
 		this.githubProperties = githubProperties;
 		this.jwtProperties = jwtProperties;
-		this.objectMapper = objectMapper;
 		this.githubOAuthClient = githubOAuthClient;
 		this.githubApiClient = githubApiClient;
 	}
 	
 	public AuthLoginResult loginWithGithub(String code) {
 		GithubAccessTokenResponse tokenResponse = exchangeToken(code);
-		if (tokenResponse == null || tokenResponse.accessToken() == null) {
+		if (tokenResponse.accessToken() == null) {
 			throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
 		}
 
@@ -98,8 +96,8 @@ public class AuthCommandService {
 					.provider(AuthProvider.GITHUB)
 					.providerUserId(String.valueOf(githubUser.id()))
 					.providerUsername(githubUser.login())
-					.accessToken(tokenResponse.accessToken())
-					.tokenScopes(toJsonScopes(tokenResponse.scope()))
+					.accessToken(accessTokenCipher.encrypt(tokenResponse.accessToken()))
+					.tokenScopes(normalizeScopes(tokenResponse.scope()))
 					.tokenExpiresAt(null)
 					.build();
 			authRepository.save(newAuth);
@@ -107,13 +105,13 @@ public class AuthCommandService {
 			user = auth.getUser();
 			auth.updateTokenInfo(
 					githubUser.login(),
-					tokenResponse.accessToken(),
-					toJsonScopes(tokenResponse.scope()),
+					accessTokenCipher.encrypt(tokenResponse.accessToken()),
+					normalizeScopes(tokenResponse.scope()),
 					null
 			);
 		}
 
-		String accessToken = accessTokenProvider.createAccessToken(user.getId());
+		String accessToken = accessTokenProvider.createAccessToken(user.getId(), user.getStatus());
 		String refreshToken = refreshTokenProvider.generateRawToken();
 		String refreshTokenHash = refreshTokenProvider.hash(refreshToken);
 
@@ -135,20 +133,15 @@ public class AuthCommandService {
 		form.add("code", code);
 		form.add("redirect_uri", githubProperties.getRedirectUri());
 
-		String body = githubOAuthClient.post()
+		GithubAccessTokenResponse response = githubOAuthClient.post()
 				.uri("/login/oauth/access_token")
 				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
+				.accept(MediaType.APPLICATION_JSON)
 				.body(form)
 				.retrieve()
-				.body(String.class);
-		GithubAccessTokenResponse response = null;
-		try {
-			if (body != null && !body.isBlank()) {
-				response = objectMapper.readValue(body, GithubAccessTokenResponse.class);
-			}
-		} catch (JsonProcessingException e) {
-			String preview = body.length() > 200 ? body.substring(0, 200) + "..." : body;
-			log.warn("[Auth][TokenExchange] 응답 JSON 파싱 실패: 사유=응답 형식 오류, bodyPreview={}", preview, e);
+				.body(GithubAccessTokenResponse.class);
+		if (response == null || response.accessToken() == null || response.accessToken().isBlank()) {
+			log.warn("[Auth][TokenExchange] 응답 없음 또는 access_token 누락: response={}", response);
 			throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
 		}
 		return response;
@@ -166,17 +159,10 @@ public class AuthCommandService {
 		return response;
 	}
 
-	private String toJsonScopes(String scope) {
+	private String normalizeScopes(String scope) {
 		if (scope == null || scope.isBlank()) {
-			return "[]";
+			return null;
 		}
-		List<String> scopes = Arrays.stream(scope.split("\\s+"))
-				.filter(value -> !value.isBlank())
-				.collect(Collectors.toList());
-		try {
-			return objectMapper.writeValueAsString(scopes);
-		} catch (JsonProcessingException e) {
-			throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
-		}
+		return SCOPE_WHITESPACE.matcher(scope.trim()).replaceAll(" ");
 	}
 }

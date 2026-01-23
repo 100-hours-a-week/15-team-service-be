@@ -5,6 +5,8 @@ import com.sipomeokjo.commitme.security.AuthLoginAuthenticationProvider;
 import com.sipomeokjo.commitme.security.AuthLoginFailureHandler;
 import com.sipomeokjo.commitme.security.AuthLoginSuccessHandler;
 import com.sipomeokjo.commitme.security.AuthLogoutSuccessHandler;
+import com.sipomeokjo.commitme.security.CookieProperties;
+import com.sipomeokjo.commitme.security.CryptoProperties;
 import com.sipomeokjo.commitme.security.CustomAccessDeniedHandler;
 import com.sipomeokjo.commitme.security.CustomAuthenticationEntryPoint;
 import com.sipomeokjo.commitme.security.JwtFilter;
@@ -26,7 +28,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, CryptoProperties.class})
 public class SecurityConfig {
 
 	private final JwtFilter jwtFilter;
@@ -50,20 +52,23 @@ public class SecurityConfig {
 				.csrf(AbstractHttpConfigurer::disable)
 				.sessionManagement(session
 					-> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.authorizeHttpRequests(auth -> auth
-						.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
-						.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
-						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-						.requestMatchers(
-								"/auth/github/loginUrl",
-								"/auth/github",
-								"/auth/token",
-								"/actuator/health",
-								"/swagger-ui/**",
-								"/v3/api-docs/**"
-						).permitAll()
-						.anyRequest().authenticated()
-				)
+					.authorizeHttpRequests(auth -> auth
+							.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
+							.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
+							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+							.requestMatchers(
+									"/auth/github/loginUrl",
+									"/auth/github",
+									"/auth/token",
+									"/actuator/health",
+									"/swagger/**",
+									"/swagger-ui/**",
+									"/swagger-ui.html",
+									"/v3/api-docs/**"
+							).permitAll()
+							.requestMatchers(HttpMethod.POST, "/user/onboarding").hasRole("PENDING")
+							.anyRequest().hasRole("ACTIVE")
+					)
 				.logout(logout -> logout
 						.logoutUrl("/auth/logout")
 						.logoutSuccessHandler(authLogoutSuccessHandler)
