@@ -9,10 +9,14 @@ import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
+import com.sipomeokjo.commitme.domain.user.dto.UserUpdateRequest;
+import com.sipomeokjo.commitme.domain.user.dto.UserUpdateResponse;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
+import com.sipomeokjo.commitme.domain.user.mapper.UserMapper;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.time.LocalDateTime;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,19 +24,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class UserCommandService {
 
 	private final UserRepository userRepository;
 	private final PositionRepository positionRepository;
 	private final PolicyAgreementRepository policyAgreementRepository;
-
-	public UserCommandService(UserRepository userRepository,
-							  PositionRepository positionRepository,
-							  PolicyAgreementRepository policyAgreementRepository) {
-		this.userRepository = userRepository;
-		this.positionRepository = positionRepository;
-		this.policyAgreementRepository = policyAgreementRepository;
-	}
+	private final UserMapper userMapper;
 
 	public OnboardingResponse onboard(Long userId, OnboardingRequest request) {
 		User user = userRepository.findById(userId)
@@ -58,7 +56,32 @@ public class UserCommandService {
 
 		savePrivacyAgreements(user, request.phone());
 
-		return new OnboardingResponse(user.getId(), user.getStatus());
+		return userMapper.toOnboardingResponse(user);
+	}
+
+	public UserUpdateResponse updateProfile(Long userId, UserUpdateRequest request) {
+		User user = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+		validateUpdateName(request.name());
+		Position position = resolveUpdatePosition(request.positionId());
+		validateUpdatePrivacyAgreement(request.privacyAgreed());
+		validateUpdatePhonePolicy(request.phone(), request.phonePolicyAgreed());
+		validateUpdatePhoneLength(request.phone());
+
+		String nextPhone = request.phone() == null ? user.getPhone() : request.phone();
+		String nextProfileImageUrl = request.profileImageUrl() == null ? user.getProfileImageUrl() : request.profileImageUrl();
+
+		user.updateProfile(
+				position,
+				request.name().trim(),
+				nextPhone,
+				nextProfileImageUrl
+		);
+
+		savePrivacyAgreements(user, request.phone());
+
+		return userMapper.toUpdateResponse(user);
 	}
 
 	private void validateName(String name) {
@@ -104,24 +127,70 @@ public class UserCommandService {
 	}
 
 	private void savePrivacyAgreements(User user, String phone) {
-		policyAgreementRepository.save(PolicyAgreement.builder()
-				.user(user)
-				.document("dummy")
-				.policyType(PolicyType.PRIVACY)
-				.policyVersion("0000-00-00")
-				.agreedAt(LocalDateTime.now())
-				.build());
+		policyAgreementRepository.save(buildPolicyAgreement(user, PolicyType.PRIVACY));
 
 		if (phone == null || phone.isBlank()) {
 			return;
 		}
 
-		policyAgreementRepository.save(PolicyAgreement.builder()
+		policyAgreementRepository.save(buildPolicyAgreement(user, PolicyType.PHONE_PRIVACY));
+	}
+
+	private void validateUpdateName(String name) {
+		if (name == null || name.isBlank()) {
+			throw new BusinessException(ErrorCode.USER_NAME_REQUIRED);
+		}
+		String trimmed = name.trim();
+		if (trimmed.length() < 2 || trimmed.length() > 10) {
+			throw new BusinessException(ErrorCode.USER_NAME_LENGTH_OUT_OF_RANGE);
+		}
+	}
+
+	private Position resolveUpdatePosition(Long positionId) {
+		if (positionId == null) {
+			throw new BusinessException(ErrorCode.USER_POSITION_REQUIRED);
+		}
+		if (positionId <= 0) {
+			throw new BusinessException(ErrorCode.USER_POSITION_INVALID);
+		}
+		return positionRepository.findById(positionId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+	}
+
+	private void validateUpdatePrivacyAgreement(Boolean privacyAgreed) {
+		if (privacyAgreed == null) {
+			throw new BusinessException(ErrorCode.USER_POLICY_AGREED_REQUIRED);
+		}
+		if (!privacyAgreed) {
+			throw new BusinessException(ErrorCode.USER_POLICY_AGREED_MUST_BE_TRUE);
+		}
+	}
+
+	private void validateUpdatePhonePolicy(String phone, Boolean phonePolicyAgreed) {
+		if (phone == null || phone.isBlank()) {
+			return;
+		}
+		if (phonePolicyAgreed == null || !phonePolicyAgreed) {
+			throw new BusinessException(ErrorCode.USER_PHONE_POLICY_AGREED_REQUIRED);
+		}
+	}
+
+	private void validateUpdatePhoneLength(String phone) {
+		if (phone == null || phone.isBlank()) {
+			return;
+		}
+		if (phone.length() < 11 || phone.length() > 20) {
+			throw new BusinessException(ErrorCode.USER_PHONE_LENGTH_OUT_OF_RANGE);
+		}
+	}
+
+	private PolicyAgreement buildPolicyAgreement(User user, PolicyType policyType) {
+		return PolicyAgreement.builder()
 				.user(user)
 				.document("dummy")
-				.policyType(PolicyType.PHONE_PRIVACY)
+				.policyType(policyType)
 				.policyVersion("0000-00-00")
 				.agreedAt(LocalDateTime.now())
-				.build());
+				.build();
 	}
 }
