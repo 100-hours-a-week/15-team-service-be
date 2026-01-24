@@ -69,8 +69,8 @@ public class UserCommandService {
 		validateUpdatePhonePolicy(request.phone(), request.phonePolicyAgreed());
 		validateUpdatePhoneLength(request.phone());
 
-		String nextPhone = request.phone() == null ? user.getPhone() : request.phone();
-		String nextProfileImageUrl = request.profileImageUrl() == null ? user.getProfileImageUrl() : request.profileImageUrl();
+		String nextPhone = request.phone();
+		String nextProfileImageUrl = request.profileImageUrl();
 
 		user.updateProfile(
 				position,
@@ -79,7 +79,7 @@ public class UserCommandService {
 				nextProfileImageUrl
 		);
 
-		savePrivacyAgreements(user, request.phone());
+		savePrivacyAgreements(user, nextPhone);
 
 		return userMapper.toUpdateResponse(user);
 	}
@@ -176,8 +176,11 @@ public class UserCommandService {
 	}
 
 	private void validateUpdatePhoneLength(String phone) {
-		if (phone == null || phone.isBlank()) {
+		if (phone == null) {
 			return;
+		}
+		if (phone.isBlank()) {
+			throw new BusinessException(ErrorCode.USER_PHONE_LENGTH_OUT_OF_RANGE);
 		}
 		if (phone.length() < 11 || phone.length() > 20) {
 			throw new BusinessException(ErrorCode.USER_PHONE_LENGTH_OUT_OF_RANGE);
