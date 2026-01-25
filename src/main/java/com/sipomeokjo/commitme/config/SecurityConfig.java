@@ -31,60 +31,70 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, CryptoProperties.class})
 public class SecurityConfig {
 
-	private final JwtFilter jwtFilter;
-	private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
-	private final CustomAccessDeniedHandler customAccessDeniedHandler;
-	private final AuthLoginAuthenticationProvider authLoginAuthenticationProvider;
-	private final AuthLoginSuccessHandler authLoginSuccessHandler;
-	private final AuthLoginFailureHandler authLoginFailureHandler;
-	private final AuthLogoutSuccessHandler authLogoutSuccessHandler;
-	
-	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		AuthLoginAuthenticationFilter authLoginFilter = new AuthLoginAuthenticationFilter();
-		authLoginFilter.setAuthenticationManager(authLoginAuthenticationManager());
-		authLoginFilter.setAuthenticationSuccessHandler(authLoginSuccessHandler);
-		authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
+    private final JwtFilter jwtFilter;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
+    private final AuthLoginAuthenticationProvider authLoginAuthenticationProvider;
+    private final AuthLoginSuccessHandler authLoginSuccessHandler;
+    private final AuthLoginFailureHandler authLoginFailureHandler;
+    private final AuthLogoutSuccessHandler authLogoutSuccessHandler;
 
-		http
-				.formLogin(AbstractHttpConfigurer::disable)
-				.httpBasic(AbstractHttpConfigurer::disable)
-				.csrf(AbstractHttpConfigurer::disable)
-				.sessionManagement(session
-					-> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-					.authorizeHttpRequests(auth -> auth
-							.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
-							.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
-							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-							.requestMatchers(
-									"/auth/github/loginUrl",
-									"/auth/github",
-									"/auth/token",
-									"/actuator/health",
-									"/swagger/**",
-									"/swagger-ui/**",
-									"/swagger-ui.html",
-									"/v3/api-docs/**"
-							).permitAll()
-							.requestMatchers(HttpMethod.POST, "/user/onboarding").hasRole("PENDING")
-							.anyRequest().hasRole("ACTIVE")
-					)
-				.logout(logout -> logout
-						.logoutUrl("/auth/logout")
-						.logoutSuccessHandler(authLogoutSuccessHandler)
-						.permitAll()
-				)
-				.exceptionHandling(exception ->exception
-						.authenticationEntryPoint(customAuthenticationEntryPoint)
-						.accessDeniedHandler(customAccessDeniedHandler))
-				.addFilterBefore(authLoginFilter, UsernamePasswordAuthenticationFilter.class)
-				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        AuthLoginAuthenticationFilter authLoginFilter = new AuthLoginAuthenticationFilter();
+        authLoginFilter.setAuthenticationManager(authLoginAuthenticationManager());
+        authLoginFilter.setAuthenticationSuccessHandler(authLoginSuccessHandler);
+        authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
 
-		return http.build();
-	}
+        http
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // ✅ preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-	@Bean
-	public AuthenticationManager authLoginAuthenticationManager() {
-		return new ProviderManager(authLoginAuthenticationProvider);
-	}
+                        // ✅ auth 관련(로그인 전 접근해야 하는 것들)
+                        .requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
+                        .requestMatchers(
+                                "/auth/github/loginUrl",
+                                "/auth/github",                 // 팀원 설정 redirect-uri가 이쪽이면 여기 열려 있어야 함
+                                "/auth/github/callback",         // ✅ 너가 만든 콜백 엔드포인트
+                                "/auth/github/callback/**",      // 혹시 path가 더 붙는 경우 방어
+                                "/auth/token",
+                                "/actuator/health",
+                                "/swagger/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/v3/api-docs/**"
+                        ).permitAll()
+
+                        // ✅ 온보딩은 PENDING만 가능
+                        .requestMatchers(HttpMethod.POST, "/user/onboarding").hasRole("PENDING")
+
+                        // ✅ 그 외는 ACTIVE만
+                        .anyRequest().hasRole("ACTIVE")
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/auth/logout")
+                        .logoutSuccessHandler(authLogoutSuccessHandler)
+                        .permitAll()
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(customAuthenticationEntryPoint)
+                        .accessDeniedHandler(customAccessDeniedHandler)
+                )
+                // 필터 순서 중요: 로그인 필터 → (그 외 요청은 jwtFilter)
+                .addFilterBefore(authLoginFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public AuthenticationManager authLoginAuthenticationManager() {
+        return new ProviderManager(authLoginAuthenticationProvider);
+    }
 }

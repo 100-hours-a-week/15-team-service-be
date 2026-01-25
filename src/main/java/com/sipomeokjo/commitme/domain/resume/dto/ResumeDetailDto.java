@@ -1,8 +1,9 @@
 package com.sipomeokjo.commitme.domain.resume.dto;
 
-import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+
+import java.time.Instant;
 
 @Getter
 @AllArgsConstructor
@@ -19,6 +20,6 @@ public class ResumeDetailDto {
     private final Integer currentVersionNo;
     private final String content;
 
-    private final LocalDateTime createdAt;
-    private final LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private final Instant updatedAt;
 }
