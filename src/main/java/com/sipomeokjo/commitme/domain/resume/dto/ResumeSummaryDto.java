@@ -7,7 +7,7 @@ import java.time.Instant;
 
 @Getter
 @AllArgsConstructor
-public class ResumeDetailDto {
+public class ResumeSummaryDto {
     private final Long resumeId;
     private final String name;
 
@@ -18,8 +18,5 @@ public class ResumeDetailDto {
     private final String companyName;
 
     private final Integer currentVersionNo;
-    private final String content;
-
-    private final Instant createdAt;
     private final Instant updatedAt;
 }
