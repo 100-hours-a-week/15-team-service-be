@@ -46,6 +46,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/resumes/**").hasAnyRole("PENDING", "ACTIVE") //테스트용 임시
                         .requestMatchers(
                                 "/auth/github/loginUrl",
                                 "/auth/github",
@@ -55,7 +56,11 @@ public class SecurityConfig {
                                 "/swagger/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                "/api/v1/resume/callback",
+                                "/companies/**",
+                                "/positions/**"
+
                         ).permitAll()
 
                         // 🔥 개발 중 임시 허용 (로그인만 되어 있으면 OK)

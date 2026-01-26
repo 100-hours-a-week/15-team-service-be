@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
@@ -73,4 +74,43 @@ public class ResumeVersion extends BaseEntity {
     public void commitNow() {
         this.committedAt = LocalDateTime.now();
     }
+
+    public void markQueued() {
+        this.status = ResumeVersionStatus.QUEUED;
+        this.startedAt = null;
+        this.finishedAt = null;
+        this.aiTaskId = null;
+        this.errorLog = null;
+    }
+
+    public void startProcessing(String aiTaskId) {
+        this.status = ResumeVersionStatus.PROCESSING;
+        this.aiTaskId = aiTaskId;
+        this.startedAt = LocalDateTime.now();
+        this.finishedAt = null;
+        this.errorLog = null;
+    }
+
+    public void succeed(String contentJson) {
+        this.status = ResumeVersionStatus.SUCCEEDED;
+        this.finishedAt = LocalDateTime.now();
+        this.errorLog = null;
+
+        // JSON 컬럼 안전 처리
+        if (contentJson == null || contentJson.isBlank()) {
+            this.content = "{}";
+        } else {
+            this.content = contentJson;
+        }
+    }
+
+    public void failNow(String errorCode, String message) {
+        this.status = ResumeVersionStatus.FAILED;
+        this.finishedAt = LocalDateTime.now();
+        // error_log는 TEXT라서 그냥 문자열로 남겨도 OK
+        this.errorLog = "[" + errorCode + "] " + (message == null ? "" : message);
+    }
+
+
+
 }

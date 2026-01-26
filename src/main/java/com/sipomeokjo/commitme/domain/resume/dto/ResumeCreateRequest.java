@@ -10,8 +10,11 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class ResumeCreateRequest {
-    private List<String> repos;
+    private List<String> repoUrls;
     private Long positionId;
     private Long companyId;
     private String name;
+
+    public List<String> getRepoUrls() { return repoUrls; }
+
 }
