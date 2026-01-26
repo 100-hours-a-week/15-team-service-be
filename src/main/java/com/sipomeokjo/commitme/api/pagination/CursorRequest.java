@@ -1,10 +1,7 @@
 package com.sipomeokjo.commitme.api.pagination;
 
-import java.time.Instant;
-
 public record CursorRequest(
-		Instant cursorCreatedAt,
-		Long cursor,
+		String after,
 		Integer size
 ) {
 	public int limit(int defaultSize) {
