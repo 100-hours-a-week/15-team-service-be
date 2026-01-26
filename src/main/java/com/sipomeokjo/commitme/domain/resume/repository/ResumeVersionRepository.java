@@ -10,4 +10,6 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
     Optional<ResumeVersion> findByResume_IdAndVersionNo(Long resumeId, Integer versionNo);
 
     void deleteByResume_Id(Long resumeId);
+
+    Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
 }
