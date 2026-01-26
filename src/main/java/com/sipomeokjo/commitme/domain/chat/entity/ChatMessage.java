@@ -17,6 +17,7 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Builder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -33,7 +34,7 @@ public class ChatMessage {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "chatroom_id", nullable = false)
-    private ChatRoom chatroom;
+    private Chatroom chatroom;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "sender_id", nullable = false)
@@ -62,4 +63,16 @@ public class ChatMessage {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Builder
+    public ChatMessage(Long id, Chatroom chatroom, User sender, User mentionUser, ChatMessageStatus status, ChatMessageRole role, ChatMessageType messageType, String message, Instant createdAt) {
+        this.id = id;
+        this.chatroom = chatroom;
+        this.sender = sender;
+        this.mentionUser = mentionUser;
+        this.status = status;
+        this.role = role;
+        this.messageType = messageType;
+        this.message = message;
+        this.createdAt = createdAt;
+    }
 }
