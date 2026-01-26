@@ -3,7 +3,7 @@ package com.sipomeokjo.commitme.domain.auth.service;
 import com.sipomeokjo.commitme.domain.auth.config.GithubProperties;
 import java.security.SecureRandom;
 import java.util.Base64;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,7 +11,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @Slf4j
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuthQueryService {
 	

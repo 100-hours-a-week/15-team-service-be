@@ -21,8 +21,8 @@ public class Company extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-	@Column(name = "name", nullable = false, length = 200)
-	private String name;
+    @Column(name = "name", nullable = false, length = 200)
+    private String name;
 
     @Column(name = "preferred", columnDefinition = "TEXT")
     private String preferred;

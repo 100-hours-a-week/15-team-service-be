@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "position_chat_chatroom")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ChatRoom extends BaseEntity {
+public class Chatroom extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

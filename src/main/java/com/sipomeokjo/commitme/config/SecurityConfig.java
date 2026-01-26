@@ -1,6 +1,16 @@
 package com.sipomeokjo.commitme.config;
 
-import com.sipomeokjo.commitme.security.*;
+import com.sipomeokjo.commitme.security.AuthLoginAuthenticationFilter;
+import com.sipomeokjo.commitme.security.AuthLoginAuthenticationProvider;
+import com.sipomeokjo.commitme.security.AuthLoginFailureHandler;
+import com.sipomeokjo.commitme.security.AuthLoginSuccessHandler;
+import com.sipomeokjo.commitme.security.AuthLogoutSuccessHandler;
+import com.sipomeokjo.commitme.security.CookieProperties;
+import com.sipomeokjo.commitme.security.CryptoProperties;
+import com.sipomeokjo.commitme.security.CustomAccessDeniedHandler;
+import com.sipomeokjo.commitme.security.CustomAuthenticationEntryPoint;
+import com.sipomeokjo.commitme.security.JwtFilter;
+import com.sipomeokjo.commitme.security.JwtProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -14,83 +24,94 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.config.Customizer;
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, CryptoProperties.class})
+@EnableConfigurationProperties({
+		JwtProperties.class,
+		CookieProperties.class,
+		CryptoProperties.class,
+		CorsProperties.class,
+		AuthRedirectProperties.class
+})
 public class SecurityConfig {
 
-    private final JwtFilter jwtFilter;
-    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
-    private final CustomAccessDeniedHandler customAccessDeniedHandler;
-    private final AuthLoginAuthenticationProvider authLoginAuthenticationProvider;
-    private final AuthLoginSuccessHandler authLoginSuccessHandler;
-    private final AuthLoginFailureHandler authLoginFailureHandler;
-    private final AuthLogoutSuccessHandler authLogoutSuccessHandler;
+	private final JwtFilter jwtFilter;
+	private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+	private final CustomAccessDeniedHandler customAccessDeniedHandler;
+	private final AuthLoginAuthenticationProvider authLoginAuthenticationProvider;
+	private final AuthLoginSuccessHandler authLoginSuccessHandler;
+	private final AuthLoginFailureHandler authLoginFailureHandler;
+	private final AuthLogoutSuccessHandler authLogoutSuccessHandler;
+	
+	@Bean
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		AuthLoginAuthenticationFilter authLoginFilter = new AuthLoginAuthenticationFilter();
+		authLoginFilter.setAuthenticationManager(authLoginAuthenticationManager());
+		authLoginFilter.setAuthenticationSuccessHandler(authLoginSuccessHandler);
+		authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
 
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        AuthLoginAuthenticationFilter authLoginFilter = new AuthLoginAuthenticationFilter();
-        authLoginFilter.setAuthenticationManager(authLoginAuthenticationManager());
-        authLoginFilter.setAuthenticationSuccessHandler(authLoginSuccessHandler);
-        authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
+		http
+				.formLogin(AbstractHttpConfigurer::disable)
+				.httpBasic(AbstractHttpConfigurer::disable)
+				.csrf(AbstractHttpConfigurer::disable)
+				.cors(Customizer.withDefaults())
+				.sessionManagement(session
+					-> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.authorizeHttpRequests(auth -> auth
+							.requestMatchers(HttpMethod.GET, "/positions").permitAll()
+							.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
+							.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
+							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+							.requestMatchers(
+									"/auth/github/loginUrl",
+									"/auth/github",
+									"/auth/token",
+									"/actuator/health",
+									"/swagger/**",
+									"/swagger-ui/**",
+									"/swagger-ui.html",
+									"/v3/api-docs/**"
+							).permitAll()
+							.requestMatchers(HttpMethod.POST, "/user/onboarding").hasRole("PENDING")
+							.anyRequest().hasRole("ACTIVE")
+					)
+				.logout(logout -> logout
+						.logoutUrl("/auth/logout")
+						.logoutSuccessHandler(authLogoutSuccessHandler)
+						.permitAll()
+				)
+				.exceptionHandling(exception ->exception
+						.authenticationEntryPoint(customAuthenticationEntryPoint)
+						.accessDeniedHandler(customAccessDeniedHandler))
+				.addFilterBefore(authLoginFilter, UsernamePasswordAuthenticationFilter.class)
+				.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
-        http
-                .formLogin(AbstractHttpConfigurer::disable)
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .csrf(AbstractHttpConfigurer::disable)
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // 공개 API
-                        .requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/resumes/**").hasAnyRole("PENDING", "ACTIVE") //테스트용 임시
-                        .requestMatchers(
-                                "/auth/github/loginUrl",
-                                "/auth/github",
-                                "/auth/github/callback",
-                                "/auth/token",
-                                "/actuator/health",
-                                "/swagger/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/api/v1/resume/callback",
-                                "/companies/**",
-                                "/positions/**"
+		return http.build();
+	}
 
-                        ).permitAll()
+	@Bean
+	public AuthenticationManager authLoginAuthenticationManager() {
+		return new ProviderManager(authLoginAuthenticationProvider);
+	}
 
-                        // 🔥 개발 중 임시 허용 (로그인만 되어 있으면 OK)
-                        .requestMatchers("/repositories/**").authenticated()
+	@Bean
+	public CorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {
+		CorsConfiguration configuration = new CorsConfiguration();
+		configuration.setAllowedOrigins(corsProperties.allowedOrigins());
+		configuration.setAllowedMethods(corsProperties.allowedMethods());
+		configuration.setAllowedHeaders(corsProperties.allowedHeaders());
+		configuration.setExposedHeaders(corsProperties.exposedHeaders());
+		configuration.setAllowCredentials(corsProperties.allowCredentials());
+		configuration.setMaxAge(corsProperties.maxAge());
 
-                        // 온보딩
-                        .requestMatchers(HttpMethod.POST, "/user/onboarding").hasRole("PENDING")
-
-                        // 그 외는 ACTIVE만
-                        .anyRequest().hasRole("ACTIVE")
-                )
-
-                .logout(logout -> logout
-                        .logoutUrl("/auth/logout")
-                        .logoutSuccessHandler(authLogoutSuccessHandler)
-                        .permitAll()
-                )
-                .exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(customAuthenticationEntryPoint)
-                        .accessDeniedHandler(customAccessDeniedHandler)
-                )
-                // 필터 순서 중요: 로그인 필터 → (그 외 요청은 jwtFilter)
-                .addFilterBefore(authLoginFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
-    }
-
-    @Bean
-    public AuthenticationManager authLoginAuthenticationManager() {
-        return new ProviderManager(authLoginAuthenticationProvider);
-    }
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", configuration);
+		return source;
+	}
 }

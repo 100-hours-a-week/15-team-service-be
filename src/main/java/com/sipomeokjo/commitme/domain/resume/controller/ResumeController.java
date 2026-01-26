@@ -1,6 +1,6 @@
 package com.sipomeokjo.commitme.domain.resume.controller;
 
-import com.sipomeokjo.commitme.api.pagination.PageResponse;
+import com.sipomeokjo.commitme.api.pagination.PagingResponse;
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.resume.dto.*;
@@ -19,13 +19,13 @@ public class ResumeController {
     private final ResumeService resumeService;
 
     @GetMapping
-    public ResponseEntity<APIResponse<PageResponse<ResumeSummaryDto>>> list(
+    public ResponseEntity<APIResponse<PagingResponse<ResumeSummaryDto>>> list(
             @AuthenticationPrincipal CustomUserDetails principal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
         Long userId = principal.userId();
-        PageResponse<ResumeSummaryDto> data = resumeService.list(userId, page, size);
+        PagingResponse<ResumeSummaryDto> data = resumeService.list(userId, page, size);
         return APIResponse.onSuccess(SuccessCode.OK, data);
     }
 

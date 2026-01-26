@@ -2,7 +2,7 @@ package com.sipomeokjo.commitme.api.pagination;
 
 import java.util.List;
 
-public record PageResponse<T> (
+public record PagingResponse<T> (
 		List<T> items,
 		PageMeta pageMeta
 ) {

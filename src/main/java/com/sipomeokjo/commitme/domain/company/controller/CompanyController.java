@@ -49,4 +49,3 @@ public class CompanyController {
         return companyService.verify(companyId, verified);
     }
 }
-

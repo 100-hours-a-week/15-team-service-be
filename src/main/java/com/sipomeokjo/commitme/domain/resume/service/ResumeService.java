@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
-import com.sipomeokjo.commitme.api.pagination.PageResponse;
+import com.sipomeokjo.commitme.api.pagination.PagingResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
@@ -52,7 +52,7 @@ public class ResumeService {
 
     // 이력서 목록 조회
     @Transactional(readOnly = true)
-    public PageResponse<ResumeSummaryDto> list(Long userId, int page, int size) {
+    public PagingResponse<ResumeSummaryDto> list(Long userId, int page, int size) {
 
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Resume> result = resumeRepository.findByUser_Id(userId, pageable);
@@ -87,7 +87,7 @@ public class ResumeService {
             ));
         }
 
-        PageResponse.PageMeta meta = new PageResponse.PageMeta(
+        PagingResponse.PageMeta meta = new PagingResponse.PageMeta(
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements(),
@@ -95,59 +95,56 @@ public class ResumeService {
                 result.hasNext()
         );
 
-        return new PageResponse<>(items, meta);
+        return new PagingResponse<>(items, meta);
     }
 
-    // 이력서 생성 + AI 생성 요청
+    // 이력서 생성, AI 생성 요청
     public Long create(Long userId, ResumeCreateRequest req) {
 
-        // 0) AI 명세서 기준: repoUrls 필수
+        // AI 명세서 기준 - repoUrls 필수
         if (req.getRepoUrls() == null || req.getRepoUrls().isEmpty()) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST); // 프로젝트 에러코드에 맞게 변경 가능
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        // 1) name 정책
+        // name 정책
         String name = (req.getName() == null) ? "" : req.getName().trim();
         if (name.isEmpty()) name = "새 이력서";
         if (name.length() > 18) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
-        // 2) position 필수 + 존재 검증
+        // position 필수 + 존재 검증
         if (req.getPositionId() == null) throw new BusinessException(ErrorCode.POSITION_SELECTION_REQUIRED);
         Position position = positionRepository.findById(req.getPositionId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
 
-        // 3) company 선택 + 존재 검증
+        // company 선택
         Company company = null;
         if (req.getCompanyId() != null) {
             company = companyRepository.findById(req.getCompanyId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         }
 
-        // 4) user reference
+        // user reference
         User userRef = em.getReference(User.class, userId);
 
-        // 5) resume 저장
+        // resume 저장
         Resume resume = Resume.create(userRef, position, company, name);
         Resume saved = resumeRepository.save(resume);
 
-        // 6) v1 생성 (JSON 컬럼 안전: "{}")
-        // createV1이 SUCCEEDED로 박혀있더라도 아래에서 markQueued로 덮어쓸 거라 일단 "{}"로 생성
+        // v1 생성
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
         v1.markQueued();
         resumeVersionRepository.save(v1);
 
-        // ===== AI generate 요청 =====
-        // (1) github token 가져오기 (Auth 저장 시 encrypt 했으므로 decrypt 필요)
+        // github token
         var auth = authRepository.findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
         String githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
 
-        // (2) position 문자열 (AI 명세가 enum 문자열이면 여기서 매핑 필요)
-        // 지금은 일단 그대로 사용. 필요하면 아래 메서드에서 매핑해.
+        // position 문자열
         String positionForAi = toAiPosition(position.getName());
 
-        // (3) 요청 데이터 만들기 (AI 명세서 기준)
+        // 요청 데이터
         AiResumeGenerateRequest aiReq = new AiResumeGenerateRequest(
                 req.getRepoUrls(),
                 positionForAi,
@@ -156,7 +153,7 @@ public class ResumeService {
         );
 
         try {
-            // ✅ baseUrl/path 혼동 방지: 여기서 합쳐서 호출
+            // baseUrl/path 합쳐서 호출
             String url = aiProperties.getBaseUrl() + aiProperties.getResumeGeneratePath();
 
             AiResumeGenerateResponse aiRes = aiClient.post()
@@ -179,10 +176,6 @@ public class ResumeService {
         return saved.getId();
     }
 
-    /**
-     * AI 명세가 "backend", "frontend" 같은 고정 문자열이면 여기서 매핑해.
-     * 지금은 일단 그대로 반환.
-     */
     private String toAiPosition(String positionName) {
         return positionName;
     }
@@ -265,7 +258,7 @@ public class ResumeService {
         resume.rename(name);
     }
 
-    // 이력서 저장 (versionNo를 current로 변경 + committedAt 기록)
+    // 이력서 저장 (versionNo를 current로 변경, committedAt 기록)
     public void saveVersion(Long userId, Long resumeId, int versionNo) {
 
         Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
