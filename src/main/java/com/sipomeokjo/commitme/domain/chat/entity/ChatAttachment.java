@@ -16,6 +16,7 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Builder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -47,4 +48,14 @@ public class ChatAttachment {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @Builder
+    public ChatAttachment(Long id, ChatMessage message, ChatAttachmentType fileType, String fileUrl, Integer orderNo, Instant createdAt) {
+        this.id = id;
+        this.message = message;
+        this.fileType = fileType;
+        this.fileUrl = fileUrl;
+        this.orderNo = orderNo;
+        this.createdAt = createdAt;
+    }
 }
