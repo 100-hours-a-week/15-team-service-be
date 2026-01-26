@@ -1,11 +1,7 @@
 package com.sipomeokjo.commitme.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sipomeokjo.commitme.api.response.APIResponse;
-import com.sipomeokjo.commitme.api.response.ErrorCode;
-import com.sipomeokjo.commitme.api.response.SuccessCode;
+import com.sipomeokjo.commitme.config.AuthRedirectProperties;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
-import com.sipomeokjo.commitme.domain.auth.dto.LoginResultResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -17,6 +13,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @Slf4j
 @Component
@@ -25,7 +22,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
 	private final JwtProperties jwtProperties;
 	private final CookieProperties cookieProperties;
-	private final ObjectMapper objectMapper;
+	private final AuthRedirectProperties authRedirectProperties;
 
 	@Override
 	public void onAuthenticationSuccess(
@@ -37,11 +34,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 		if (!(details instanceof AuthLoginResult(String accessToken, String refreshToken, boolean onboardingCompleted))) {
 			log.warn("[Auth][LoginSuccess] 인증 상세값 타입 불일치: 사유=AuthLoginResult 아님, detailsType={}",
 					details == null ? "null" : details.getClass().getName());
-			response.setStatus(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus().value());
-			response.setContentType("application/json");
-			response.setCharacterEncoding("UTF-8");
-			APIResponse<Void> body = APIResponse.body(ErrorCode.INTERNAL_SERVER_ERROR);
-			objectMapper.writeValue(response.getOutputStream(), body);
+			response.sendRedirect(buildRedirectUrl("fail", null));
 			return;
 		}
 
@@ -72,11 +65,16 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 				.build();
 		response.addHeader(HttpHeaders.SET_COOKIE, expireState.toString());
 
-		LoginResultResponse data = new LoginResultResponse(onboardingCompleted);
-		APIResponse<LoginResultResponse> body = APIResponse.body(SuccessCode.LOGIN_SUCCESS, data);
-		response.setStatus(SuccessCode.LOGIN_SUCCESS.getHttpStatus().value());
-		response.setContentType("application/json");
-		response.setCharacterEncoding("UTF-8");
-		objectMapper.writeValue(response.getOutputStream(), body);
+		response.sendRedirect(buildRedirectUrl("success", onboardingCompleted));
+	}
+
+	private String buildRedirectUrl(String status, Boolean onboardingCompleted) {
+		UriComponentsBuilder builder = UriComponentsBuilder
+				.fromUriString(authRedirectProperties.redirectUri())
+				.queryParam("status", status);
+		if (onboardingCompleted != null) {
+			builder.queryParam("onboardingCompleted", onboardingCompleted);
+		}
+		return builder.toUriString();
 	}
 }
