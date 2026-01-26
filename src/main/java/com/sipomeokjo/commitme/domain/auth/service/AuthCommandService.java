@@ -45,6 +45,7 @@ public class AuthCommandService {
 	private final JwtProperties jwtProperties;
 	private final RestClient githubOAuthClient;
 	private final RestClient githubApiClient;
+	
 	private static final Pattern SCOPE_WHITESPACE = Pattern.compile("\\s+");
 
 	public AuthCommandService(
