@@ -14,8 +14,9 @@ on:
       - ".github/workflows/**"
       - "**/*.yml"
       - "**/*.yaml"
+    branches: [ "main", "ci/be-ci2" ]
   push:
-    branches: [ "main" ]
+    branches: [ "dev", "ci/be-ci2" ]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -68,24 +69,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # # Step 4) Cache (Gradle)
-      # - name: Cache Gradle
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: |
-      #       ~/.gradle/caches
-      #       ~/.gradle/wrapper
-      #     key: "${{ runner.os }}-java${{ matrix.java-version }}-gradle-${{ hashFiles('**/*.gradle*', '**/settings.gradle*', '**/gradle-wrapper.properties', '**/gradle.properties') }}"
-
-      # # [추가] OWASP Dependency Check
-      # - name: OWASP Dependency Check
-      #   uses: dependency-check/Dependency-Check_Action@main
-      #   with:
-      #     project: 'BE-Project'
-      #     path: '.'
-      #     format: 'HTML'
-      #     out: 'reports'
-      # 의존성 해결후에 확인하는 것이 좋음
+      # [추가] OWASP Dependency Check
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          path: '.'
+          failOnCVSS: '7'
       # 너무 무거우면 trivy에 아래 내용으로 추가, 변경
       #    scanners: "vuln"      # secret 대신 vuln(취약점) 사용
       #    severity: "CRITICAL,HIGH" # 심각한 취약점만 검출 (필요 시 MEDIUM 추가)
@@ -93,17 +82,11 @@ jobs:
       # Step 5) Build (Gradle)
       - name: Build
         run: ./gradlew --no-daemon clean build
-        # run: ./gradlew --no-daemon clean build
 
-      # # Step 6) Tests + JaCoCo Report 생성
-      # # JUnit5, Mockito, REST Assured 
-      # - name: Tests & JaCoCo Coverage
-      #   run: ./gradlew --no-daemon test jacocoTestReport
-      
-      # Step 6) Tests Report 생성
+      # Step 6) Tests + JaCoCo Report 생성
       # JUnit5, Mockito, REST Assured 
-      - name: Tests
-        run: ./gradlew --no-daemon build -x test
+      - name: Tests & JaCoCo Coverage
+        run: ./gradlew --no-daemon test jacocoTestReport
       
       # rds 네트워크 연결 실패
       # # Step 6) Tests (JUnit5 + Mockito + REST Assured)
@@ -134,7 +117,7 @@ jobs:
       # Step 8) Upload test artifacts
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
           name: be-artifacts-java${{ matrix.java-version }}
           path: |
