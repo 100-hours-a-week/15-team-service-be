@@ -3,13 +3,8 @@ name: Backend CD Pipeline (Big Bang)
 # 1. 트리거: 'Backend CI Pipeline' 워크플로우가 'main' 브랜치에서 '완료'되었을 때 실행
 on:
   push: 
-      branches: [ "ci/be-ci" ]
+      branches: [ "main", "ci/be-ci5" ]
   workflow_dispatch:
-  workflow_run:
-    workflows: ["BE CI"] # ci.yml의 'name' 값과 정확히 일치
-    types:
-      - completed
-    branches: ["main", "ci/be-ci"]
 
 concurrency:
   group: cd-myapi-main
@@ -20,28 +15,32 @@ permissions:
 
 jobs:
   deploy:
-    # CI가 '성공'했을 때만 CD 실행
-    # if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: [ "21" ] 
+
     steps:
-      # 1) CI 워크플로우에서 생성된 Artifact(JAR) 다운로드
-      # (서로 다른 워크플로우 간 파일 공유를 위해 서드파티 액션 사용 권장)
-      - name: Download Artifact from CI
-        uses: dawidd6/action-download-artifact@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          workflow: be-ci.yml # ci.yml 파일명 또는 name
-          run_id: ${{ github.event.workflow_run.id }}
-          name: be-artifacts-java21 # CI에서 업로드한 아티팩트 이름
-          path: deploy/
+          distribution: "temurin"
+          java-version: ${{ matrix.java-version }}
+          cache: "gradle"
 
-      # # 디버깅용: 파일이 어디 있는지 전체 출력 (deploy/build/libs/)
-      # - name: Check File Path
-      #   run: ls -R deploy/
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
-      # 2) EC2로 JAR 파일 전송 (SCP), 보안그룹 0.0.0.0/0 추가
+      - name: Build
+        run: ./gradlew --no-daemon clean build
+
+      # 2) EC2로 JAR 파일 전송 (SCP)
       - name: Transfer JAR to Server
         uses: appleboy/scp-action@v0.1.7 # 특정 버전 사용
         with:
@@ -49,7 +48,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
-          source: "deploy/build/libs/*.jar"
+          source: "build/libs/*.jar"
           target: "/home/${{ secrets.DEPLOY_USER }}/temp_deploy/build/libs/"
           strip_components: 1
 
