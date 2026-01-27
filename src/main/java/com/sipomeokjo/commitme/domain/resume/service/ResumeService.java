@@ -133,7 +133,6 @@ public class ResumeService {
         // 6) v1 생성 (JSON 컬럼 안전: "{}")
         // createV1이 SUCCEEDED로 박혀있더라도 아래에서 markQueued로 덮어쓸 거라 일단 "{}"로 생성
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
-        v1.markQueued();
         resumeVersionRepository.save(v1);
 
         // ===== AI generate 요청 =====
@@ -194,10 +193,11 @@ public class ResumeService {
         Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
-        Integer currentVersionNo = resume.getCurrentVersionNo();
-        if (currentVersionNo == null) throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND);
-
-        ResumeVersion version = resumeVersionRepository.findByResume_IdAndVersionNo(resume.getId(), currentVersionNo)
+        ResumeVersion version = resumeVersionRepository
+                .findTopByResume_IdAndStatusOrderByVersionNoDesc(
+                        resume.getId(),
+                        ResumeVersionStatus.SUCCEEDED
+                )
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
         Long positionId = null;
