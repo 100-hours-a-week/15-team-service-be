@@ -76,3 +76,5 @@ Desktop.ini
 
 ### Linux ###
 *~
+\n# Local configuration file\nsrc/main/resources/application-dev.yml
+\n# Local configuration file\nsrc/main/resources/application-prod.yml
