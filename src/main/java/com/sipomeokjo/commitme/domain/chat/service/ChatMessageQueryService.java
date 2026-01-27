@@ -32,7 +32,7 @@ public class ChatMessageQueryService {
     private final CursorParser cursorParser;
 
     public CursorResponse<ChatMessageResponse> getChatMessages(Long chatroomId, CursorRequest request) {
-        CursorParser.Cursor cursor = cursorParser.parse(request == null ? null : request.after());
+        CursorParser.Cursor cursor = cursorParser.parse(request == null ? null : request.next());
         int size = (request == null ? 15 : request.limit(15));
 
         List<ChatMessage> messages = chatMessageRepository.findByChatroomWithCursor(
@@ -42,12 +42,13 @@ public class ChatMessageQueryService {
                 PageRequest.of(0, size + 1)
         );
 
-        boolean hasNext = messages.size() > size;
-        List<ChatMessage> page = hasNext ? messages.subList(0, size) : messages;
+        boolean hasMorePast = messages.size() > size;
+        List<ChatMessage> pageDesc = hasMorePast ? messages.subList(0, size) : messages;
+        List<ChatMessage> pageAsc = pageDesc.reversed();
 
-        Map<Long, List<ChatAttachment>> attachmentsByMessageId = fetchAttachments(page);
+        Map<Long, List<ChatAttachment>> attachmentsByMessageId = fetchAttachments(pageAsc);
         Map<Long, Integer> userNumbersByUserId = fetchUserNumbers(chatroomId);
-        List<ChatMessageResponse> responses = page.stream()
+        List<ChatMessageResponse> responses = pageAsc.stream()
                 .map(message -> chatMessageMapper.toChatMessageResponse(
                         message,
                         attachmentsByMessageId,
@@ -55,14 +56,11 @@ public class ChatMessageQueryService {
                 ))
                 .toList();
 
-        String before = (request != null && request.after() != null && !page.isEmpty())
-                ? encodeCursor(page.getFirst())
-                : null;
-        String next = hasNext && !page.isEmpty()
-                ? encodeCursor(page.getLast())
+        String next = hasMorePast && !pageAsc.isEmpty()
+                ? encodeCursor(pageAsc.getFirst())
                 : null;
 
-        return new CursorResponse<>(responses, before, next);
+        return new CursorResponse<>(responses, null, next);
     }
 
     private Map<Long, List<ChatAttachment>> fetchAttachments(List<ChatMessage> messages) {

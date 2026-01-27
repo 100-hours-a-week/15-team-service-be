@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.api.pagination;
 
 public record CursorRequest(
-		String after,
+		String next,
 		Integer size
 ) {
 	public int limit(int defaultSize) {
