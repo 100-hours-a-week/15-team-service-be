@@ -1,6 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.repository;
 
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
+import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -12,4 +13,6 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
     void deleteByResume_Id(Long resumeId);
 
     Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
+
+    Optional<ResumeVersion> findTopByResume_IdAndStatusOrderByVersionNoDesc(Long resumeId, ResumeVersionStatus status);
 }

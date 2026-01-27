@@ -132,7 +132,6 @@ public class ResumeService {
 
         // v1 생성
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
-        v1.markQueued();
         resumeVersionRepository.save(v1);
 
         // github token
@@ -187,10 +186,11 @@ public class ResumeService {
         Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
-        Integer currentVersionNo = resume.getCurrentVersionNo();
-        if (currentVersionNo == null) throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND);
-
-        ResumeVersion version = resumeVersionRepository.findByResume_IdAndVersionNo(resume.getId(), currentVersionNo)
+        ResumeVersion version = resumeVersionRepository
+                .findTopByResume_IdAndStatusOrderByVersionNoDesc(
+                        resume.getId(),
+                        ResumeVersionStatus.SUCCEEDED
+                )
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
         Long positionId = null;

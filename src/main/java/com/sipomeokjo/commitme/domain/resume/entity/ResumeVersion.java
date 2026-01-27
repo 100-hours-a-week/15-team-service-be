@@ -30,10 +30,8 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "status", nullable = false)
     private ResumeVersionStatus status;
 
-    /**
-     * ⚠️ JSON 컬럼에는 반드시 "유효한 JSON 문자열"만 들어가야 함
-     * 예: "{}", "[]", {"repos":[]}
-     */
+    //JSON 컬럼에는 반드시 유효한 JSON 문자열만 "{}", "[]", {"repos":[]}
+
     @Column(name = "content", columnDefinition = "json", nullable = false)
     private String content;
 
@@ -52,18 +50,15 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "committed_at")
     private LocalDateTime committedAt;
 
-    /**
-     * 최초 생성되는 v1
-     */
+    //최초 생성되는 v1
     public static ResumeVersion createV1(Resume resume, String content) {
         ResumeVersion v = new ResumeVersion();
         v.resume = resume;
         v.versionNo = 1;
-        v.status = ResumeVersionStatus.SUCCEEDED; // 정책상 v1 고정이면 OK
+        v.status = ResumeVersionStatus.QUEUED;
 
-        // ✅ JSON 컬럼 안전 처리
         if (content == null || content.isBlank()) {
-            v.content = "{}";   // ⭐ 핵심 포인트
+            v.content = "{}";
         } else {
             v.content = content;
         }
@@ -96,7 +91,6 @@ public class ResumeVersion extends BaseEntity {
         this.finishedAt = LocalDateTime.now();
         this.errorLog = null;
 
-        // JSON 컬럼 안전 처리
         if (contentJson == null || contentJson.isBlank()) {
             this.content = "{}";
         } else {
@@ -107,7 +101,6 @@ public class ResumeVersion extends BaseEntity {
     public void failNow(String errorCode, String message) {
         this.status = ResumeVersionStatus.FAILED;
         this.finishedAt = LocalDateTime.now();
-        // error_log는 TEXT라서 그냥 문자열로 남겨도 OK
         this.errorLog = "[" + errorCode + "] " + (message == null ? "" : message);
     }
 
