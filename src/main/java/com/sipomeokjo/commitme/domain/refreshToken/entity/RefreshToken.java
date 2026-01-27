@@ -12,12 +12,13 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+
+import lombok.*;
 
 @Getter
 @Entity
+@Builder
+@AllArgsConstructor
 @Table(name = "refresh_tokens")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken extends BaseEntity {
