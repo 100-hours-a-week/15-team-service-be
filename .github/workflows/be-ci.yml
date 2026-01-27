@@ -75,7 +75,9 @@ jobs:
         env:
           JAVA_HOME: /opt/jdk
         with:
+          project: "BE-Project"
           path: '.'
+          format: "HTML"
           args: >-
             --failOnCVSS 7
       # 너무 무거우면 trivy에 아래 내용으로 추가, 변경
