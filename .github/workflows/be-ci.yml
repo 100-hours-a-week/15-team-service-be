@@ -1,0 +1,134 @@
+name: BE CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "**/*.java"
+      - "**/*.kt"
+      - "**/*.gradle"
+      - "**/*.gradle.kts"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+      - ".github/workflows/**"
+      - "**/*.yml"
+      - "**/*.yaml"
+    branches: [ "main", "ci/be-ci2" ]
+  push:
+    branches: [ "dev", "ci/be-ci2" ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+  
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  be-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: [ "21" ] 
+
+    steps:
+      # Step 1) Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Step 1.1) Trivy Secret Scan (Fail-fast)
+      - name: Trivy Secret Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln"
+          format: "table"
+          exit-code: "1"
+
+      # Step 1.2) CodeQL Init (SAST 준비)
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java
+
+      # Step 2) Setup Java (JDK)
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ matrix.java-version }}
+          cache: "gradle"
+
+      # Step 3) Gradle Wrapper 권한/환경 확인
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # [추가] OWASP Dependency Check
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          JAVA_HOME: /opt/jdk
+        with:
+          project: "BE-Project"
+          path: '.'
+          format: "HTML"
+          args: >-
+            --failOnCVSS 7
+      # 너무 무거우면 trivy에 아래 내용으로 추가, 변경
+      #    scanners: "vuln"      # secret 대신 vuln(취약점) 사용
+      #    severity: "CRITICAL,HIGH" # 심각한 취약점만 검출 (필요 시 MEDIUM 추가)
+
+      # Step 5) Build (Gradle)
+      - name: Build
+        run: ./gradlew --no-daemon clean build
+
+      # Step 6) Tests + JaCoCo Report 생성
+      # JUnit5, Mockito, REST Assured 
+      - name: Tests & JaCoCo Coverage
+        run: ./gradlew --no-daemon test jacocoTestReport
+      
+      # rds 네트워크 연결 실패
+      # # Step 6) Tests (JUnit5 + Mockito + REST Assured)
+      # - name: Run Tests
+      #   env:
+      #     # RDS 대신 GitHub Actions 내부 메모리 DB 사용
+      #     SPRING_DATASOURCE_URL: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+      #     SPRING_DATASOURCE_USERNAME: sa
+      #     SPRING_DATASOURCE_PASSWORD: 
+      #     SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.h2.Driver
+      #   run: ./gradlew --no-daemon test
+        
+      # # Step 6) Tests (JUnit5 + Mockito + REST Assured)
+      # - name: Run Tests
+      #   env:
+      #     SPRING_DATASOURCE_URL: "jdbc:mysql://${{ secrets.RDS_HOST }}:3306/testdb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul&characterEncoding=UTF-8&createDatabaseIfNotExist=true"
+      #     SPRING_DATASOURCE_USERNAME: ${{ secrets.RDS_USERNAME }}
+      #     SPRING_DATASOURCE_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+      #     SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+      #   run: ./gradlew --no-daemon test
+
+      # Step 7) CodeQL Analyze (SAST 실행/업로드)
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java"
+
+      # Step 8) Upload test artifacts
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: be-artifacts-java${{ matrix.java-version }}
+          path: |
+            build/test-results/test/
+            build/reports/tests/test/
+            build/reports/jacoco/test/html/  # JaCoCo HTML 리포트 경로 명시
+            build/libs/*.jar
+            reports/dependency-check-report.html
+          retention-days: 1
