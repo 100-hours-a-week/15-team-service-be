@@ -8,15 +8,16 @@ public record AiResumeCallbackRequest(
         ResumePayload resume,   // success일 때만
         ErrorPayload error      // failed일 때만
 ) {
+
     public record ResumePayload(
-            List<String> techStack,
             List<ProjectPayload> projects
     ) {}
 
     public record ProjectPayload(
             String name,
             String repoUrl,
-            String description
+            String description,
+            List<String> techStack
     ) {}
 
     public record ErrorPayload(
