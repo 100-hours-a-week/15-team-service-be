@@ -129,11 +129,9 @@ public class ResumeService {
 
         String githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
 
-        String positionForAi = toAiPosition(position.getName());
-
         AiResumeGenerateRequest aiReq = new AiResumeGenerateRequest(
                 req.getRepoUrls(),
-                positionForAi,
+                position.getName(),
                 githubToken,
                 aiProperties.getResumeCallbackUrl()
         );
@@ -159,10 +157,6 @@ public class ResumeService {
         }
 
         return saved.getId();
-    }
-
-    private String toAiPosition(String positionName) {
-        return positionName;
     }
 
     @Transactional(readOnly = true)

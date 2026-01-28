@@ -24,6 +24,4 @@ public class ResumeVersionDto {
 
     private final Instant createdAt;
     private final Instant updatedAt;
-
-
 }
