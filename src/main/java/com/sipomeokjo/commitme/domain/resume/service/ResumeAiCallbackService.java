@@ -31,7 +31,6 @@ public class ResumeAiCallbackService {
         ResumeVersion version = resumeVersionRepository.findByAiTaskId(req.jobId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        // 이미 처리된 콜백이면 무시(재전송 대비)
         if (version.getStatus() == ResumeVersionStatus.SUCCEEDED ||
                 version.getStatus() == ResumeVersionStatus.FAILED) {
             return;
@@ -46,7 +45,6 @@ public class ResumeAiCallbackService {
             }
 
             try {
-                // resume payload → JSON string (DB json 컬럼에 저장)
                 String json = objectMapper.writeValueAsString(req.resume());
                 version.succeed(json);
             } catch (Exception e) {
