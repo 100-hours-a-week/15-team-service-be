@@ -64,9 +64,9 @@ jobs:
           
           script: |
             # 1. 변수 설정
-            APP_ROOT="/home/${{ secrets.DEPLOY_USER }}/app"
-            TEMP_DIR="/home/${{ secrets.DEPLOY_USER }}/temp_deploy"
-            BACKUP_DIR="/home/${{ secrets.DEPLOY_USER }}/backup"
+            APP_ROOT="${{ var.APP_ROOT }}/app"
+            TEMP_DIR="${{ var.APP_ROOT }}/temp_deploy"
+            BACKUP_DIR="${{ var.APP_ROOT }}/backup"
             SERVICE_NAME="${{ secrets.SERVICE_NAME }}"
             JAR_NAME="${{ secrets.JAR_NAME }}"
             HEALTH_URL="http://localhost:8080/actuator/health"
@@ -117,6 +117,10 @@ jobs:
                 fi
                 exit 1
             fi
+
+            # 5.5) SSM -> .yml 생성
+            echo "[5/6-Env] SSM Parameter Store -> .yml 생성..."
+            sudo /usr/local/bin/render-yml.sh
 
             # 6. 서비스 시작
             echo "[5/6] 서비스 시작..."
