@@ -1,4 +1,4 @@
-package com.sipomeokjo.commitme.security;
+package com.sipomeokjo.commitme.websocket;
 
 import java.security.Principal;
 import java.util.Map;

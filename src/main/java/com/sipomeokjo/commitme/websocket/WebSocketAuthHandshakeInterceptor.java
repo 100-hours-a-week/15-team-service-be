@@ -1,6 +1,7 @@
-package com.sipomeokjo.commitme.security;
+package com.sipomeokjo.commitme.websocket;
 
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
+import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

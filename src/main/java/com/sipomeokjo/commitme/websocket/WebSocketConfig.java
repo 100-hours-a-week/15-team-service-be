@@ -1,11 +1,11 @@
-package com.sipomeokjo.commitme.config;
+package com.sipomeokjo.commitme.websocket;
 
-import com.sipomeokjo.commitme.security.WebSocketAuthHandshakeInterceptor;
-import com.sipomeokjo.commitme.security.WebSocketUserHandshakeHandler;
+import com.sipomeokjo.commitme.config.CorsProperties;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -23,6 +23,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final CorsProperties corsProperties;
     private final WebSocketAuthHandshakeInterceptor handshakeInterceptor;
     private final WebSocketUserHandshakeHandler handshakeHandler;
+    private final WebSocketStompErrorLoggingInterceptor stompErrorLoggingInterceptor;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -42,6 +43,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.enableSimpleBroker("/topic")
                 .setTaskScheduler(webSocketTaskScheduler())
                 .setHeartbeatValue(HEARTBEAT);
+    }
+
+    @Override
+    public void configureClientOutboundChannel(ChannelRegistration registration) {
+        registration.interceptors(stompErrorLoggingInterceptor);
     }
 
     @Bean
