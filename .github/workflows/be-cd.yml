@@ -3,7 +3,7 @@ name: Backend CD Pipeline (Big Bang)
 # 1. 트리거: 'Backend CI Pipeline' 워크플로우가 'main' 브랜치에서 '완료'되었을 때 실행
 on:
   push: 
-      branches: [ "main", "ci/be-ci5" ]
+      branches: [ "main", "cd/be-cd2" ]
   workflow_dispatch:
 
 concurrency:
@@ -49,7 +49,7 @@ jobs:
           key: ${{ secrets.SECRET_KEY }}
           port: ${{ secrets.PORT }}
           source: "build/libs/*.jar"
-          target: "/home/${{ secrets.DEPLOY_USER }}/temp_deploy/build/libs/"
+          target: "${{ vars.APP_ROOT }}/temp_deploy/build/libs/"
           strip_components: 1
 
       # 3) 서버 접속 및 배포 스크립트 실행
@@ -64,9 +64,9 @@ jobs:
           
           script: |
             # 1. 변수 설정
-            APP_ROOT="${{ var.APP_ROOT }}/app"
-            TEMP_DIR="${{ var.APP_ROOT }}/temp_deploy"
-            BACKUP_DIR="${{ var.APP_ROOT }}/backup"
+            APP_ROOT="${{ vars.APP_ROOT }}/app"
+            TEMP_DIR="${{ vars.APP_ROOT }}/temp_deploy"
+            BACKUP_DIR="${{ vars.APP_ROOT }}/backup"
             SERVICE_NAME="${{ secrets.SERVICE_NAME }}"
             JAR_NAME="${{ secrets.JAR_NAME }}"
             HEALTH_URL="http://localhost:8080/actuator/health"
