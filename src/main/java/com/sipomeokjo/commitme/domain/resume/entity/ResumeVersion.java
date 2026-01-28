@@ -30,8 +30,6 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "status", nullable = false)
     private ResumeVersionStatus status;
 
-    //JSON 컬럼에는 반드시 유효한 JSON 문자열만 "{}", "[]", {"repos":[]}
-
     @Column(name = "content", columnDefinition = "json", nullable = false)
     private String content;
 
@@ -50,7 +48,6 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "committed_at")
     private LocalDateTime committedAt;
 
-    //최초 생성되는 v1
     public static ResumeVersion createV1(Resume resume, String content) {
         ResumeVersion v = new ResumeVersion();
         v.resume = resume;

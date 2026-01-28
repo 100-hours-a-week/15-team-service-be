@@ -44,13 +44,11 @@ public class ResumeService {
 
     private final EntityManager em;
 
-    // AI 연동에 필요 요소
     private final RestClient aiClient;
     private final AiProperties aiProperties;
     private final com.sipomeokjo.commitme.domain.auth.repository.AuthRepository authRepository;
     private final AccessTokenCipher accessTokenCipher;
 
-    // 이력서 목록 조회
     @Transactional(readOnly = true)
     public PagingResponse<ResumeSummaryDto> list(Long userId, int page, int size) {
 
@@ -98,52 +96,41 @@ public class ResumeService {
         return new PagingResponse<>(items, meta);
     }
 
-    // 이력서 생성, AI 생성 요청
     public Long create(Long userId, ResumeCreateRequest req) {
 
-        // AI 명세서 기준 - repoUrls 필수
         if (req.getRepoUrls() == null || req.getRepoUrls().isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        // name 정책
         String name = (req.getName() == null) ? "" : req.getName().trim();
         if (name.isEmpty()) name = "새 이력서";
         if (name.length() > 18) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
-        // position 필수 + 존재 검증
         if (req.getPositionId() == null) throw new BusinessException(ErrorCode.POSITION_SELECTION_REQUIRED);
         Position position = positionRepository.findById(req.getPositionId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
 
-        // company 선택
         Company company = null;
         if (req.getCompanyId() != null) {
             company = companyRepository.findById(req.getCompanyId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         }
 
-        // user reference
         User userRef = em.getReference(User.class, userId);
 
-        // resume 저장
         Resume resume = Resume.create(userRef, position, company, name);
         Resume saved = resumeRepository.save(resume);
 
-        // v1 생성
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
         resumeVersionRepository.save(v1);
 
-        // github token
         var auth = authRepository.findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
         String githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
 
-        // position 문자열
         String positionForAi = toAiPosition(position.getName());
 
-        // 요청 데이터
         AiResumeGenerateRequest aiReq = new AiResumeGenerateRequest(
                 req.getRepoUrls(),
                 positionForAi,
@@ -152,7 +139,6 @@ public class ResumeService {
         );
 
         try {
-            // baseUrl/path 합쳐서 호출
             String url = aiProperties.getBaseUrl() + aiProperties.getResumeGeneratePath();
 
             AiResumeGenerateResponse aiRes = aiClient.post()
@@ -179,7 +165,6 @@ public class ResumeService {
         return positionName;
     }
 
-    // 특정 이력서 조회
     @Transactional(readOnly = true)
     public ResumeDetailDto get(Long userId, Long resumeId) {
 
@@ -221,7 +206,6 @@ public class ResumeService {
         );
     }
 
-    // 특정 버전 조회
     @Transactional(readOnly = true)
     public ResumeVersionDto getVersion(Long userId, Long resumeId, int versionNo) {
 
@@ -246,7 +230,6 @@ public class ResumeService {
         );
     }
 
-    // 이름 수정
     public void rename(Long userId, Long resumeId, ResumeRenameRequest req) {
 
         String name = (req.getName() == null) ? "" : req.getName().trim();
@@ -258,7 +241,6 @@ public class ResumeService {
         resume.rename(name);
     }
 
-    // 이력서 저장 (versionNo를 current로 변경, committedAt 기록)
     public void saveVersion(Long userId, Long resumeId, int versionNo) {
 
         Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
@@ -275,7 +257,6 @@ public class ResumeService {
         resume.setCurrentVersionNo(versionNo);
     }
 
-    // 삭제
     public void delete(Long userId, Long resumeId) {
 
         Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
