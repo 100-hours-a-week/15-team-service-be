@@ -5,7 +5,6 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.LocalDateTime;
 
@@ -100,7 +99,4 @@ public class ResumeVersion extends BaseEntity {
         this.finishedAt = LocalDateTime.now();
         this.errorLog = "[" + errorCode + "] " + (message == null ? "" : message);
     }
-
-
-
 }

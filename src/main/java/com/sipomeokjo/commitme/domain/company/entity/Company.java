@@ -33,7 +33,6 @@ public class Company extends BaseEntity {
     @Column(name = "is_verified", nullable = false)
     private boolean isVerified;
 
-
     public void update(String name, String preferred, String idealTalent) {
         if (name != null && !name.isBlank()) this.name = name;
         if (preferred != null) this.preferred = preferred;

@@ -65,6 +65,4 @@ public class Resume extends BaseEntity {
     public void setCurrentVersionNo(int versionNo) {
         this.currentVersionNo = versionNo;
     }
-
-
 }
