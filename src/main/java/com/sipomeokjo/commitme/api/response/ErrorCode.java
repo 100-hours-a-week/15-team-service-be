@@ -36,9 +36,7 @@ public enum ErrorCode implements ResponseCode {
     COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "존재하지 않는 기업입니다."),
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", "이미 존재하는 리소스입니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "존재하지 않는 리소스입니다."),
-    POSITION_SELECTION_REQUIRED(HttpStatus.BAD_REQUEST, "POSITION_SELECTION_REQUIRED", "포지션 선택은 필수 입력 값입니다."),
-    USER_SETTINGS_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_SETTING_NOT_FOUND", "사용자 설정이 존재하지 않습니다.");
-
+    POSITION_SELECTION_REQUIRED(HttpStatus.BAD_REQUEST, "POSITION_SELECTION_REQUIRED", "포지션 선택은 필수 입력 값입니다.");
 
 
     private final HttpStatus httpStatus;
