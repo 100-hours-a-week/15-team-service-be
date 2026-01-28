@@ -15,11 +15,12 @@ public enum SuccessCode implements ResponseCode {
     ONBOARDING_COMPLETED(HttpStatus.OK, "SUCCESS", "회원가입이 완료되었습니다."),
     USER_SETTINGS_FETCHED(HttpStatus.OK, "SUCCESS", "사용자 설정 조회에 성공했습니다."),
     USER_SETTINGS_UPDATED(HttpStatus.OK, "SUCCESS", "사용자 설정 수정에 성공했습니다."),
-	CHATROOM_FETCHED(HttpStatus.OK, "SUCCESS", "채팅방 목록 조회에 성공했습니다."),
+    CHATROOM_FETCHED(HttpStatus.OK, "SUCCESS", "채팅방 목록 조회에 성공했습니다."),
     CHAT_HISTORY_FETCHED(HttpStatus.OK, "SUCCESS", "채팅 내역 조회에 성공했습니다."),
+    UPLOAD_URL_ISSUED(HttpStatus.CREATED, "CREATED", "업로드 URL 발급에 성공했습니다."),
+    UPLOAD_CONFIRMED(HttpStatus.OK, "SUCCESS", "업로드 완료 확정에 성공했습니다."),
     CREATED(HttpStatus.CREATED, "CREATED", "생성에 성공했습니다."),
     NO_CONTENT(HttpStatus.NO_CONTENT, "NO_CONTENT", "성공적으로 처리되었으며, 반환할 데이터가 없습니다.");
-
 
     private final HttpStatus httpStatus;
     private final String code;
