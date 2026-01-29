@@ -8,6 +8,4 @@ public record UserUpdateResponse(
         String name,
         Long positionId,
         String phone,
-        UserStatus status
-) {
-}
+        UserStatus status) {}

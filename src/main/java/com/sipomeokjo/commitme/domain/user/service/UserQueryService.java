@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.domain.user.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.dto.UserProfileResponse;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.mapper.UserMapper;
@@ -19,11 +20,15 @@ public class UserQueryService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final S3UploadService s3UploadService;
 
     public UserProfileResponse getUserProfile(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        return userMapper.toProfileResponse(user);
+        String profileImageUrl = s3UploadService.toPresignedGetUrl(user.getProfileImageUrl());
+        return userMapper.toProfileResponse(user, profileImageUrl);
     }
 }

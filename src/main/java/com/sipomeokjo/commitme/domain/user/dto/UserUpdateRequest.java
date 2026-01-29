@@ -6,6 +6,4 @@ public record UserUpdateRequest(
         Long positionId,
         String phone,
         Boolean privacyAgreed,
-        Boolean phonePolicyAgreed
-) {
-}
+        Boolean phonePolicyAgreed) {}
