@@ -18,8 +18,8 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
+import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
-import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -37,11 +37,10 @@ public class ResumeService {
 
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
+    private final UserRepository userRepository;
 
     private final PositionRepository positionRepository;
     private final CompanyRepository companyRepository;
-
-    private final EntityManager em;
 
     private final RestClient aiClient;
     private final AiProperties aiProperties;
@@ -53,7 +52,7 @@ public class ResumeService {
 
         PageRequest pageable =
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
-        Page<Resume> result = resumeRepository.findByUser_Id(userId, pageable);
+        Page<Resume> result = resumeRepository.findSucceededByUserId(userId, pageable);
 
         List<Resume> resumes = result.getContent();
         List<ResumeSummaryDto> items = new ArrayList<>(resumes.size());
@@ -98,13 +97,19 @@ public class ResumeService {
 
     public Long create(Long userId, ResumeCreateRequest req) {
 
+        User user = userRepository.findByIdWithLock(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        List<ResumeVersion> pendingVersions = resumeVersionRepository.findByUserIdAndStatusIn(
+                userId,
+                List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
+        if (!pendingVersions.isEmpty()) {
+            throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
+        }
+
         if (req.getRepoUrls() == null || req.getRepoUrls().isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
-
-        String name = (req.getName() == null) ? "" : req.getName().trim();
-        if (name.isEmpty()) name = "새 이력서";
-        if (name.length() > 18) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
         if (req.getPositionId() == null)
             throw new BusinessException(ErrorCode.POSITION_SELECTION_REQUIRED);
@@ -112,6 +117,15 @@ public class ResumeService {
                 positionRepository
                         .findById(req.getPositionId())
                         .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+		
+		String name = (req.getName() == null) ? "" : req.getName().trim();
+		if (name.isEmpty()) {
+			java.time.LocalDateTime now = java.time.LocalDateTime.now();
+			name = String.format("%04d%02d%02d%02d:%02d%s",
+					now.getYear(), now.getMonthValue(), now.getDayOfMonth(),
+					now.getHour(), now.getMinute(), position.getName());
+		}
+		if (name.length() > 30) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
         Company company = null;
         if (req.getCompanyId() != null) {
@@ -121,9 +135,7 @@ public class ResumeService {
                             .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         }
 
-        User userRef = em.getReference(User.class, userId);
-
-        Resume resume = Resume.create(userRef, position, company, name);
+        Resume resume = Resume.create(user, position, company, name);
         Resume saved = resumeRepository.save(resume);
 
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
@@ -224,7 +236,6 @@ public class ResumeService {
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        // PROCESSING 상태에서 5분 이상 경과 시 타임아웃 처리
         if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
             v.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
         }

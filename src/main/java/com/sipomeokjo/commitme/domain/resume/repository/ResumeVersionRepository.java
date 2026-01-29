@@ -11,21 +11,21 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Long> {
-	
-	Optional<ResumeVersion> findByResume_IdAndVersionNo(Long resumeId, Integer versionNo);
-	
-	void deleteByResume_Id(Long resumeId);
-	
-	Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
-	
-	Optional<ResumeVersion> findTopByResume_IdAndStatusOrderByVersionNoDesc(
-			Long resumeId, ResumeVersionStatus status);
-	
-	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@Query("SELECT rv FROM ResumeVersion rv " +
-			"WHERE rv.resume.user.id = :userId " +
-			"AND rv.status IN :statuses")
-	List<ResumeVersion> findByUserIdAndStatusIn(
-			@Param("userId") Long userId,
-			@Param("statuses") List<ResumeVersionStatus> statuses);
+
+    Optional<ResumeVersion> findByResume_IdAndVersionNo(Long resumeId, Integer versionNo);
+
+    void deleteByResume_Id(Long resumeId);
+
+    Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
+
+    Optional<ResumeVersion> findTopByResume_IdAndStatusOrderByVersionNoDesc(
+            Long resumeId, ResumeVersionStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT rv FROM ResumeVersion rv " +
+           "WHERE rv.resume.user.id = :userId " +
+           "AND rv.status IN :statuses")
+    List<ResumeVersion> findByUserIdAndStatusIn(
+            @Param("userId") Long userId,
+            @Param("statuses") List<ResumeVersionStatus> statuses);
 }

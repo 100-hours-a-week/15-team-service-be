@@ -15,9 +15,6 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
 
     Optional<Resume> findByIdAndUser_Id(Long resumeId, Long userId);
 
-    /**
-     * SUCCEEDED 상태의 버전이 있는 이력서만 조회
-     */
     @Query("SELECT DISTINCT r FROM Resume r " +
            "JOIN ResumeVersion rv ON rv.resume = r " +
            "WHERE r.user.id = :userId AND rv.status = 'SUCCEEDED'")
