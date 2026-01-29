@@ -2,7 +2,6 @@ package com.sipomeokjo.commitme.domain.chat.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
-import com.sipomeokjo.commitme.global.S3FileUrlResolver;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageResponse;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageSendRequest;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatAttachment;
@@ -47,7 +46,6 @@ public class ChatMessageCommandService {
     private final UploadRepository uploadRepository;
     private final UserRepository userRepository;
     private final ChatMessageMapper chatMessageMapper;
-    private final S3FileUrlResolver s3FileUrlResolver;
     private final Clock clock;
 
     public ChatMessageResponse sendMessage(
