@@ -97,11 +97,9 @@ public class ResumeService {
 
     public Long create(Long userId, ResumeCreateRequest req) {
 
-        // 동시성 제어를 위해 User 락 획득
         User user = userRepository.findByIdWithLock(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 이미 생성 중인 이력서가 있는지 확인 (QUEUED 또는 PROCESSING 상태)
         List<ResumeVersion> pendingVersions = resumeVersionRepository.findByUserIdAndStatusIn(
                 userId,
                 List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
@@ -238,7 +236,6 @@ public class ResumeService {
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        // PROCESSING 상태에서 5분 이상 경과 시 타임아웃 처리
         if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
             v.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
         }

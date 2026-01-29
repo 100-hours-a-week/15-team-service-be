@@ -21,10 +21,6 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
     Optional<ResumeVersion> findTopByResume_IdAndStatusOrderByVersionNoDesc(
             Long resumeId, ResumeVersionStatus status);
 
-    /**
-     * 유저의 QUEUED 또는 PROCESSING 상태인 이력서 버전이 있는지 확인
-     * PESSIMISTIC_WRITE 락으로 동시성 문제 방지
-     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT rv FROM ResumeVersion rv " +
            "WHERE rv.resume.user.id = :userId " +
