@@ -13,17 +13,16 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Builder;
+import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Getter
+@Builder
 @Entity
 @Table(name = "position_chat_attachment")
 @EntityListeners(AuditingEntityListener.class)
+@AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatAttachment {
 
@@ -48,14 +47,4 @@ public class ChatAttachment {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
-
-    @Builder
-    public ChatAttachment(Long id, ChatMessage message, ChatAttachmentType fileType, String fileUrl, Integer orderNo, Instant createdAt) {
-        this.id = id;
-        this.message = message;
-        this.fileType = fileType;
-        this.fileUrl = fileUrl;
-        this.orderNo = orderNo;
-        this.createdAt = createdAt;
-    }
 }

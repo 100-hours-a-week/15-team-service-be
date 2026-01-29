@@ -21,6 +21,7 @@ import com.sipomeokjo.commitme.domain.upload.entity.Upload;
 import com.sipomeokjo.commitme.domain.upload.entity.UploadPurpose;
 import com.sipomeokjo.commitme.domain.upload.entity.UploadStatus;
 import com.sipomeokjo.commitme.domain.upload.repository.UploadRepository;
+import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
@@ -44,6 +45,7 @@ public class ChatMessageCommandService {
     private final ChatAttachmentRepository chatAttachmentRepository;
     private final ChatUserNumberRepository chatUserNumberRepository;
     private final UploadRepository uploadRepository;
+    private final S3UploadService s3UploadService;
     private final UserRepository userRepository;
     private final ChatMessageMapper chatMessageMapper;
     private final Clock clock;
@@ -163,7 +165,7 @@ public class ChatMessageCommandService {
                     ChatAttachment.builder()
                             .message(message)
                             .fileType(ChatAttachmentType.IMAGE)
-                            .fileUrl(s3FileUrlResolver.toFileUrl(upload.getS3Key()))
+                            .fileUrl(s3UploadService.toPresignedGetUrl(upload.getS3Key()))
                             .orderNo(order++)
                             .createdAt(Instant.now(clock))
                             .build());

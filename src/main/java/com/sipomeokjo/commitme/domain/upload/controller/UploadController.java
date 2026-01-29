@@ -7,7 +7,7 @@ import com.sipomeokjo.commitme.domain.upload.dto.UploadConfirmResponse;
 import com.sipomeokjo.commitme.domain.upload.dto.UploadCreateRequest;
 import com.sipomeokjo.commitme.domain.upload.dto.UploadCreateResponse;
 import com.sipomeokjo.commitme.domain.upload.service.UploadCommandService;
-import com.sipomeokjo.commitme.security.CurrentUserId;
+import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

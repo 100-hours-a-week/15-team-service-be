@@ -12,7 +12,7 @@ public record S3Properties(
 
     public S3Properties {
         if (presignDurationMinutes <= 0) {
-            presignDurationMinutes = 15;
+            presignDurationMinutes = 30;
         }
     }
 }
