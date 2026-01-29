@@ -1,4 +1,4 @@
-package com.sipomeokjo.commitme.security;
+package com.sipomeokjo.commitme.security.jwt;
 
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import java.time.Clock;

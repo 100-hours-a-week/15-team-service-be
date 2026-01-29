@@ -17,6 +17,7 @@ public enum SuccessCode implements ResponseCode {
     USER_SETTINGS_UPDATED(HttpStatus.OK, "SUCCESS", "사용자 설정 수정에 성공했습니다."),
     CHATROOM_FETCHED(HttpStatus.OK, "SUCCESS", "채팅방 목록 조회에 성공했습니다."),
     CHAT_HISTORY_FETCHED(HttpStatus.OK, "SUCCESS", "채팅 내역 조회에 성공했습니다."),
+    CHAT_MESSAGE_SENT(HttpStatus.OK, "SUCCESS", "채팅 전송에 성공했습니다."),
     UPLOAD_URL_ISSUED(HttpStatus.CREATED, "CREATED", "업로드 URL 발급에 성공했습니다."),
     UPLOAD_CONFIRMED(HttpStatus.OK, "SUCCESS", "업로드 완료 확정에 성공했습니다."),
     CREATED(HttpStatus.CREATED, "CREATED", "생성에 성공했습니다."),
