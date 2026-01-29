@@ -13,4 +13,5 @@ public class AiProperties {
     private String baseUrl;
     private String resumeGeneratePath;
     private String resumeCallbackUrl;
+    private String callbackSecret;
 }

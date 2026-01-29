@@ -24,11 +24,21 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.config.Customizer;
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties({JwtProperties.class, CookieProperties.class, CryptoProperties.class})
+@EnableConfigurationProperties({
+		JwtProperties.class,
+		CookieProperties.class,
+		CryptoProperties.class,
+		CorsProperties.class,
+		AuthRedirectProperties.class
+})
 public class SecurityConfig {
 
 	private final JwtFilter jwtFilter;
@@ -50,17 +60,17 @@ public class SecurityConfig {
 				.formLogin(AbstractHttpConfigurer::disable)
 				.httpBasic(AbstractHttpConfigurer::disable)
 				.csrf(AbstractHttpConfigurer::disable)
+				.cors(Customizer.withDefaults())
 				.sessionManagement(session
 					-> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-					.authorizeHttpRequests(auth -> auth
+				.authorizeHttpRequests(auth -> auth
+							.requestMatchers(HttpMethod.GET, "/positions").permitAll()
 							.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
 							.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
 							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 							.requestMatchers(
 									"/auth/github/loginUrl",
 									"/auth/github",
-									"/auth/github/callback",
-									"/auth/github/callback/**",
 									"/auth/token",
 									"/actuator/health",
 									"/swagger/**",
@@ -89,7 +99,7 @@ public class SecurityConfig {
 	public AuthenticationManager authLoginAuthenticationManager() {
 		return new ProviderManager(authLoginAuthenticationProvider);
 	}
-	
+
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {
 		CorsConfiguration configuration = new CorsConfiguration();
@@ -99,7 +109,7 @@ public class SecurityConfig {
 		configuration.setExposedHeaders(corsProperties.exposedHeaders());
 		configuration.setAllowCredentials(corsProperties.allowCredentials());
 		configuration.setMaxAge(corsProperties.maxAge());
-		
+
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);
 		return source;
