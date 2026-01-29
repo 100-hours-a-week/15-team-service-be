@@ -200,7 +200,8 @@ public class ResumeService {
         );
     }
 
-    @Transactional(readOnly = true)
+    private static final long AI_PROCESSING_TIMEOUT_MINUTES = 5;
+
     public ResumeVersionDto getVersion(Long userId, Long resumeId, int versionNo) {
 
         Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
@@ -208,6 +209,11 @@ public class ResumeService {
 
         ResumeVersion v = resumeVersionRepository.findByResume_IdAndVersionNo(resume.getId(), versionNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+
+        // PROCESSING 상태에서 5분 이상 경과 시 타임아웃 처리
+        if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
+            v.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
+        }
 
         return new ResumeVersionDto(
                 resume.getId(),

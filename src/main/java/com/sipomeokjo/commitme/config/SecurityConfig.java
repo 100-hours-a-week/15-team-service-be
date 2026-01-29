@@ -68,13 +68,14 @@ public class SecurityConfig {
 							.requestMatchers(HttpMethod.GET, "/auth/token").permitAll()
 							.requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
 							.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-							.requestMatchers(
-									"/auth/github/loginUrl",
-									"/auth/github",
-									"/auth/token",
-									"/actuator/health",
-									"/swagger/**",
-									"/swagger-ui/**",
+					.requestMatchers(
+							"/auth/github/loginUrl",
+							"/auth/github",
+							"/auth/token",
+							"/api/v1/resume/callback",
+							"/actuator/health",
+							"/swagger/**",
+							"/swagger-ui/**",
 									"/swagger-ui.html",
 									"/v3/api-docs/**"
 							).permitAll()

@@ -99,4 +99,14 @@ public class ResumeVersion extends BaseEntity {
         this.finishedAt = LocalDateTime.now();
         this.errorLog = "[" + errorCode + "] " + (message == null ? "" : message);
     }
+
+    public boolean isProcessingTimedOut(long timeoutMinutes) {
+        if (this.status != ResumeVersionStatus.PROCESSING) {
+            return false;
+        }
+        if (this.startedAt == null) {
+            return false;
+        }
+        return this.startedAt.plusMinutes(timeoutMinutes).isBefore(LocalDateTime.now());
+    }
 }
