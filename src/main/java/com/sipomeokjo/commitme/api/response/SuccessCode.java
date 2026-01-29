@@ -9,6 +9,7 @@ public enum SuccessCode implements ResponseCode {
     LOGIN_URL_ISSUED(HttpStatus.OK, "SUCCESS", "로그인 URL 발급에 성공했습니다."),
     LOGIN_SUCCESS(HttpStatus.OK, "SUCCESS", "로그인에 성공했습니다."),
     LOGOUT_SUCCESS(HttpStatus.OK, "SUCCESS", "로그아웃에 성공했습니다."),
+    ACCESS_TOKEN_REISSUED(HttpStatus.OK, "SUCCESS", "액세스 토큰 재발급에 성공했습니다."),
     POSITION_LIST_FETCHED(HttpStatus.OK, "SUCCESS", "포지션 목록 조회에 성공했습니다."),
     USER_PROFILE_FETCHED(HttpStatus.OK, "SUCCESS", "내 정보 조회에 성공했습니다."),
     USER_PROFILE_UPDATED(HttpStatus.OK, "SUCCESS", "회원 정보가 수정되었습니다."),

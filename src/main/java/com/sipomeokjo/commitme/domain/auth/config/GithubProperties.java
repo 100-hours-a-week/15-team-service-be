@@ -10,8 +10,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "github")
 public class GithubProperties {
-	private String clientId;
-	private String clientSecret;
-	private String redirectUri;
-	private String scope;
+    private String clientId;
+    private String clientSecret;
+    private String redirectUri;
+    private String scope;
 }

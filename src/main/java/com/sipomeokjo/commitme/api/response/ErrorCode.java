@@ -55,6 +55,7 @@ public enum ErrorCode implements ResponseCode {
             HttpStatus.NOT_FOUND, "UPLOAD_OBJECT_NOT_FOUND", "S3에 업로드된 객체를 찾을 수 없습니다."),
     OAUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "OAUTH_ACCESS_DENIED", "소셜 로그인 권한이 거부되었습니다."),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "인증이 필요합니다."),
+    REFRESH_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_INVALID", "리프레시 토큰이 유효하지 않습니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "AUTH_FORBIDDEN", "접근 권한이 없습니다."),
     UPLOAD_FORBIDDEN(HttpStatus.FORBIDDEN, "UPLOAD_FORBIDDEN", "해당 업로드에 접근할 권한이 없습니다."),
     CHATROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHATROOM_NOT_FOUND", "채팅방을 찾을 수 없습니다."),

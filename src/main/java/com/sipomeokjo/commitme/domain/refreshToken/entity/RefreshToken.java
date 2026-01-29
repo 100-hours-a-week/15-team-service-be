@@ -12,7 +12,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-
 import lombok.*;
 
 @Getter
@@ -39,5 +38,4 @@ public class RefreshToken extends BaseEntity {
 
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
-
 }
