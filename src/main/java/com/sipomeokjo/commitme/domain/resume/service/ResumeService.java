@@ -18,8 +18,10 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
-import com.sipomeokjo.commitme.security.AccessTokenCipher;
+import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import jakarta.persistence.EntityManager;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,9 +29,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
-
-import java.util.ArrayList;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -52,7 +51,8 @@ public class ResumeService {
     @Transactional(readOnly = true)
     public PagingResponse<ResumeSummaryDto> list(Long userId, int page, int size) {
 
-        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        PageRequest pageable =
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
         Page<Resume> result = resumeRepository.findByUser_Id(userId, pageable);
 
         List<Resume> resumes = result.getContent();
@@ -73,25 +73,25 @@ public class ResumeService {
                 companyName = r.getCompany().getName();
             }
 
-            items.add(new ResumeSummaryDto(
-                    r.getId(),
-                    r.getName(),
-                    positionId,
-                    positionName,
-                    companyId,
-                    companyName,
-                    r.getCurrentVersionNo(),
-                    r.getUpdatedAt()
-            ));
+            items.add(
+                    new ResumeSummaryDto(
+                            r.getId(),
+                            r.getName(),
+                            positionId,
+                            positionName,
+                            companyId,
+                            companyName,
+                            r.getCurrentVersionNo(),
+                            r.getUpdatedAt()));
         }
 
-        PagingResponse.PageMeta meta = new PagingResponse.PageMeta(
-                result.getNumber(),
-                result.getSize(),
-                result.getTotalElements(),
-                result.getTotalPages(),
-                result.hasNext()
-        );
+        PagingResponse.PageMeta meta =
+                new PagingResponse.PageMeta(
+                        result.getNumber(),
+                        result.getSize(),
+                        result.getTotalElements(),
+                        result.getTotalPages(),
+                        result.hasNext());
 
         return new PagingResponse<>(items, meta);
     }
@@ -106,14 +106,19 @@ public class ResumeService {
         if (name.isEmpty()) name = "새 이력서";
         if (name.length() > 18) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
-        if (req.getPositionId() == null) throw new BusinessException(ErrorCode.POSITION_SELECTION_REQUIRED);
-        Position position = positionRepository.findById(req.getPositionId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+        if (req.getPositionId() == null)
+            throw new BusinessException(ErrorCode.POSITION_SELECTION_REQUIRED);
+        Position position =
+                positionRepository
+                        .findById(req.getPositionId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
 
         Company company = null;
         if (req.getCompanyId() != null) {
-            company = companyRepository.findById(req.getCompanyId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+            company =
+                    companyRepository
+                            .findById(req.getCompanyId())
+                            .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         }
 
         User userRef = em.getReference(User.class, userId);
@@ -124,26 +129,29 @@ public class ResumeService {
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
         resumeVersionRepository.save(v1);
 
-        var auth = authRepository.findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
-                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
+        var auth =
+                authRepository
+                        .findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
         String githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
 
-        AiResumeGenerateRequest aiReq = new AiResumeGenerateRequest(
-                req.getRepoUrls(),
-                position.getName(),
-                githubToken,
-                aiProperties.getResumeCallbackUrl()
-        );
+        AiResumeGenerateRequest aiReq =
+                new AiResumeGenerateRequest(
+                        req.getRepoUrls(),
+                        position.getName(),
+                        githubToken,
+                        aiProperties.getResumeCallbackUrl());
 
         try {
             String url = aiProperties.getBaseUrl() + aiProperties.getResumeGeneratePath();
 
-            AiResumeGenerateResponse aiRes = aiClient.post()
-                    .uri(url)
-                    .body(aiReq)
-                    .retrieve()
-                    .body(AiResumeGenerateResponse.class);
+            AiResumeGenerateResponse aiRes =
+                    aiClient.post()
+                            .uri(url)
+                            .body(aiReq)
+                            .retrieve()
+                            .body(AiResumeGenerateResponse.class);
 
             if (aiRes == null || aiRes.jobId() == null || aiRes.jobId().isBlank()) {
                 v1.failNow("AI_RESPONSE_INVALID", "jobId is null/blank");
@@ -162,15 +170,17 @@ public class ResumeService {
     @Transactional(readOnly = true)
     public ResumeDetailDto get(Long userId, Long resumeId) {
 
-        Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUser_Id(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
-        ResumeVersion version = resumeVersionRepository
-                .findTopByResume_IdAndStatusOrderByVersionNoDesc(
-                        resume.getId(),
-                        ResumeVersionStatus.SUCCEEDED
-                )
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+        ResumeVersion version =
+                resumeVersionRepository
+                        .findTopByResume_IdAndStatusOrderByVersionNoDesc(
+                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
         Long positionId = null;
         String positionName = null;
@@ -196,19 +206,23 @@ public class ResumeService {
                 resume.getCurrentVersionNo(),
                 version.getContent(),
                 resume.getCreatedAt(),
-                resume.getUpdatedAt()
-        );
+                resume.getUpdatedAt());
     }
 
     private static final long AI_PROCESSING_TIMEOUT_MINUTES = 5;
 
     public ResumeVersionDto getVersion(Long userId, Long resumeId, int versionNo) {
 
-        Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUser_Id(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
-        ResumeVersion v = resumeVersionRepository.findByResume_IdAndVersionNo(resume.getId(), versionNo)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+        ResumeVersion v =
+                resumeVersionRepository
+                        .findByResume_IdAndVersionNo(resume.getId(), versionNo)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
         // PROCESSING 상태에서 5분 이상 경과 시 타임아웃 처리
         if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
@@ -226,28 +240,35 @@ public class ResumeService {
                 v.getFinishedAt(),
                 v.getCommittedAt(),
                 v.getCreatedAt(),
-                v.getUpdatedAt()
-        );
+                v.getUpdatedAt());
     }
 
     public void rename(Long userId, Long resumeId, ResumeRenameRequest req) {
 
         String name = (req.getName() == null) ? "" : req.getName().trim();
-        if (name.isEmpty() || name.length() > 18) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
+        if (name.isEmpty() || name.length() > 18)
+            throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
-        Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUser_Id(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
         resume.rename(name);
     }
 
     public void saveVersion(Long userId, Long resumeId, int versionNo) {
 
-        Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUser_Id(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
-        ResumeVersion v = resumeVersionRepository.findByResume_IdAndVersionNo(resume.getId(), versionNo)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+        ResumeVersion v =
+                resumeVersionRepository
+                        .findByResume_IdAndVersionNo(resume.getId(), versionNo)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
         if (v.getStatus() != ResumeVersionStatus.SUCCEEDED) {
             throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
@@ -259,8 +280,10 @@ public class ResumeService {
 
     public void delete(Long userId, Long resumeId) {
 
-        Resume resume = resumeRepository.findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUser_Id(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
         resumeVersionRepository.deleteByResume_Id(resume.getId());
         resumeRepository.delete(resume);

@@ -12,19 +12,13 @@ import org.springframework.security.web.SecurityFilterChain;
 @Profile("local")
 public class LocalSecurityConfig {
 
-    /**
-     * local 프로필에서만: 모든 요청 인증 없이 허용
-     * (기존 보안 설정/필터가 있어도, 이 체인이 먼저 잡아먹게 우선순위를 최상으로 둠)
-     */
+    /** local 프로필에서만: 모든 요청 인증 없이 허용 (기존 보안 설정/필터가 있어도, 이 체인이 먼저 잡아먹게 우선순위를 최상으로 둠) */
     @Bean
     @Order(0)
     public SecurityFilterChain localPermitAllFilterChain(HttpSecurity http) throws Exception {
-        return http
-                .securityMatcher("/**")
+        return http.securityMatcher("/**")
                 .csrf(csrf -> csrf.disable())
-                .authorizeHttpRequests(auth -> auth
-                        .anyRequest().permitAll()
-                )
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .httpBasic(Customizer.withDefaults())
                 .build();
     }

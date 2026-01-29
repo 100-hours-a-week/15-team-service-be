@@ -4,24 +4,15 @@ import java.util.List;
 
 public record AiResumeCallbackRequest(
         String jobId,
-        String status,          // "success" | "failed"
-        ResumePayload resume,   // success일 때만
-        ErrorPayload error      // failed일 때만
-) {
+        String status, // "success" | "failed"
+        ResumePayload resume, // success일 때만
+        ErrorPayload error // failed일 때만
+        ) {
 
-    public record ResumePayload(
-            List<ProjectPayload> projects
-    ) {}
+    public record ResumePayload(List<ProjectPayload> projects) {}
 
     public record ProjectPayload(
-            String name,
-            String repoUrl,
-            String description,
-            List<String> techStack
-    ) {}
+            String name, String repoUrl, String description, List<String> techStack) {}
 
-    public record ErrorPayload(
-            String code,
-            String message
-    ) {}
+    public record ErrorPayload(String code, String message) {}
 }

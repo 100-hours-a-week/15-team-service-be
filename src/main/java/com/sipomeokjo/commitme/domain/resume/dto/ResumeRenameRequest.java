@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.dto;
 
-import lombok.NoArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter

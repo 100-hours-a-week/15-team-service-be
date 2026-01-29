@@ -1,4 +1,4 @@
-package com.sipomeokjo.commitme.security;
+package com.sipomeokjo.commitme.security.resolver;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -9,5 +9,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface CurrentUserId {
 
-	boolean required() default true;
+    boolean required() default true;
 }

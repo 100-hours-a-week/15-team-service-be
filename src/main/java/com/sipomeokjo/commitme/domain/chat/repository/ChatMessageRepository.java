@@ -12,7 +12,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
-    @Query("""
+    @Query(
+            """
         select message
         from ChatMessage message
         where message.chatroom.id = :chatroomId
@@ -27,6 +28,5 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
             @Param("chatroomId") Long chatroomId,
             @Param("cursorCreatedAt") Instant cursorCreatedAt,
             @Param("cursorId") Long cursorId,
-            Pageable pageable
-    );
+            Pageable pageable);
 }

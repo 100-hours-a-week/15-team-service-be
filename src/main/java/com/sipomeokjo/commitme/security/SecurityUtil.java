@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.security;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.security.handler.CustomUserDetails;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 

@@ -39,5 +39,4 @@ public class ResumeVersionMessage extends BaseEntity {
 
     @Column(name = "ai_task_id", length = 36)
     private String aiTaskId;
-
 }

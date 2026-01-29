@@ -1,9 +1,8 @@
 package com.sipomeokjo.commitme.domain.resume.dto;
 
+import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-
-import java.time.Instant;
 
 @Getter
 @AllArgsConstructor

@@ -2,11 +2,10 @@ package com.sipomeokjo.commitme.domain.resume.entity;
 
 import com.sipomeokjo.commitme.global.BaseEntity;
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
 
 @Getter
 @Entity

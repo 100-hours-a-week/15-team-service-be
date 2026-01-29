@@ -51,5 +51,4 @@ public class Company extends BaseEntity {
         c.isVerified = false;
         return c;
     }
-
 }

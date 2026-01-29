@@ -1,11 +1,10 @@
 package com.sipomeokjo.commitme.domain.resume.dto;
 
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
 import java.time.Instant;
 import java.time.LocalDateTime;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 
 @Getter
 @AllArgsConstructor

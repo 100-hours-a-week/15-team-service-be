@@ -28,11 +28,14 @@ public class ResumeAiCallbackService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        ResumeVersion version = resumeVersionRepository.findByAiTaskId(req.jobId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+        ResumeVersion version =
+                resumeVersionRepository
+                        .findByAiTaskId(req.jobId())
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        if (version.getStatus() == ResumeVersionStatus.SUCCEEDED ||
-                version.getStatus() == ResumeVersionStatus.FAILED) {
+        if (version.getStatus() == ResumeVersionStatus.SUCCEEDED
+                || version.getStatus() == ResumeVersionStatus.FAILED) {
             return;
         }
 
@@ -54,12 +57,16 @@ public class ResumeAiCallbackService {
         }
 
         if ("failed".equalsIgnoreCase(status)) {
-            String code = (req.error() == null || req.error().code() == null || req.error().code().isBlank())
-                    ? "AI_FAILED"
-                    : req.error().code();
-            String msg = (req.error() == null || req.error().message() == null)
-                    ? "unknown"
-                    : req.error().message();
+            String code =
+                    (req.error() == null
+                                    || req.error().code() == null
+                                    || req.error().code().isBlank())
+                            ? "AI_FAILED"
+                            : req.error().code();
+            String msg =
+                    (req.error() == null || req.error().message() == null)
+                            ? "unknown"
+                            : req.error().message();
 
             version.failNow(code, msg);
             return;

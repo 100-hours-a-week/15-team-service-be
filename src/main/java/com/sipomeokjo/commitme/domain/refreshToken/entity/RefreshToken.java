@@ -3,16 +3,15 @@ package com.sipomeokjo.commitme.domain.refreshToken.entity;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.global.BaseEntity;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
+import lombok.*;
 
 @Getter
 @Entity
+@Builder
 @Table(name = "refresh_tokens")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 public class RefreshToken extends BaseEntity {
 
     @Id
@@ -31,5 +30,4 @@ public class RefreshToken extends BaseEntity {
 
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
-
 }

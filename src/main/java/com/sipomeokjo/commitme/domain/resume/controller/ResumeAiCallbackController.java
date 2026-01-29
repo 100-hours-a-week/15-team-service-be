@@ -22,8 +22,7 @@ public class ResumeAiCallbackController {
     @PostMapping("/callback")
     public ResponseEntity<APIResponse<Void>> callback(
             @RequestHeader(value = "X-AI-Callback-Secret", required = false) String secret,
-            @RequestBody AiResumeCallbackRequest req
-    ) {
+            @RequestBody AiResumeCallbackRequest req) {
         if (secret == null || !secret.equals(aiProperties.getCallbackSecret())) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }

@@ -6,5 +6,4 @@ public record GithubRepoResponse(
         String name,
         @JsonProperty("html_url") String htmlUrl,
         @JsonProperty("private") boolean isPrivate,
-        @JsonProperty("updated_at") String updatedAt
-) {}
+        @JsonProperty("updated_at") String updatedAt) {}

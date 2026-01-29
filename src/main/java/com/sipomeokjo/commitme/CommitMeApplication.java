@@ -10,8 +10,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 @EnableJpaAuditing
 public class CommitMeApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(CommitMeApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(CommitMeApplication.class, args);
+    }
 }

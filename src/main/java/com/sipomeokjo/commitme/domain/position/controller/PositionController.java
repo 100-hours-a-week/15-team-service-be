@@ -5,7 +5,6 @@ import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.position.dto.PositionResponse;
 import com.sipomeokjo.commitme.domain.position.service.PositionQueryService;
 import java.util.List;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +20,7 @@ public class PositionController {
 
     @GetMapping
     public ResponseEntity<APIResponse<List<PositionResponse>>> getPositions() {
-        return APIResponse.onSuccess(SuccessCode.POSITION_LIST_FETCHED, positionQueryService.getPositions());
+        return APIResponse.onSuccess(
+                SuccessCode.POSITION_LIST_FETCHED, positionQueryService.getPositions());
     }
 }

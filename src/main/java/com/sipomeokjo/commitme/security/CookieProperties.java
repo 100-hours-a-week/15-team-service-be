@@ -8,5 +8,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Setter
 @ConfigurationProperties(prefix = "security.cookie")
 public class CookieProperties {
-	private boolean secure;
+    private boolean secure;
 }

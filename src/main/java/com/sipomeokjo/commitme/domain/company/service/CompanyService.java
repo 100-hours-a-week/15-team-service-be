@@ -7,11 +7,10 @@ import com.sipomeokjo.commitme.domain.company.dto.CompanyResponse;
 import com.sipomeokjo.commitme.domain.company.dto.CompanyUpdateRequest;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,39 +25,34 @@ public class CompanyService {
             throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
         }
 
-        Company company = Company.create(
-                request.name(),
-                request.preferred(),
-                request.idealTalent()
-        );
+        Company company =
+                Company.create(request.name(), request.preferred(), request.idealTalent());
 
         Company savedCompany = companyRepository.save(company);
         return toResponse(savedCompany);
     }
 
     public CompanyResponse get(Long companyId) {
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+        Company company =
+                companyRepository
+                        .findById(companyId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 
         return toResponse(company);
     }
 
     public List<CompanyResponse> list() {
-        return companyRepository.findAll().stream()
-                .map(this::toResponse)
-                .toList();
+        return companyRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Transactional
     public CompanyResponse update(Long companyId, CompanyUpdateRequest request) {
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+        Company company =
+                companyRepository
+                        .findById(companyId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        company.update(
-                request.name(),
-                request.preferred(),
-                request.idealTalent()
-        );
+        company.update(request.name(), request.preferred(), request.idealTalent());
 
         return toResponse(company);
     }
@@ -73,8 +67,10 @@ public class CompanyService {
 
     @Transactional
     public CompanyResponse verify(Long companyId, boolean verified) {
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+        Company company =
+                companyRepository
+                        .findById(companyId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 
         company.verify(verified);
         return toResponse(company);
@@ -86,7 +82,6 @@ public class CompanyService {
                 company.getName(),
                 company.getPreferred(),
                 company.getIdealTalent(),
-                company.isVerified()
-        );
+                company.isVerified());
     }
 }

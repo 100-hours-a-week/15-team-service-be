@@ -4,7 +4,4 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CompanyCreateRequest(
-        @NotBlank @Size(max = 200) String name,
-        String preferred,
-        String idealTalent
-) {}
+        @NotBlank @Size(max = 200) String name, String preferred, String idealTalent) {}

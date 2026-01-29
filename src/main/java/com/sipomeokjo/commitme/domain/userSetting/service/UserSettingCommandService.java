@@ -20,8 +20,11 @@ public class UserSettingCommandService {
     private final UserSettingMapper userSettingMapper;
 
     public UserSettingsResponse updateSettings(Long userId, UserSettingsUpdateRequest request) {
-        UserSetting setting = userSettingRepository.findByUserId(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_SETTINGS_NOT_FOUND));
+        UserSetting setting =
+                userSettingRepository
+                        .findByUserId(userId)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.USER_SETTINGS_NOT_FOUND));
 
         setting.update(request.notificationEnabled(), request.interviewResumeDefaultsEnabled());
         return userSettingMapper.toResponse(setting);

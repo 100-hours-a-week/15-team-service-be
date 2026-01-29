@@ -3,16 +3,15 @@ package com.sipomeokjo.commitme.domain.policy.entity;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.global.BaseEntity;
 import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
+import lombok.*;
 
 @Getter
 @Entity
+@Builder
 @Table(name = "policy_agreement")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@Builder
 public class PolicyAgreement extends BaseEntity {
 
     @Id
@@ -35,5 +34,4 @@ public class PolicyAgreement extends BaseEntity {
 
     @Column(name = "agreed_at")
     private LocalDateTime agreedAt;
-
 }
