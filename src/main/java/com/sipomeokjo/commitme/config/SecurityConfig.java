@@ -78,6 +78,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/auth/token")
                                         .permitAll()
+                                        .requestMatchers(HttpMethod.POST, "/uploads")
+                                        .hasAnyRole("PENDING", "ACTIVE")
                                         .requestMatchers(HttpMethod.POST, "/auth/logout")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.OPTIONS, "/**")
