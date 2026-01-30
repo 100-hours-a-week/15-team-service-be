@@ -16,13 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RequestMapping("/repositories")
 public class GithubRepositoryController {
-	
-	private final GithubRepositoryService githubRepositoryService;
-	
-	@GetMapping
-	public ResponseEntity<APIResponse<List<RepoSummaryDto>>> list() {
-		Long userId = SecurityUtil.currentUserId();
-		List<RepoSummaryDto> data = githubRepositoryService.listMyRepos(userId);
-		return APIResponse.onSuccess(SuccessCode.OK, data);
-	}
+
+    private final GithubRepositoryService githubRepositoryService;
+
+    @GetMapping
+    public ResponseEntity<APIResponse<List<RepoSummaryDto>>> list() {
+        Long userId = SecurityUtil.currentUserId();
+        List<RepoSummaryDto> data = githubRepositoryService.listMyRepos(userId);
+        return APIResponse.onSuccess(SuccessCode.OK, data);
+    }
 }

@@ -22,10 +22,10 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
             Long resumeId, ResumeVersionStatus status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT rv FROM ResumeVersion rv " +
-           "WHERE rv.resume.user.id = :userId " +
-           "AND rv.status IN :statuses")
+    @Query(
+            "SELECT rv FROM ResumeVersion rv "
+                    + "WHERE rv.resume.user.id = :userId "
+                    + "AND rv.status IN :statuses")
     List<ResumeVersion> findByUserIdAndStatusIn(
-            @Param("userId") Long userId,
-            @Param("statuses") List<ResumeVersionStatus> statuses);
+            @Param("userId") Long userId, @Param("statuses") List<ResumeVersionStatus> statuses);
 }

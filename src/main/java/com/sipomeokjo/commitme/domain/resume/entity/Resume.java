@@ -45,9 +45,6 @@ public class Resume extends BaseEntity {
     @Column(name = "current_version_no")
     private Integer currentVersionNo;
 
-    @Column(name = "active_version_no")
-    private Integer activeVersionNo;
-
     public static Resume create(User user, Position position, Company company, String name) {
         Resume r = new Resume();
         r.user = user;
