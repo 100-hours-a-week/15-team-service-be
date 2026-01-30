@@ -15,9 +15,9 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Builder;
 
 @Getter
 @Entity
@@ -53,7 +53,15 @@ public class Auth extends BaseEntity {
     private LocalDateTime tokenExpiresAt;
 
     @Builder
-    public Auth(Long id, User user, AuthProvider provider, String providerUserId, String providerUsername, String accessToken, String tokenScopes, LocalDateTime tokenExpiresAt) {
+    public Auth(
+            Long id,
+            User user,
+            AuthProvider provider,
+            String providerUserId,
+            String providerUsername,
+            String accessToken,
+            String tokenScopes,
+            LocalDateTime tokenExpiresAt) {
         this.id = id;
         this.user = user;
         this.provider = provider;
@@ -64,7 +72,11 @@ public class Auth extends BaseEntity {
         this.tokenExpiresAt = tokenExpiresAt;
     }
 
-    public void updateTokenInfo(String providerUsername, String accessToken, String tokenScopes, LocalDateTime tokenExpiresAt) {
+    public void updateTokenInfo(
+            String providerUsername,
+            String accessToken,
+            String tokenScopes,
+            LocalDateTime tokenExpiresAt) {
         this.providerUsername = providerUsername;
         this.accessToken = accessToken;
         this.tokenScopes = tokenScopes;

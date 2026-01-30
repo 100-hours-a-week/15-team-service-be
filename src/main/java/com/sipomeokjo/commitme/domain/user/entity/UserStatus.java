@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.domain.user.entity;
 
 public enum UserStatus {
-	PENDING,
+    PENDING,
     ACTIVE,
     BLOCKED,
     INACTIVE

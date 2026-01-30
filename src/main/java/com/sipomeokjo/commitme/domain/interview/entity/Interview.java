@@ -60,5 +60,4 @@ public class Interview extends BaseEntity {
 
     @Column(name = "ended_at")
     private Instant endedAt;
-
 }

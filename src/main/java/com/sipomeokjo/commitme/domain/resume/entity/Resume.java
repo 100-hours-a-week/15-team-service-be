@@ -45,7 +45,21 @@ public class Resume extends BaseEntity {
     @Column(name = "current_version_no")
     private Integer currentVersionNo;
 
-    @Column(name = "active_version_no")
-    private Integer activeVersionNo;
+    public static Resume create(User user, Position position, Company company, String name) {
+        Resume r = new Resume();
+        r.user = user;
+        r.position = position;
+        r.company = company;
+        r.name = name;
+        r.currentVersionNo = 1; // 최초 버전 1로 시작
+        return r;
+    }
 
+    public void rename(String name) {
+        this.name = name;
+    }
+
+    public void setCurrentVersionNo(int versionNo) {
+        this.currentVersionNo = versionNo;
+    }
 }

@@ -1,17 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.entity;
 
 import com.sipomeokjo.commitme.global.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -35,10 +25,10 @@ public class ResumeVersion extends BaseEntity {
     private Integer versionNo;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status")
+    @Column(name = "status", nullable = false)
     private ResumeVersionStatus status;
 
-    @Column(name = "content", columnDefinition = "json")
+    @Column(name = "content", columnDefinition = "json", nullable = false)
     private String content;
 
     @Column(name = "ai_task_id", length = 36)
@@ -56,4 +46,66 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "committed_at")
     private LocalDateTime committedAt;
 
+    public static ResumeVersion createV1(Resume resume, String content) {
+        ResumeVersion v = new ResumeVersion();
+        v.resume = resume;
+        v.versionNo = 1;
+        v.status = ResumeVersionStatus.QUEUED;
+
+        if (content == null || content.isBlank()) {
+            v.content = "{}";
+        } else {
+            v.content = content;
+        }
+
+        return v;
+    }
+
+    public void commitNow() {
+        this.committedAt = LocalDateTime.now();
+    }
+
+    public void markQueued() {
+        this.status = ResumeVersionStatus.QUEUED;
+        this.startedAt = null;
+        this.finishedAt = null;
+        this.aiTaskId = null;
+        this.errorLog = null;
+    }
+
+    public void startProcessing(String aiTaskId) {
+        this.status = ResumeVersionStatus.PROCESSING;
+        this.aiTaskId = aiTaskId;
+        this.startedAt = LocalDateTime.now();
+        this.finishedAt = null;
+        this.errorLog = null;
+    }
+
+    public void succeed(String contentJson) {
+        this.status = ResumeVersionStatus.SUCCEEDED;
+        this.finishedAt = LocalDateTime.now();
+        this.errorLog = null;
+
+        if (contentJson == null || contentJson.isBlank()) {
+            this.content = "{}";
+        } else {
+            this.content = contentJson;
+        }
+    }
+
+    public void failNow(String errorCode, String message) {
+        this.status = ResumeVersionStatus.FAILED;
+        this.finishedAt = LocalDateTime.now();
+        this.errorLog = "[" + errorCode + "] " + (message == null ? "" : message);
+    }
+
+    public boolean isProcessingTimedOut(long timeoutMinutes) {
+        if (this.status != ResumeVersionStatus.PROCESSING) {
+            return false;
+        }
+        if (this.startedAt == null) {
+            return false;
+        }
+        return this.startedAt.plusMinutes(timeoutMinutes).isBefore(LocalDateTime.now());
+    }
 }

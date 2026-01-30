@@ -52,5 +52,4 @@ public class InterviewMessage extends BaseEntity {
 
     @Column(name = "answered_at")
     private Instant answeredAt;
-
 }

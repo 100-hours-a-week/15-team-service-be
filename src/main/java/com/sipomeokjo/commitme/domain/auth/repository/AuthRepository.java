@@ -8,5 +8,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AuthRepository extends JpaRepository<Auth, Long> {
-	Optional<Auth> findByProviderAndProviderUserId(AuthProvider provider, String providerUserId);
+    Optional<Auth> findByProviderAndProviderUserId(AuthProvider provider, String providerUserId);
+
+    Optional<Auth> findByUser_IdAndProvider(Long userId, AuthProvider provider);
 }

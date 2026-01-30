@@ -54,7 +54,7 @@ public class UserCommandService {
                 position,
                 request.name().trim(),
                 request.phone(),
-                request.profileImageUrl(),
+                s3UploadService.toS3Key(request.profileImageUrl()),
                 UserStatus.ACTIVE);
 
         savePrivacyAgreements(user, request.phone());
@@ -75,7 +75,7 @@ public class UserCommandService {
         validatePhone(request.phone());
 
         String nextPhone = request.phone();
-        String nextProfileImageUrl = request.profileImageUrl();
+        String nextProfileImageUrl = s3UploadService.toS3Key(request.profileImageUrl());
 
         user.updateProfile(position, request.name().trim(), nextPhone, nextProfileImageUrl);
 

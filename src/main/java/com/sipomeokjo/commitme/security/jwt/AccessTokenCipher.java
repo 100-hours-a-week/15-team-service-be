@@ -53,4 +53,28 @@ public class AccessTokenCipher {
             throw new IllegalStateException("Failed to encrypt access token", e);
         }
     }
+
+    public String decrypt(String ciphertextBase64) {
+        try {
+            byte[] combined = Base64.getDecoder().decode(ciphertextBase64);
+            if (combined.length < GCM_IV_LENGTH + 1) {
+                throw new IllegalArgumentException("Invalid ciphertext");
+            }
+
+            byte[] iv = new byte[GCM_IV_LENGTH];
+            System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH);
+
+            byte[] cipherBytes = new byte[combined.length - GCM_IV_LENGTH];
+            System.arraycopy(combined, GCM_IV_LENGTH, cipherBytes, 0, cipherBytes.length);
+
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
+            cipher.init(Cipher.DECRYPT_MODE, key, spec);
+
+            byte[] plain = cipher.doFinal(cipherBytes);
+            return new String(plain, StandardCharsets.UTF_8);
+        } catch (GeneralSecurityException | IllegalArgumentException e) {
+            throw new IllegalStateException("Failed to decrypt access token", e);
+        }
+    }
 }

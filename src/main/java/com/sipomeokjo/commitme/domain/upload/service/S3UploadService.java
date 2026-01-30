@@ -83,6 +83,13 @@ public class S3UploadService {
         return presignGetObject(normalizedKey).presignedUrl();
     }
 
+    public String toS3Key(String s3KeyOrUrl) {
+        if (s3KeyOrUrl == null || s3KeyOrUrl.isBlank()) {
+            return s3KeyOrUrl;
+        }
+        return normalizeKey(s3KeyOrUrl);
+    }
+
     public HeadResult headObject(String s3Key) {
         try {
             HeadObjectRequest request =
@@ -115,10 +122,15 @@ public class S3UploadService {
         if (bucketIndex < 0) {
             return s3KeyOrUrl;
         }
-        int keyStart = s3KeyOrUrl.indexOf('/', bucketIndex + bucketPrefix.length());
-        if (keyStart < 0 || keyStart + 1 >= s3KeyOrUrl.length()) {
+        try {
+            java.net.URI uri = java.net.URI.create(s3KeyOrUrl);
+            String rawPath = uri.getRawPath();
+            if (rawPath == null || rawPath.length() <= 1) {
+                return s3KeyOrUrl;
+            }
+            return rawPath.substring(1);
+        } catch (IllegalArgumentException ex) {
             return s3KeyOrUrl;
         }
-        return s3KeyOrUrl.substring(keyStart + 1);
     }
 }
