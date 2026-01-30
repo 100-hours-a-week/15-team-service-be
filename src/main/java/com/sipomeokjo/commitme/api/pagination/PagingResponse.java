@@ -2,16 +2,8 @@ package com.sipomeokjo.commitme.api.pagination;
 
 import java.util.List;
 
-public record PagingResponse<T> (
-		List<T> items,
-		PageMeta pageMeta
-) {
-	
-	public record PageMeta(
-			int page,
-			int size,
-			long totalElements,
-			int totalPages,
-			boolean hasNext
-	) {}
+public record PagingResponse<T>(List<T> items, PageMeta pageMeta) {
+
+    public record PageMeta(
+            int page, int size, long totalElements, int totalPages, boolean hasNext) {}
 }

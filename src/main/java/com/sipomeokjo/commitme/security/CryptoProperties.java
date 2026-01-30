@@ -10,5 +10,5 @@ import org.springframework.stereotype.Component;
 @Setter
 @ConfigurationProperties(prefix = "security.crypto")
 public class CryptoProperties {
-	private String accessTokenKey;
+    private String accessTokenKey;
 }

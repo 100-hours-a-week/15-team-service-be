@@ -10,7 +10,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ChatroomRepository extends JpaRepository<Chatroom, Long> {
 
-    @Query("""
+    @Query(
+            """
         select new com.sipomeokjo.commitme.domain.chat.dto.ChatroomResponse(
             chatRoom.id,
             chatRoom.position.name,

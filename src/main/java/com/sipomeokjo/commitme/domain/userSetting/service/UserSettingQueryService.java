@@ -19,8 +19,11 @@ public class UserSettingQueryService {
     private final UserSettingMapper userSettingMapper;
 
     public UserSettingsResponse getSettings(Long userId) {
-        UserSetting setting = userSettingRepository.findByUserId(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_SETTINGS_NOT_FOUND));
+        UserSetting setting =
+                userSettingRepository
+                        .findByUserId(userId)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.USER_SETTINGS_NOT_FOUND));
         return userSettingMapper.toResponse(setting);
     }
 }

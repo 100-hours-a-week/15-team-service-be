@@ -13,9 +13,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Builder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -46,7 +46,8 @@ public class ChatUserNumber {
     private Instant createdAt;
 
     @Builder
-    public ChatUserNumber(Long id, Chatroom chatroom, User user, Integer number, Instant createdAt) {
+    public ChatUserNumber(
+            Long id, Chatroom chatroom, User user, Integer number, Instant createdAt) {
         this.id = id;
         this.chatroom = chatroom;
         this.user = user;

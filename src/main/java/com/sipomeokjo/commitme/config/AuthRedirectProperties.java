@@ -3,7 +3,4 @@ package com.sipomeokjo.commitme.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app.auth")
-public record AuthRedirectProperties(
-		String redirectUri
-) {
-}
+public record AuthRedirectProperties(String redirectUri) {}

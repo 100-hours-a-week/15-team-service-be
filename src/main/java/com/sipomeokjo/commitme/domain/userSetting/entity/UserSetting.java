@@ -37,7 +37,11 @@ public class UserSetting extends BaseEntity {
     private boolean interviewResumeDefaultsEnabled;
 
     @Builder
-    public UserSetting(Long id, User user, boolean notificationEnabled, boolean interviewResumeDefaultsEnabled) {
+    public UserSetting(
+            Long id,
+            User user,
+            boolean notificationEnabled,
+            boolean interviewResumeDefaultsEnabled) {
         this.id = id;
         this.user = user;
         this.notificationEnabled = notificationEnabled;

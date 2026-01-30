@@ -15,12 +15,9 @@ public class LocalSecurityConfig {
 	@Bean
 	@Order(0)
 	public SecurityFilterChain localPermitAllFilterChain(HttpSecurity http) throws Exception {
-		return http
-				.securityMatcher("/**")
+		return http.securityMatcher("/**")
 				.csrf(csrf -> csrf.disable())
-				.authorizeHttpRequests(auth -> auth
-						.anyRequest().permitAll()
-				)
+				.authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
 				.httpBasic(Customizer.withDefaults())
 				.build();
 	}

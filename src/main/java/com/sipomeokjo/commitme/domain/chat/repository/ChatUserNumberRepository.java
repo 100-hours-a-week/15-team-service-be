@@ -16,6 +16,5 @@ public interface ChatUserNumberRepository extends JpaRepository<ChatUserNumber, 
 
     @Query(
             "select max(userNumber.number) from ChatUserNumber userNumber where userNumber.chatroom.id = :chatroomId")
-    Integer findMaxNumberByChatroomId(
-            @Param("chatroomId") Long chatroomId);
+    Integer findMaxNumberByChatroomId(@Param("chatroomId") Long chatroomId);
 }

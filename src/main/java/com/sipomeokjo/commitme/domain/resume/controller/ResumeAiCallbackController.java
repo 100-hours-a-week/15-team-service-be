@@ -15,20 +15,19 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/resume")
 public class ResumeAiCallbackController {
-
-    private final ResumeAiCallbackService resumeAiCallbackService;
-    private final AiProperties aiProperties;
-
-    @PostMapping("/callback")
-    public ResponseEntity<APIResponse<Void>> callback(
-            @RequestHeader(value = "X-AI-Callback-Secret", required = false) String secret,
-            @RequestBody AiResumeCallbackRequest req
-    ) {
-        if (secret == null || !secret.equals(aiProperties.getCallbackSecret())) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED);
-        }
-
-        resumeAiCallbackService.handleCallback(req);
-        return APIResponse.onSuccess(SuccessCode.OK);
-    }
+	
+	private final ResumeAiCallbackService resumeAiCallbackService;
+	private final AiProperties aiProperties;
+	
+	@PostMapping("/callback")
+	public ResponseEntity<APIResponse<Void>> callback(
+			@RequestHeader(value = "X-AI-Callback-Secret", required = false) String secret,
+			@RequestBody AiResumeCallbackRequest req) {
+		if (secret == null || !secret.equals(aiProperties.getCallbackSecret())) {
+			throw new BusinessException(ErrorCode.UNAUTHORIZED);
+		}
+		
+		resumeAiCallbackService.handleCallback(req);
+		return APIResponse.onSuccess(SuccessCode.OK);
+	}
 }

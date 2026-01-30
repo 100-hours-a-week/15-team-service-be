@@ -14,7 +14,6 @@ public class UserSettingMapper {
         return new UserSettingsResponse(
                 setting.getId(),
                 setting.isNotificationEnabled(),
-                setting.isInterviewResumeDefaultsEnabled()
-        );
+                setting.isInterviewResumeDefaultsEnabled());
     }
 }
