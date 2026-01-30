@@ -13,37 +13,37 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RequestMapping("/companies")
 public class CompanyController {
-	
-	private final CompanyService companyService;
-	
-	@PostMapping
-	public CompanyResponse create(@RequestBody @Valid CompanyCreateRequest req) {
-		return companyService.create(req);
-	}
-	
-	@GetMapping("/{companyId}")
-	public CompanyResponse get(@PathVariable Long companyId) {
-		return companyService.get(companyId);
-	}
-	
-	@GetMapping
-	public List<CompanyResponse> list() {
-		return companyService.list();
-	}
-	
-	@PatchMapping("/{companyId}")
-	public CompanyResponse update(
-			@PathVariable Long companyId, @RequestBody @Valid CompanyUpdateRequest req) {
-		return companyService.update(companyId, req);
-	}
-	
-	@DeleteMapping("/{companyId}")
-	public void delete(@PathVariable Long companyId) {
-		companyService.delete(companyId);
-	}
-	
-	@PatchMapping("/{companyId}/verify")
-	public CompanyResponse verify(@PathVariable Long companyId, @RequestParam boolean verified) {
-		return companyService.verify(companyId, verified);
-	}
+
+    private final CompanyService companyService;
+
+    @PostMapping
+    public CompanyResponse create(@RequestBody @Valid CompanyCreateRequest req) {
+        return companyService.create(req);
+    }
+
+    @GetMapping("/{companyId}")
+    public CompanyResponse get(@PathVariable Long companyId) {
+        return companyService.get(companyId);
+    }
+
+    @GetMapping
+    public List<CompanyResponse> list() {
+        return companyService.list();
+    }
+
+    @PatchMapping("/{companyId}")
+    public CompanyResponse update(
+            @PathVariable Long companyId, @RequestBody @Valid CompanyUpdateRequest req) {
+        return companyService.update(companyId, req);
+    }
+
+    @DeleteMapping("/{companyId}")
+    public void delete(@PathVariable Long companyId) {
+        companyService.delete(companyId);
+    }
+
+    @PatchMapping("/{companyId}/verify")
+    public CompanyResponse verify(@PathVariable Long companyId, @RequestParam boolean verified) {
+        return companyService.verify(companyId, verified);
+    }
 }

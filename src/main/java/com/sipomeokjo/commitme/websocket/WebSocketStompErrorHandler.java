@@ -5,7 +5,8 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.Message;
@@ -18,11 +19,12 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.StompSubProtocolErrorHandler;
 
-@Slf4j
 @Component
 @Primary
 @RequiredArgsConstructor
 public class WebSocketStompErrorHandler extends StompSubProtocolErrorHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(WebSocketStompErrorHandler.class);
 
     private final ObjectMapper objectMapper;
 
