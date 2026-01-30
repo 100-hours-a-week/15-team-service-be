@@ -4,13 +4,18 @@ import com.sipomeokjo.commitme.domain.chat.dto.ChatAttachmentResponse;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageResponse;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatAttachment;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatMessage;
+import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class ChatMessageMapper {
+
+    private final S3UploadService s3UploadService;
 
     public ChatMessageResponse toChatMessageResponse(
             ChatMessage message,
@@ -52,8 +57,9 @@ public class ChatMessageMapper {
         if (attachment == null) {
             return null;
         }
+        String fileUrl = s3UploadService.toPresignedGetUrl(attachment.getFileUrl());
         return new ChatAttachmentResponse(
-                attachment.getId(), attachment.getFileUrl(), attachment.getFileType().name());
+                attachment.getId(), fileUrl, attachment.getFileType().name());
     }
 
     private Long toNumber(Map<Long, Integer> userNumbersByUserId, Long userId) {

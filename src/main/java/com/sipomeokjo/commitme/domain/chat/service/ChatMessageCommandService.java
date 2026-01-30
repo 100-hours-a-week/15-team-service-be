@@ -165,7 +165,7 @@ public class ChatMessageCommandService {
                     ChatAttachment.builder()
                             .message(message)
                             .fileType(ChatAttachmentType.IMAGE)
-                            .fileUrl(s3UploadService.toPresignedGetUrl(upload.getS3Key()))
+                            .fileUrl(s3UploadService.toS3Key(upload.getS3Key()))
                             .orderNo(order++)
                             .createdAt(Instant.now(clock))
                             .build());
