@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.config;
 
 import com.sipomeokjo.commitme.security.CookieProperties;
 import com.sipomeokjo.commitme.security.CryptoProperties;
+import com.sipomeokjo.commitme.security.csrf.CsrfTokenResponseCookieFilter;
 import com.sipomeokjo.commitme.security.jwt.JwtFilter;
 import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import com.sipomeokjo.commitme.security.oauth.AuthLoginAuthenticationFilter;
@@ -26,6 +27,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -63,6 +66,8 @@ public class SecurityConfig {
                         csrf ->
                                 csrf.csrfTokenRepository(
                                                 CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                        .csrfTokenRequestHandler(
+                                                new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers("/api/v1/resume/callback"))
                 .cors(Customizer.withDefaults())
                 .sessionManagement(
@@ -102,6 +107,7 @@ public class SecurityConfig {
                                 exception
                                         .authenticationEntryPoint(customAuthenticationEntryPoint)
                                         .accessDeniedHandler(customAccessDeniedHandler))
+                .addFilterAfter(new CsrfTokenResponseCookieFilter(), CsrfFilter.class)
                 .addFilterBefore(authLoginFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
