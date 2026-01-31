@@ -14,6 +14,8 @@ import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenReposi
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
+import com.sipomeokjo.commitme.domain.userSetting.entity.UserSetting;
+import com.sipomeokjo.commitme.domain.userSetting.repository.UserSettingRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
 import com.sipomeokjo.commitme.security.jwt.JwtProperties;
@@ -39,6 +41,7 @@ public class AuthCommandService {
 
     private final AuthRepository authRepository;
     private final UserRepository userRepository;
+    private final UserSettingRepository userSettingRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AccessTokenCipher accessTokenCipher;
     private final AccessTokenProvider accessTokenProvider;
@@ -71,6 +74,7 @@ public class AuthCommandService {
         User user;
         if (auth == null) {
             user = userRepository.save(User.builder().status(UserStatus.PENDING).build());
+            userSettingRepository.save(UserSetting.defaultSetting(user));
             Auth newAuth =
                     Auth.builder()
                             .user(user)
