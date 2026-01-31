@@ -68,7 +68,8 @@ public class SecurityConfig {
                                                 CookieCsrfTokenRepository.withHttpOnlyFalse())
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
-                                        .ignoringRequestMatchers("/api/v1/resume/callback"))
+                                        .ignoringRequestMatchers(
+                                                "/api/v1/resume/callback", "/uploads/**"))
                 .cors(Customizer.withDefaults())
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -26,7 +26,8 @@ public class LocalSecurityConfig {
                                                 CookieCsrfTokenRepository.withHttpOnlyFalse())
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
-                                        .ignoringRequestMatchers("/api/v1/resume/callback"))
+                                        .ignoringRequestMatchers(
+                                                "/api/v1/resume/callback", "/uploads/**"))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterAfter(new CsrfTokenResponseCookieFilter(), CsrfFilter.class)
