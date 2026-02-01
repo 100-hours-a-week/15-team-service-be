@@ -59,16 +59,18 @@ public class SecurityConfig {
         authLoginFilter.setAuthenticationManager(authLoginAuthenticationManager());
         authLoginFilter.setAuthenticationSuccessHandler(authLoginSuccessHandler);
         authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
+        CookieCsrfTokenRepository csrfTokenRepository =
+                CookieCsrfTokenRepository.withHttpOnlyFalse();
 
         http.formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .csrf(
                         csrf ->
-                                csrf.csrfTokenRepository(
-                                                CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                csrf.csrfTokenRepository(csrfTokenRepository)
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
-                                        .ignoringRequestMatchers("/api/v1/resume/callback"))
+                                        .ignoringRequestMatchers(
+                                                "/api/v1/resume/callback", "/uploads/**"))
                 .cors(Customizer.withDefaults())
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -78,6 +80,8 @@ public class SecurityConfig {
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/auth/token")
                                         .permitAll()
+                                        .requestMatchers(HttpMethod.POST, "/uploads")
+                                        .hasAnyRole("PENDING", "ACTIVE")
                                         .requestMatchers(HttpMethod.POST, "/auth/logout")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.OPTIONS, "/**")
@@ -107,7 +111,8 @@ public class SecurityConfig {
                                 exception
                                         .authenticationEntryPoint(customAuthenticationEntryPoint)
                                         .accessDeniedHandler(customAccessDeniedHandler))
-                .addFilterAfter(new CsrfTokenResponseCookieFilter(), CsrfFilter.class)
+                .addFilterAfter(
+                        new CsrfTokenResponseCookieFilter(csrfTokenRepository), CsrfFilter.class)
                 .addFilterBefore(authLoginFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

@@ -19,17 +19,20 @@ public class LocalSecurityConfig {
     @Bean
     @Order(0)
     public SecurityFilterChain localPermitAllFilterChain(HttpSecurity http) throws Exception {
+        CookieCsrfTokenRepository csrfTokenRepository =
+                CookieCsrfTokenRepository.withHttpOnlyFalse();
         return http.securityMatcher("/**")
                 .csrf(
                         csrf ->
-                                csrf.csrfTokenRepository(
-                                                CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                csrf.csrfTokenRepository(csrfTokenRepository)
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
-                                        .ignoringRequestMatchers("/api/v1/resume/callback"))
+                                        .ignoringRequestMatchers(
+                                                "/api/v1/resume/callback", "/uploads/**"))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .httpBasic(Customizer.withDefaults())
-                .addFilterAfter(new CsrfTokenResponseCookieFilter(), CsrfFilter.class)
+                .addFilterAfter(
+                        new CsrfTokenResponseCookieFilter(csrfTokenRepository), CsrfFilter.class)
                 .build();
     }
 }
