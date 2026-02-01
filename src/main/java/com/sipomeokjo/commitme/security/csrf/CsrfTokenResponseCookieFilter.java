@@ -5,7 +5,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -25,7 +24,7 @@ public class CsrfTokenResponseCookieFilter extends OncePerRequestFilter {
         if (csrfToken == null) {
             csrfToken = (CsrfToken) request.getAttribute("_csrf");
         }
-		
+
         if (HttpMethod.GET.matches(request.getMethod())
                 || HttpMethod.HEAD.matches(request.getMethod())) {
             if (csrfToken == null) {
