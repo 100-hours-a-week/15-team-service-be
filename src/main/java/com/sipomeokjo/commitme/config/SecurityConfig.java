@@ -59,13 +59,14 @@ public class SecurityConfig {
         authLoginFilter.setAuthenticationManager(authLoginAuthenticationManager());
         authLoginFilter.setAuthenticationSuccessHandler(authLoginSuccessHandler);
         authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
+        CookieCsrfTokenRepository csrfTokenRepository =
+                CookieCsrfTokenRepository.withHttpOnlyFalse();
 
         http.formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .csrf(
                         csrf ->
-                                csrf.csrfTokenRepository(
-                                                CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                csrf.csrfTokenRepository(csrfTokenRepository)
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers(
@@ -110,7 +111,8 @@ public class SecurityConfig {
                                 exception
                                         .authenticationEntryPoint(customAuthenticationEntryPoint)
                                         .accessDeniedHandler(customAccessDeniedHandler))
-                .addFilterAfter(new CsrfTokenResponseCookieFilter(), CsrfFilter.class)
+                .addFilterAfter(
+                        new CsrfTokenResponseCookieFilter(csrfTokenRepository), CsrfFilter.class)
                 .addFilterBefore(authLoginFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
