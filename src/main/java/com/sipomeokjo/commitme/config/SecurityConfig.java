@@ -3,6 +3,7 @@ package com.sipomeokjo.commitme.config;
 import com.sipomeokjo.commitme.security.CookieProperties;
 import com.sipomeokjo.commitme.security.CryptoProperties;
 import com.sipomeokjo.commitme.security.csrf.CsrfTokenResponseCookieFilter;
+import com.sipomeokjo.commitme.security.csrf.LoggingCsrfTokenRepository;
 import com.sipomeokjo.commitme.security.jwt.JwtFilter;
 import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import com.sipomeokjo.commitme.security.oauth.AuthLoginAuthenticationFilter;
@@ -61,11 +62,13 @@ public class SecurityConfig {
         authLoginFilter.setAuthenticationManager(authLoginAuthenticationManager());
         authLoginFilter.setAuthenticationSuccessHandler(authLoginSuccessHandler);
         authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
-        CookieCsrfTokenRepository csrfTokenRepository =
+        CookieCsrfTokenRepository baseCsrfTokenRepository =
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
         if (csrfProperties.cookieDomain() != null && !csrfProperties.cookieDomain().isBlank()) {
-            csrfTokenRepository.setCookieDomain(csrfProperties.cookieDomain());
+            baseCsrfTokenRepository.setCookieDomain(csrfProperties.cookieDomain());
         }
+        LoggingCsrfTokenRepository csrfTokenRepository =
+                new LoggingCsrfTokenRepository(baseCsrfTokenRepository);
 
         http.formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
