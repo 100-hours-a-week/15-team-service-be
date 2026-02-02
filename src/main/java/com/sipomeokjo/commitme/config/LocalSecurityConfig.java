@@ -1,6 +1,7 @@
 package com.sipomeokjo.commitme.config;
 
 import com.sipomeokjo.commitme.security.csrf.CsrfTokenResponseCookieFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -14,13 +15,19 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 @Configuration
 @Profile("local")
+@RequiredArgsConstructor
 public class LocalSecurityConfig {
+
+    private final CsrfProperties csrfProperties;
 
     @Bean
     @Order(0)
     public SecurityFilterChain localPermitAllFilterChain(HttpSecurity http) throws Exception {
         CookieCsrfTokenRepository csrfTokenRepository =
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
+        if (csrfProperties.cookieDomain() != null && !csrfProperties.cookieDomain().isBlank()) {
+            csrfTokenRepository.setCookieDomain(csrfProperties.cookieDomain());
+        }
         return http.securityMatcher("/**")
                 .csrf(
                         csrf ->

@@ -41,7 +41,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
     CookieProperties.class,
     CryptoProperties.class,
     CorsProperties.class,
-    AuthRedirectProperties.class
+    AuthRedirectProperties.class,
+    CsrfProperties.class
 })
 public class SecurityConfig {
 
@@ -52,6 +53,7 @@ public class SecurityConfig {
     private final AuthLoginSuccessHandler authLoginSuccessHandler;
     private final AuthLoginFailureHandler authLoginFailureHandler;
     private final AuthLogoutSuccessHandler authLogoutSuccessHandler;
+    private final CsrfProperties csrfProperties;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -61,6 +63,9 @@ public class SecurityConfig {
         authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
         CookieCsrfTokenRepository csrfTokenRepository =
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
+        if (csrfProperties.cookieDomain() != null && !csrfProperties.cookieDomain().isBlank()) {
+            csrfTokenRepository.setCookieDomain(csrfProperties.cookieDomain());
+        }
 
         http.formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
