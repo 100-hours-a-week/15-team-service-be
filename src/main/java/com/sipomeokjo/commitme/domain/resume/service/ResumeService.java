@@ -161,8 +161,7 @@ public class ResumeService {
                 new AiResumeGenerateRequest(
                         req.getRepoUrls(),
                         position.getName(),
-                        githubToken,
-                        aiProperties.getResumeCallbackUrl());
+                        githubToken);
 
         try {
             String url = aiProperties.getBaseUrl() + aiProperties.getResumeGeneratePath();
