@@ -20,9 +20,9 @@ public class ProdDataSourceProxyConfig {
             public Object postProcessAfterInitialization(Object bean, String beanName) {
                 if (bean instanceof DataSource && !(bean instanceof ProxyDataSource)) {
                     return ProxyDataSourceBuilder.create((DataSource) bean)
-                        .name("CommitmeDS")
-                        .logSlowQueryBySlf4j(1, TimeUnit.SECONDS)
-                        .build();
+                            .name("CommitmeDS")
+                            .logSlowQueryBySlf4j(1, TimeUnit.SECONDS)
+                            .build();
                 }
                 return bean;
             }

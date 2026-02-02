@@ -21,13 +21,13 @@ public class DevDataSourceProxyConfig {
             public Object postProcessAfterInitialization(Object bean, String beanName) {
                 if (bean instanceof DataSource && !(bean instanceof ProxyDataSource)) {
                     return ProxyDataSourceBuilder.create((DataSource) bean)
-                        .name("CommitmeDS")
-                        .countQuery()
-                        .logQueryBySlf4j()
-                        .multiline()
-                        .formatQuery(query -> FormatStyle.BASIC.getFormatter().format(query))
-                        .logSlowQueryBySlf4j(1, TimeUnit.SECONDS)
-                        .build();
+                            .name("CommitmeDS")
+                            .countQuery()
+                            .logQueryBySlf4j()
+                            .multiline()
+                            .formatQuery(query -> FormatStyle.BASIC.getFormatter().format(query))
+                            .logSlowQueryBySlf4j(1, TimeUnit.SECONDS)
+                            .build();
                 }
                 return bean;
             }
