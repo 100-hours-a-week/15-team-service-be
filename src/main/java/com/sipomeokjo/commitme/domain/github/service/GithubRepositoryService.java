@@ -43,6 +43,7 @@ public class GithubRepositoryService {
                                                 .path("/user/repos")
                                                 .queryParam("per_page", 100)
                                                 .queryParam("sort", "updated")
+                                                .queryParam("affiliation", "owner,collaborator")
                                                 .build())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + githubToken)
                         .retrieve()
