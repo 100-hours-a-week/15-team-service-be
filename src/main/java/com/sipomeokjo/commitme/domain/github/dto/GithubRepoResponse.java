@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record GithubRepoResponse(
         String name,
+        String description,
+        String language,
         @JsonProperty("html_url") String htmlUrl,
         @JsonProperty("private") boolean isPrivate,
         @JsonProperty("updated_at") String updatedAt) {}

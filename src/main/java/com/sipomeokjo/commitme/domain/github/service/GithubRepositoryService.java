@@ -52,7 +52,13 @@ public class GithubRepositoryService {
         if (repos == null) return List.of();
 
         return Arrays.stream(repos)
-                .map(r -> new RepoSummaryDto(r.name(), r.htmlUrl(), r.isPrivate(), r.updatedAt()))
+                .map(r -> new RepoSummaryDto(
+                        r.name(),
+                        r.description(),
+                        r.language(),
+                        r.htmlUrl(),
+                        r.isPrivate(),
+                        r.updatedAt()))
                 .collect(Collectors.toList());
     }
 }
