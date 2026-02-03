@@ -55,7 +55,7 @@ public class GithubRepositoryService {
                 .map(r -> new RepoSummaryDto(
                         r.name(),
                         r.description(),
-                        r.language(),
+                        r.effectiveLanguage(),
                         r.htmlUrl(),
                         r.isPrivate(),
                         r.updatedAt()))
