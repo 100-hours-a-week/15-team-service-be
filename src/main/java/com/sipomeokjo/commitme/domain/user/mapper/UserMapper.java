@@ -9,7 +9,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserMapper {
 
-    public UserProfileResponse toProfileResponse(User user, String profileImageUrl) {
+    public UserProfileResponse toProfileResponse(
+            User user, String profileImageUrl, boolean privacyAgreed, boolean phonePolicyAgreed) {
         if (user == null) {
             return null;
         }
@@ -18,7 +19,9 @@ public class UserMapper {
                 profileImageUrl,
                 user.getName(),
                 user.getPosition() == null ? null : user.getPosition().getId(),
-                user.getPhone());
+                user.getPhone(),
+                privacyAgreed,
+                phonePolicyAgreed);
     }
 
     public UserUpdateResponse toUpdateResponse(User user, String profileImageUrl) {

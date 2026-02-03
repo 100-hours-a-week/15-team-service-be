@@ -26,9 +26,13 @@ public class LocalSecurityConfig {
     public SecurityFilterChain localPermitAllFilterChain(HttpSecurity http) throws Exception {
         CookieCsrfTokenRepository baseCsrfTokenRepository =
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
-        if (csrfProperties.cookieDomain() != null && !csrfProperties.cookieDomain().isBlank()) {
-            baseCsrfTokenRepository.setCookieDomain(csrfProperties.cookieDomain());
-        }
+        baseCsrfTokenRepository.setCookieCustomizer(
+                builder -> {
+                    if (csrfProperties.cookieDomain() != null
+                            && !csrfProperties.cookieDomain().isBlank()) {
+                        builder.domain(csrfProperties.cookieDomain());
+                    }
+                });
         LoggingCsrfTokenRepository csrfTokenRepository =
                 new LoggingCsrfTokenRepository(baseCsrfTokenRepository);
         return http.securityMatcher("/**")
