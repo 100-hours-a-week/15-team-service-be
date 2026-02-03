@@ -158,10 +158,7 @@ public class ResumeService {
         String githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
 
         AiResumeGenerateRequest aiReq =
-                new AiResumeGenerateRequest(
-                        req.getRepoUrls(),
-                        position.getName(),
-                        githubToken);
+                new AiResumeGenerateRequest(req.getRepoUrls(), position.getName(), githubToken);
 
         try {
             String url = aiProperties.getBaseUrl() + aiProperties.getResumeGeneratePath();
