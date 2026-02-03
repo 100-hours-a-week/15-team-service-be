@@ -28,7 +28,7 @@ public class UserQueryService {
                         .findById(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        String profileImageUrl = s3UploadService.toPresignedGetUrl(user.getProfileImageUrl());
+        String profileImageUrl = s3UploadService.toCdnUrl(user.getProfileImageUrl());
         return userMapper.toProfileResponse(user, profileImageUrl);
     }
 }
