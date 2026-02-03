@@ -81,7 +81,7 @@ public class UserCommandService {
 
         savePrivacyAgreements(user, nextPhone);
 
-        String profileImageUrl = s3UploadService.toPresignedGetUrl(user.getProfileImageUrl());
+        String profileImageUrl = s3UploadService.toCdnUrl(user.getProfileImageUrl());
         return userMapper.toUpdateResponse(user, profileImageUrl);
     }
 

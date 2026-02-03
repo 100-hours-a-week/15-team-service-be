@@ -57,7 +57,7 @@ public class ChatMessageMapper {
         if (attachment == null) {
             return null;
         }
-        String fileUrl = s3UploadService.toPresignedGetUrl(attachment.getFileUrl());
+        String fileUrl = s3UploadService.toCdnUrl(attachment.getFileUrl());
         return new ChatAttachmentResponse(
                 attachment.getId(), fileUrl, attachment.getFileType().name());
     }

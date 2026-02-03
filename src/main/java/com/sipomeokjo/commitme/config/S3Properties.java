@@ -8,6 +8,7 @@ public record S3Properties(
         String region,
         String accessKey,
         String secretKey,
+        String cdnBaseUrl,
         int presignDurationMinutes) {
 
     public S3Properties {
