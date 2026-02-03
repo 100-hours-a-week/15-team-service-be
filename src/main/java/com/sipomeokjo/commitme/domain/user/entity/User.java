@@ -87,4 +87,14 @@ public class User extends BaseEntity {
         this.phone = phone;
         this.profileImageUrl = profileImageUrl;
     }
+
+    public void deactivate(Instant deletedAt) {
+        this.status = UserStatus.INACTIVE;
+        this.deletedAt = deletedAt;
+    }
+
+    public void restoreForRejoin() {
+        this.status = UserStatus.PENDING;
+        this.deletedAt = null;
+    }
 }

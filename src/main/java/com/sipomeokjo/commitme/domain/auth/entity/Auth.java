@@ -43,7 +43,7 @@ public class Auth extends BaseEntity {
     @Column(name = "provider_username")
     private String providerUsername;
 
-    @Column(name = "access_token", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "access_token", columnDefinition = "TEXT")
     private String accessToken;
 
     @Column(name = "token_scopes", columnDefinition = "TEXT")
@@ -81,5 +81,12 @@ public class Auth extends BaseEntity {
         this.accessToken = accessToken;
         this.tokenScopes = tokenScopes;
         this.tokenExpiresAt = tokenExpiresAt;
+    }
+
+    public void clearSensitiveInfo() {
+        this.providerUsername = null;
+        this.accessToken = null;
+        this.tokenScopes = null;
+        this.tokenExpiresAt = null;
     }
 }

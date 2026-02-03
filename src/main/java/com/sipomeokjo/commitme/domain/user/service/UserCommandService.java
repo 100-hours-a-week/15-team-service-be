@@ -2,11 +2,14 @@ package com.sipomeokjo.commitme.domain.user.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.domain.auth.entity.Auth;
+import com.sipomeokjo.commitme.domain.auth.repository.AuthRepository;
 import com.sipomeokjo.commitme.domain.policy.entity.PolicyAgreement;
 import com.sipomeokjo.commitme.domain.policy.entity.PolicyType;
 import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
+import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
@@ -16,6 +19,9 @@ import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.mapper.UserMapper;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +39,9 @@ public class UserCommandService {
     private final PolicyAgreementRepository policyAgreementRepository;
     private final UserMapper userMapper;
     private final S3UploadService s3UploadService;
+    private final AuthRepository authRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final Clock clock;
 
     public OnboardingResponse onboard(Long userId, OnboardingRequest request) {
         User user =
@@ -40,6 +49,7 @@ public class UserCommandService {
                         .findById(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST));
 
+        validateRejoin(user);
         if (user.getStatus() == UserStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.USER_ALREADY_ONBOARDED);
         }
@@ -85,6 +95,19 @@ public class UserCommandService {
         return userMapper.toUpdateResponse(user, profileImageUrl);
     }
 
+    public void deactivate(Long userId) {
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        user.deactivate(Instant.now(clock));
+        refreshTokenRepository.revokeAllByUserId(userId, LocalDateTime.now(clock));
+
+        for (Auth auth : authRepository.findAllByUser_Id(userId)) {
+            auth.clearSensitiveInfo();
+        }
+    }
+
     private void validatePhonePolicy(String phone, Boolean phonePolicyAgreed) {
         if (phone == null || phone.isBlank()) {
             return;
@@ -105,6 +128,22 @@ public class UserCommandService {
         if (trimmed.length() < 2 || trimmed.length() > 10) {
             throw new BusinessException(ErrorCode.USER_NAME_LENGTH_OUT_OF_RANGE);
         }
+    }
+
+    private void validateRejoin(User user) {
+        if (user == null || user.getStatus() != UserStatus.INACTIVE) {
+            return;
+        }
+        Instant deletedAt = user.getDeletedAt();
+        if (deletedAt == null) {
+            throw new BusinessException(ErrorCode.OAUTH_ACCOUNT_WITHDRAWN);
+        }
+        Instant now = Instant.now(clock);
+        Instant rejoinAvailableAt = deletedAt.plus(Duration.ofDays(30));
+        if (now.isBefore(rejoinAvailableAt)) {
+            throw new BusinessException(ErrorCode.OAUTH_ACCOUNT_WITHDRAWN);
+        }
+        user.restoreForRejoin();
     }
 
     private Position resolvePosition(Long positionId) {
