@@ -72,15 +72,22 @@ public class S3UploadService {
         }
     }
 
-    public String toPresignedGetUrl(String s3KeyOrUrl) {
+    public String toCdnUrl(String s3KeyOrUrl) {
         if (s3KeyOrUrl == null || s3KeyOrUrl.isBlank()) {
             return s3KeyOrUrl;
         }
         String normalizedKey = normalizeKey(s3KeyOrUrl);
+        if (isCdnUrl(normalizedKey)) {
+            return normalizedKey;
+        }
         if (normalizedKey.startsWith("http://") || normalizedKey.startsWith("https://")) {
             return normalizedKey;
         }
-        return presignGetObject(normalizedKey).presignedUrl();
+        String cdnBaseUrl = normalizeCdnBaseUrl();
+        if (cdnBaseUrl == null || cdnBaseUrl.isBlank()) {
+            return normalizedKey;
+        }
+        return cdnBaseUrl + "/" + stripLeadingSlash(normalizedKey);
     }
 
     public String toS3Key(String s3KeyOrUrl) {
@@ -132,5 +139,28 @@ public class S3UploadService {
         } catch (IllegalArgumentException ex) {
             return s3KeyOrUrl;
         }
+    }
+
+    private boolean isCdnUrl(String url) {
+        String cdnBaseUrl = normalizeCdnBaseUrl();
+        return cdnBaseUrl != null && !cdnBaseUrl.isBlank() && url.startsWith(cdnBaseUrl);
+    }
+
+    private String normalizeCdnBaseUrl() {
+        String cdnBaseUrl = s3Properties.cdnBaseUrl();
+        if (cdnBaseUrl == null || cdnBaseUrl.isBlank()) {
+            return cdnBaseUrl;
+        }
+        if (cdnBaseUrl.endsWith("/")) {
+            return cdnBaseUrl.substring(0, cdnBaseUrl.length() - 1);
+        }
+        return cdnBaseUrl;
+    }
+
+    private String stripLeadingSlash(String key) {
+        if (key.startsWith("/")) {
+            return key.substring(1);
+        }
+        return key;
     }
 }
