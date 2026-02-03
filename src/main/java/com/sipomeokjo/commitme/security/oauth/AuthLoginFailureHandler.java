@@ -36,12 +36,16 @@ public class AuthLoginFailureHandler implements AuthenticationFailureHandler {
                         .maxAge(Duration.ZERO)
                         .build();
         response.addHeader(HttpHeaders.SET_COOKIE, expireState.toString());
-        response.sendRedirect(buildFailRedirectUrl());
+        response.sendRedirect(buildFailRedirectUrl(exception));
     }
 
-    private String buildFailRedirectUrl() {
-        return UriComponentsBuilder.fromUriString(authRedirectProperties.redirectUri())
-                .queryParam("status", "fail")
-                .toUriString();
+    private String buildFailRedirectUrl(AuthenticationException exception) {
+        UriComponentsBuilder builder =
+                UriComponentsBuilder.fromUriString(authRedirectProperties.redirectUri())
+                        .queryParam("status", "fail");
+        if (exception instanceof AuthLoginAuthenticationException authException) {
+            builder.queryParam("reason", authException.getErrorCode().name());
+        }
+        return builder.toUriString();
     }
 }
