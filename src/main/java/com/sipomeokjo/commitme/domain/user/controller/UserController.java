@@ -14,11 +14,13 @@ import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
 import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Duration;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -69,5 +71,35 @@ public class UserController {
                         .build();
         httpResponse.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
         return APIResponse.onSuccess(SuccessCode.ONBOARDING_COMPLETED, onboardingResponse);
+    }
+
+    @DeleteMapping
+    public ResponseEntity<APIResponse<Void>> deactivate(
+            @CurrentUserId Long userId, HttpServletResponse httpResponse) {
+        userCommandService.deactivate(userId);
+        expireAuthCookies(httpResponse);
+        return APIResponse.onSuccess(SuccessCode.OK);
+    }
+
+    private void expireAuthCookies(HttpServletResponse response) {
+        ResponseCookie expireAccess =
+                ResponseCookie.from("access_token", "")
+                        .httpOnly(true)
+                        .secure(cookieProperties.isSecure())
+                        .sameSite("Lax")
+                        .path("/")
+                        .maxAge(Duration.ZERO)
+                        .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, expireAccess.toString());
+
+        ResponseCookie expireRefresh =
+                ResponseCookie.from("refresh_token", "")
+                        .httpOnly(true)
+                        .secure(cookieProperties.isSecure())
+                        .sameSite("Lax")
+                        .path("/auth/token")
+                        .maxAge(Duration.ZERO)
+                        .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, expireRefresh.toString());
     }
 }

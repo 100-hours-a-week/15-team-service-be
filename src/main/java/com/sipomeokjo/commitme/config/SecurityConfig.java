@@ -64,9 +64,13 @@ public class SecurityConfig {
         authLoginFilter.setAuthenticationFailureHandler(authLoginFailureHandler);
         CookieCsrfTokenRepository baseCsrfTokenRepository =
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
-        if (csrfProperties.cookieDomain() != null && !csrfProperties.cookieDomain().isBlank()) {
-            baseCsrfTokenRepository.setCookieDomain(csrfProperties.cookieDomain());
-        }
+        baseCsrfTokenRepository.setCookieCustomizer(
+                builder -> {
+                    if (csrfProperties.cookieDomain() != null
+                            && !csrfProperties.cookieDomain().isBlank()) {
+                        builder.domain(csrfProperties.cookieDomain());
+                    }
+                });
         LoggingCsrfTokenRepository csrfTokenRepository =
                 new LoggingCsrfTokenRepository(baseCsrfTokenRepository);
 
@@ -106,7 +110,7 @@ public class SecurityConfig {
                                                 "/v3/api-docs/**")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.POST, "/user/onboarding")
-                                        .hasRole("PENDING")
+                                        .hasAnyRole("PENDING", "INACTIVE")
                                         .anyRequest()
                                         .hasRole("ACTIVE"))
                 .logout(

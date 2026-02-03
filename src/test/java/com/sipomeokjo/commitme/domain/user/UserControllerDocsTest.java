@@ -10,6 +10,7 @@ import static org.springframework.restdocs.headers.HeaderDocumentation.headerWit
 import static org.springframework.restdocs.headers.HeaderDocumentation.responseHeaders;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -90,7 +91,7 @@ class UserControllerDocsTest {
     @Test
     void getProfile_docs() throws Exception {
         UserProfileResponse response =
-                new UserProfileResponse(1L, "profile-url", "홍길동", 2L, "01012345678");
+                new UserProfileResponse(1L, "profile-url", "홍길동", 2L, "01012345678", true, false);
         given(userQueryService.getUserProfile(1L)).willReturn(response);
 
         mockMvc.perform(get("/user").with(authenticatedUser(UserStatus.ACTIVE)))
@@ -123,7 +124,13 @@ class UserControllerDocsTest {
                                                                 .description("포지션 ID"),
                                                         fieldWithPath("data.phone")
                                                                 .type(JsonFieldType.STRING)
-                                                                .description("전화번호"))
+                                                                .description("전화번호"),
+                                                        fieldWithPath("data.privacyAgreed")
+                                                                .type(JsonFieldType.BOOLEAN)
+                                                                .description("개인정보 동의"),
+                                                        fieldWithPath("data.phonePolicyAgreed")
+                                                                .type(JsonFieldType.BOOLEAN)
+                                                                .description("전화번호 개인정보 동의"))
                                                 .build())))
                 .andDo(print());
     }
@@ -260,6 +267,34 @@ class UserControllerDocsTest {
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
                                                 .description("access_token 쿠키"))))
+                .andDo(print());
+    }
+
+    @Test
+    void withdraw_docs() throws Exception {
+        mockMvc.perform(delete("/user").with(authenticatedUser(UserStatus.ACTIVE)).with(csrf()))
+                .andExpect(status().isOk())
+                .andDo(
+                        document(
+                                "user-withdraw",
+                                resource(
+                                        builder()
+                                                .tag("User")
+                                                .summary("회원탈퇴")
+                                                .responseFields(
+                                                        fieldWithPath("code")
+                                                                .type(JsonFieldType.STRING)
+                                                                .description("응답 코드"),
+                                                        fieldWithPath("message")
+                                                                .type(JsonFieldType.STRING)
+                                                                .description("응답 메시지"),
+                                                        fieldWithPath("data")
+                                                                .type(JsonFieldType.NULL)
+                                                                .description("응답 데이터"))
+                                                .build()),
+                                responseHeaders(
+                                        headerWithName(HttpHeaders.SET_COOKIE)
+                                                .description("access_token/refresh_token 만료 쿠키"))))
                 .andDo(print());
     }
 
