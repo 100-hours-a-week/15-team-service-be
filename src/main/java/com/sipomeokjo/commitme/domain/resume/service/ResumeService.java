@@ -3,32 +3,28 @@ package com.sipomeokjo.commitme.domain.resume.service;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.pagination.PagingResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
-import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
-import com.sipomeokjo.commitme.domain.resume.config.AiProperties;
 import com.sipomeokjo.commitme.domain.resume.dto.*;
-import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateRequest;
-import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateResponse;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
+import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
-import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClient;
 
 @Service
 @RequiredArgsConstructor
@@ -42,10 +38,7 @@ public class ResumeService {
     private final PositionRepository positionRepository;
     private final CompanyRepository companyRepository;
 
-    private final RestClient aiClient;
-    private final AiProperties aiProperties;
-    private final com.sipomeokjo.commitme.domain.auth.repository.AuthRepository authRepository;
-    private final AccessTokenCipher accessTokenCipher;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public PagingResponse<ResumeSummaryDto> list(Long userId, int page, int size) {
@@ -150,36 +143,10 @@ public class ResumeService {
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
         resumeVersionRepository.save(v1);
 
-        var auth =
-                authRepository
-                        .findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
-
-        String githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
-
-        AiResumeGenerateRequest aiReq =
-                new AiResumeGenerateRequest(req.getRepoUrls(), position.getName(), githubToken);
-
-        try {
-            String url = aiProperties.getBaseUrl() + aiProperties.getResumeGeneratePath();
-
-            AiResumeGenerateResponse aiRes =
-                    aiClient.post()
-                            .uri(url)
-                            .body(aiReq)
-                            .retrieve()
-                            .body(AiResumeGenerateResponse.class);
-
-            if (aiRes == null || aiRes.jobId() == null || aiRes.jobId().isBlank()) {
-                v1.failNow("AI_RESPONSE_INVALID", "jobId is null/blank");
-                return saved.getId();
-            }
-
-            v1.startProcessing(aiRes.jobId());
-
-        } catch (Exception e) {
-            v1.failNow("AI_GENERATE_FAILED", e.getMessage());
-        }
+        ResumeAiGenerateEvent event =
+                new ResumeAiGenerateEvent(
+                        v1.getId(), userId, position.getName(), req.getRepoUrls());
+        eventPublisher.publishEvent(event);
 
         return saved.getId();
     }
