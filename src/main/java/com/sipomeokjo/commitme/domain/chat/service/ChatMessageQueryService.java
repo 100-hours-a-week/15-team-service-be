@@ -34,7 +34,7 @@ public class ChatMessageQueryService {
     public CursorResponse<ChatMessageResponse> getChatMessages(
             Long chatroomId, CursorRequest request) {
         CursorParser.Cursor cursor = cursorParser.parse(request == null ? null : request.next());
-        int size = (request == null ? 15 : request.limit(15));
+        int size = CursorRequest.resolveLimit(request, 15);
 
         List<ChatMessage> messages =
                 chatMessageRepository.findByChatroomWithCursor(
