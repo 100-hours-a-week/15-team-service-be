@@ -45,7 +45,9 @@ public enum ErrorCode implements ResponseCode {
             HttpStatus.BAD_REQUEST, "USER_PHONE_PRIVACY_REQUIRED", "전화번호 개인정보 처리방침 동의는 필수입니다."),
     INVALID_CURSOR_VALUE(HttpStatus.BAD_REQUEST, "INVALID_CURSOR_VALUE", "커서 값이 유효하지 않거나 손상되었습니다."),
     INVALID_SIZE_VALUE(HttpStatus.BAD_REQUEST, "INVALID_SIZE_VALUE", "사이즈 값이 유효하지 않거나 손상되었습니다."),
-    INVALID_RESUME_NAME(HttpStatus.BAD_REQUEST, "RESUME_NAME_400", "이력서 이름이 올바르지 않습니다."),
+	INVALID_SORT_VALUE(HttpStatus.BAD_REQUEST, "INVALID_SORT_VALUE", "정렬 값이 유효하지 않거나 손상되었습니다."),
+	INVALID_KEYWORD_VALUE(HttpStatus.BAD_REQUEST, "INVALID_KEYWORD_VALUE", "검색어 값이 유효하지 않거나 손상되었습니다."),
+	INVALID_RESUME_NAME(HttpStatus.BAD_REQUEST, "RESUME_NAME_400", "이력서 이름이 올바르지 않습니다."),
     POSITION_SELECTION_REQUIRED(
             HttpStatus.BAD_REQUEST, "POSITION_SELECTION_REQUIRED", "포지션 선택은 필수 입력 값입니다."),
     CHAT_MESSAGE_INVALID(HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_INVALID", "메시지 또는 첨부파일이 필요합니다."),

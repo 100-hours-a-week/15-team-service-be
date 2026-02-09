@@ -1,11 +1,13 @@
 package com.sipomeokjo.commitme.domain.resume.controller;
 
-import com.sipomeokjo.commitme.api.pagination.PagingResponse;
+import com.sipomeokjo.commitme.api.pagination.CursorRequest;
+import com.sipomeokjo.commitme.api.pagination.CursorResponse;
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.resume.dto.*;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeService;
 import com.sipomeokjo.commitme.security.handler.CustomUserDetails;
+import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,13 +21,14 @@ public class ResumeController {
     private final ResumeService resumeService;
 
     @GetMapping
-    public ResponseEntity<APIResponse<PagingResponse<ResumeSummaryDto>>> list(
-            @AuthenticationPrincipal CustomUserDetails principal,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        Long userId = principal.userId();
-        PagingResponse<ResumeSummaryDto> data = resumeService.list(userId, page, size);
-        return APIResponse.onSuccess(SuccessCode.OK, data);
+    public ResponseEntity<APIResponse<CursorResponse<ResumeSummaryDto>>> list(
+            @CurrentUserId Long userId,
+            CursorRequest request,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "UPDATED_DESC") String sortedBy) {
+
+        return APIResponse.onSuccess(
+                SuccessCode.OK, resumeService.list(userId, request, keyword, sortedBy));
     }
 
     @PostMapping
