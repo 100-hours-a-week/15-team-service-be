@@ -71,7 +71,8 @@ public class ResumeService {
         List<ResumeSummaryDto> items =
                 pageResumes.stream().map(resumeMapper::toSummaryDto).toList();
 
-        String next = hasMore && !pageResumes.isEmpty() ? encodeCursor(pageResumes.getLast()) : null;
+        String next =
+                hasMore && !pageResumes.isEmpty() ? encodeCursor(pageResumes.getLast()) : null;
         return new CursorResponse<>(items, null, next);
     }
 
@@ -157,31 +158,7 @@ public class ResumeService {
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        Long positionId = null;
-        String positionName = null;
-        if (resume.getPosition() != null) {
-            positionId = resume.getPosition().getId();
-            positionName = resume.getPosition().getName();
-        }
-
-        Long companyId = null;
-        String companyName = null;
-        if (resume.getCompany() != null) {
-            companyId = resume.getCompany().getId();
-            companyName = resume.getCompany().getName();
-        }
-
-        return new ResumeDetailDto(
-                resume.getId(),
-                resume.getName(),
-                positionId,
-                positionName,
-                companyId,
-                companyName,
-                resume.getCurrentVersionNo(),
-                version.getContent(),
-                resume.getCreatedAt(),
-                resume.getUpdatedAt());
+        return resumeMapper.toDetailDto(resume, version);
     }
 
     private static final long AI_PROCESSING_TIMEOUT_MINUTES = 5;

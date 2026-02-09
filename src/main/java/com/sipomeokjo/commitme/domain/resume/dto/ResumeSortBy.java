@@ -11,7 +11,7 @@ public enum ResumeSortBy {
         if (value == null || value.isBlank()) {
             return UPDATED_DESC;
         }
-		
+
         try {
             return ResumeSortBy.valueOf(value.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {

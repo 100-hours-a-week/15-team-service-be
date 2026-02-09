@@ -1,7 +1,9 @@
 package com.sipomeokjo.commitme.domain.resume.mapper;
 
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeDetailDto;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeSummaryDto;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
+import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -12,6 +14,40 @@ public class ResumeMapper {
             return null;
         }
 
+        RelatedInfo info = extractRelatedInfo(resume);
+
+        return new ResumeSummaryDto(
+                resume.getId(),
+                resume.getName(),
+                info.positionId(),
+                info.positionName(),
+                info.companyId(),
+                info.companyName(),
+                resume.getCurrentVersionNo(),
+                resume.getUpdatedAt());
+    }
+
+    public ResumeDetailDto toDetailDto(Resume resume, ResumeVersion version) {
+        if (resume == null || version == null) {
+            return null;
+        }
+
+        RelatedInfo info = extractRelatedInfo(resume);
+
+        return new ResumeDetailDto(
+                resume.getId(),
+                resume.getName(),
+                info.positionId(),
+                info.positionName(),
+                info.companyId(),
+                info.companyName(),
+                resume.getCurrentVersionNo(),
+                version.getContent(),
+                resume.getCreatedAt(),
+                resume.getUpdatedAt());
+    }
+
+    private RelatedInfo extractRelatedInfo(Resume resume) {
         Long positionId = null;
         String positionName = null;
         if (resume.getPosition() != null) {
@@ -26,14 +62,9 @@ public class ResumeMapper {
             companyName = resume.getCompany().getName();
         }
 
-        return new ResumeSummaryDto(
-                resume.getId(),
-                resume.getName(),
-                positionId,
-                positionName,
-                companyId,
-                companyName,
-                resume.getCurrentVersionNo(),
-                resume.getUpdatedAt());
+        return new RelatedInfo(positionId, positionName, companyId, companyName);
     }
+
+    private record RelatedInfo(
+            Long positionId, String positionName, Long companyId, String companyName) {}
 }
