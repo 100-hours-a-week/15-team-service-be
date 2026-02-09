@@ -146,51 +146,49 @@ class ChatControllerDocsTest {
                                                         fieldWithPath("message")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("응답 메시지"),
-                                                        fieldWithPath("data.chats")
+                                                        fieldWithPath("data.data")
                                                                 .type(JsonFieldType.ARRAY)
                                                                 .description("채팅 메시지 목록"),
-                                                        fieldWithPath("data.chats[].id")
+                                                        fieldWithPath("data.data[].id")
                                                                 .type(JsonFieldType.NUMBER)
                                                                 .description("메시지 ID"),
-                                                        fieldWithPath("data.chats[].role")
+                                                        fieldWithPath("data.data[].role")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("메시지 역할"),
-                                                        fieldWithPath("data.chats[].message")
+                                                        fieldWithPath("data.data[].message")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("메시지"),
-                                                        fieldWithPath("data.chats[].files")
+                                                        fieldWithPath("data.data[].files")
                                                                 .type(JsonFieldType.ARRAY)
                                                                 .description("첨부 파일 목록"),
-                                                        fieldWithPath("data.chats[].files[].id")
+                                                        fieldWithPath("data.data[].files[].id")
                                                                 .type(JsonFieldType.NUMBER)
                                                                 .description("첨부 ID"),
-                                                        fieldWithPath(
-                                                                        "data.chats[].files[].fileUrl")
+                                                        fieldWithPath("data.data[].files[].fileUrl")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("파일 URL"),
                                                         fieldWithPath(
-                                                                        "data.chats[].files[].fileType")
+                                                                        "data.data[].files[].fileType")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("파일 타입"),
-                                                        fieldWithPath("data.chats[].status")
+                                                        fieldWithPath("data.data[].status")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("메시지 상태"),
-                                                        fieldWithPath("data.chats[].sender")
+                                                        fieldWithPath("data.data[].sender")
                                                                 .type(JsonFieldType.NUMBER)
                                                                 .description("발신자 ID"),
-                                                        fieldWithPath("data.chats[].senderNumber")
+                                                        fieldWithPath("data.data[].senderNumber")
                                                                 .type(JsonFieldType.NUMBER)
                                                                 .description("발신자 번호"),
-                                                        fieldWithPath("data.chats[].mentionTo")
+                                                        fieldWithPath("data.data[].mentionTo")
                                                                 .type(JsonFieldType.NUMBER)
                                                                 .description("멘션 대상 ID")
                                                                 .optional(),
-                                                        fieldWithPath(
-                                                                        "data.chats[].mentionToNumber")
+                                                        fieldWithPath("data.data[].mentionToNumber")
                                                                 .type(JsonFieldType.NUMBER)
                                                                 .description("멘션 대상 번호")
                                                                 .optional(),
-                                                        fieldWithPath("data.chats[].sendAt")
+                                                        fieldWithPath("data.data[].sendAt")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("전송 시각"),
                                                         fieldWithPath("data.before")
