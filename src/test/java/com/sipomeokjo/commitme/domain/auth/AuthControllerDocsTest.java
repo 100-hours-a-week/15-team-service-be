@@ -23,7 +23,6 @@ import com.sipomeokjo.commitme.config.CorsProperties;
 import com.sipomeokjo.commitme.config.SecurityConfig;
 import com.sipomeokjo.commitme.domain.auth.controller.AuthController;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
-import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCommandService;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
 import com.sipomeokjo.commitme.security.CookieProperties;
@@ -39,7 +38,6 @@ import com.sipomeokjo.commitme.security.oauth.CustomAuthenticationEntryPoint;
 import jakarta.servlet.http.Cookie;
 import java.time.Duration;
 import java.util.List;
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.restdocs.AutoConfigureRestDocs;
@@ -150,8 +148,7 @@ class AuthControllerDocsTest {
 
     @Test
     void issueAccessToken_docs() throws Exception {
-        given(authCommandService.reissueAccessToken(anyString()))
-                .willReturn(new AuthTokenReissueResult("new-access-token", "new-refresh-token"));
+        given(authCommandService.reissueAccessToken(anyString())).willReturn("new-access-token");
 
         mockMvc.perform(
                         post("/auth/token")
@@ -161,9 +158,9 @@ class AuthControllerDocsTest {
                 .andExpect(
                         header().stringValues(
                                         HttpHeaders.SET_COOKIE,
-                                        Matchers.hasItems(
-                                                Matchers.containsString("access_token="),
-                                                Matchers.containsString("refresh_token="))))
+                                        hasItem(
+                                                org.hamcrest.Matchers.containsString(
+                                                        "access_token="))))
                 .andDo(
                         document(
                                 "auth-issue-access-token",
@@ -186,8 +183,7 @@ class AuthControllerDocsTest {
                                         cookieWithName("refresh_token").description("리프레시 토큰 쿠키")),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description(
-                                                        "재발급된 access_token, refresh_token 쿠키"))))
+                                                .description("재발급된 access_token 쿠키"))))
                 .andDo(print());
     }
 
