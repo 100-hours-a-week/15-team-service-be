@@ -2,19 +2,18 @@ package com.sipomeokjo.commitme.domain.chat.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.domain.chat.document.ChatAttachmentEmbedded;
+import com.sipomeokjo.commitme.domain.chat.document.ChatMessageDocument;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageResponse;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageSendRequest;
-import com.sipomeokjo.commitme.domain.chat.entity.ChatAttachment;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatAttachmentType;
-import com.sipomeokjo.commitme.domain.chat.entity.ChatMessage;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatMessageRole;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatMessageStatus;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatMessageType;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatUserNumber;
 import com.sipomeokjo.commitme.domain.chat.entity.Chatroom;
-import com.sipomeokjo.commitme.domain.chat.mapper.ChatMessageMapper;
-import com.sipomeokjo.commitme.domain.chat.repository.ChatAttachmentRepository;
-import com.sipomeokjo.commitme.domain.chat.repository.ChatMessageRepository;
+import com.sipomeokjo.commitme.domain.chat.mapper.ChatMessageMongoMapper;
+import com.sipomeokjo.commitme.domain.chat.repository.ChatMessageMongoRepository;
 import com.sipomeokjo.commitme.domain.chat.repository.ChatUserNumberRepository;
 import com.sipomeokjo.commitme.domain.chat.repository.ChatroomRepository;
 import com.sipomeokjo.commitme.domain.upload.entity.Upload;
@@ -27,6 +26,7 @@ import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -41,13 +41,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChatMessageCommandService {
 
     private final ChatroomRepository chatroomRepository;
-    private final ChatMessageRepository chatMessageRepository;
-    private final ChatAttachmentRepository chatAttachmentRepository;
+    private final ChatMessageMongoRepository chatMessageMongoRepository;
     private final ChatUserNumberRepository chatUserNumberRepository;
     private final UploadRepository uploadRepository;
     private final S3UploadService s3UploadService;
     private final UserRepository userRepository;
-    private final ChatMessageMapper chatMessageMapper;
+    private final ChatMessageMongoMapper chatMessageMongoMapper;
     private final Clock clock;
 
     public ChatMessageResponse sendMessage(
@@ -88,32 +87,25 @@ public class ChatMessageCommandService {
 
         ChatMessageType messageType = resolveMessageType(request.message(), uploads);
 
-        ChatMessage message =
-                ChatMessage.builder()
-                        .chatroom(chatroom)
-                        .sender(sender)
-                        .mentionUser(mentionUser)
+        List<ChatAttachmentEmbedded> attachments = buildAttachments(uploads);
+
+        ChatMessageDocument document =
+                ChatMessageDocument.builder()
+                        .chatroomId(chatroomId)
+                        .senderId(sender.getId())
+                        .mentionUserId(mentionUser != null ? mentionUser.getId() : null)
                         .status(ChatMessageStatus.SENT)
                         .role(ChatMessageRole.CHAT)
                         .messageType(messageType)
                         .message(request.message())
+                        .attachments(attachments)
                         .createdAt(Instant.now(clock))
                         .build();
 
-        ChatMessage savedMessage = chatMessageRepository.save(message);
-        List<ChatAttachment> attachments = buildAttachments(savedMessage, uploads);
-        if (!attachments.isEmpty()) {
-            chatAttachmentRepository.saveAll(attachments);
-        }
-
-        Map<Long, List<ChatAttachment>> attachmentsByMessageId =
-                attachments.isEmpty()
-                        ? Collections.emptyMap()
-                        : Map.of(savedMessage.getId(), attachments);
+        ChatMessageDocument savedDocument = chatMessageMongoRepository.save(document);
 
         Map<Long, Integer> userNumbersByUserId = fetchUserNumbers(chatroomId);
-        return chatMessageMapper.toChatMessageResponse(
-                savedMessage, attachmentsByMessageId, userNumbersByUserId);
+        return chatMessageMongoMapper.toChatMessageResponse(savedDocument, userNumbersByUserId);
     }
 
     private void validateUploads(List<Upload> uploads, List<Long> uploadIds, Long userId) {
@@ -151,19 +143,18 @@ public class ChatMessageCommandService {
         return ChatMessageType.TEXT;
     }
 
-    private List<ChatAttachment> buildAttachments(ChatMessage message, List<Upload> uploads) {
+    private List<ChatAttachmentEmbedded> buildAttachments(List<Upload> uploads) {
         if (uploads == null || uploads.isEmpty()) {
             return Collections.emptyList();
         }
         int order = 1;
-        List<ChatAttachment> attachments = new java.util.ArrayList<>();
+        List<ChatAttachmentEmbedded> attachments = new ArrayList<>();
         for (Upload upload : uploads) {
             if (upload == null) {
                 continue;
             }
             attachments.add(
-                    ChatAttachment.builder()
-                            .message(message)
+                    ChatAttachmentEmbedded.builder()
                             .fileType(ChatAttachmentType.IMAGE)
                             .fileUrl(s3UploadService.toS3Key(upload.getS3Key()))
                             .orderNo(order++)
