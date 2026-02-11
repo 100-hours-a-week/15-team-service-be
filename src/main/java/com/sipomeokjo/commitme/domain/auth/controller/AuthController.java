@@ -2,7 +2,6 @@ package com.sipomeokjo.commitme.domain.auth.controller;
 
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
-import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.dto.LoginUrlResponse;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCommandService;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
@@ -55,10 +54,10 @@ public class AuthController {
     public ResponseEntity<APIResponse<Void>> reissueToken(
             @CookieValue(value = "refresh_token", required = false) String refreshToken,
             HttpServletResponse response) {
-        AuthTokenReissueResult tokenResult = authCommandService.reissueAccessToken(refreshToken);
+        String accessToken = authCommandService.reissueAccessToken(refreshToken);
 
         ResponseCookie accessCookie =
-                ResponseCookie.from("access_token", tokenResult.accessToken())
+                ResponseCookie.from("access_token", accessToken)
                         .httpOnly(true)
                         .secure(cookieProperties.isSecure())
                         .sameSite("Lax")
@@ -66,16 +65,6 @@ public class AuthController {
                         .maxAge(jwtProperties.getAccessExpiration())
                         .build();
         response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
-
-        ResponseCookie refreshCookie =
-                ResponseCookie.from("refresh_token", tokenResult.refreshToken())
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/auth/token")
-                        .maxAge(jwtProperties.getRefreshExpiration())
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
 
         return APIResponse.onSuccess(SuccessCode.ACCESS_TOKEN_REISSUED);
     }

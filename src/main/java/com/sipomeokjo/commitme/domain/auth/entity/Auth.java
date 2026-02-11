@@ -13,7 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -50,7 +50,7 @@ public class Auth extends BaseEntity {
     private String tokenScopes;
 
     @Column(name = "token_expires_at")
-    private Instant tokenExpiresAt;
+    private LocalDateTime tokenExpiresAt;
 
     @Builder
     public Auth(
@@ -61,7 +61,7 @@ public class Auth extends BaseEntity {
             String providerUsername,
             String accessToken,
             String tokenScopes,
-            Instant tokenExpiresAt) {
+            LocalDateTime tokenExpiresAt) {
         this.id = id;
         this.user = user;
         this.provider = provider;
@@ -76,7 +76,7 @@ public class Auth extends BaseEntity {
             String providerUsername,
             String accessToken,
             String tokenScopes,
-            Instant tokenExpiresAt) {
+            LocalDateTime tokenExpiresAt) {
         this.providerUsername = providerUsername;
         this.accessToken = accessToken;
         this.tokenScopes = tokenScopes;

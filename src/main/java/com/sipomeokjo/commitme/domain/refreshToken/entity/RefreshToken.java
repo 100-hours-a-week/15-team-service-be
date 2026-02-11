@@ -3,7 +3,7 @@ package com.sipomeokjo.commitme.domain.refreshToken.entity;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.global.BaseEntity;
 import jakarta.persistence.*;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import lombok.*;
 
 @Getter
@@ -26,12 +26,8 @@ public class RefreshToken extends BaseEntity {
     private String tokenHash;
 
     @Column(name = "expires_at", nullable = false)
-    private Instant expiresAt;
+    private LocalDateTime expiresAt;
 
     @Column(name = "revoked_at")
-    private Instant revokedAt;
-
-    public void revoke(Instant revokedAt) {
-        this.revokedAt = revokedAt;
-    }
+    private LocalDateTime revokedAt;
 }
