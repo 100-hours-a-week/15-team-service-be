@@ -10,6 +10,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -19,7 +20,8 @@ public class ChatroomQueryService {
 
     private final ChatroomRepository chatroomRepository;
     private final ChatMessageRepository chatMessageRepository;
-
+	
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public List<ChatroomResponse> getAllChatroom() {
         List<Chatroom> chatrooms = chatroomRepository.findAllWithPosition();
         List<ChatroomWithLatest> merged =
@@ -39,12 +41,11 @@ public class ChatroomQueryService {
     }
 
     private Comparator<ChatroomWithLatest> chatroomLatestComparator() {
-        return Comparator.<ChatroomWithLatest, ChatMessage>comparing(
-                        ChatroomWithLatest::latest,
-                        Comparator.nullsLast(
-                                Comparator.comparing(ChatMessage::getCreatedAt)
-                                        .thenComparing(ChatMessage::getId)))
-                .reversed();
+		return Comparator.comparing(
+				ChatroomWithLatest::latest,
+				Comparator.nullsLast(Comparator.comparing(ChatMessage::getCreatedAt).reversed()
+						.thenComparing(Comparator.comparing(ChatMessage::getId).reversed()))
+		);
     }
 
     private ChatroomResponse toResponse(ChatroomWithLatest merged) {
