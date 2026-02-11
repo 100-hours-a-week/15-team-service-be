@@ -1,8 +1,11 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
-import com.sipomeokjo.commitme.api.pagination.PagingResponse;
+import com.sipomeokjo.commitme.api.pagination.CursorParser;
+import com.sipomeokjo.commitme.api.pagination.CursorRequest;
+import com.sipomeokjo.commitme.api.pagination.CursorResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.api.validation.KeywordValidator;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
@@ -12,17 +15,15 @@ import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
+import com.sipomeokjo.commitme.domain.resume.mapper.ResumeMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +35,8 @@ public class ResumeService {
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final UserRepository userRepository;
+    private final CursorParser cursorParser;
+    private final ResumeMapper resumeMapper;
 
     private final PositionRepository positionRepository;
     private final CompanyRepository companyRepository;
@@ -41,51 +44,40 @@ public class ResumeService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
-    public PagingResponse<ResumeSummaryDto> list(Long userId, int page, int size) {
+    public CursorResponse<ResumeSummaryDto> list(
+            Long userId, CursorRequest request, String keyword, String sortedBy) {
+        ResumeSortBy sortBy = ResumeSortBy.from(sortedBy);
+        CursorParser.Cursor cursor = cursorParser.parse(request == null ? null : request.next());
+        int size = CursorRequest.resolveLimit(request, 10);
+        String normalizedKeyword = KeywordValidator.normalize(keyword, 30);
 
-        PageRequest pageable =
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
-        Page<Resume> result = resumeRepository.findSucceededByUserId(userId, pageable);
+        List<Resume> resumes =
+                (sortBy == ResumeSortBy.UPDATED_ASC)
+                        ? resumeRepository.findSucceededByUserIdWithCursorAsc(
+                                userId,
+                                normalizedKeyword,
+                                cursor.createdAt(),
+                                cursor.id(),
+                                PageRequest.of(0, size + 1))
+                        : resumeRepository.findSucceededByUserIdWithCursorDesc(
+                                userId,
+                                normalizedKeyword,
+                                cursor.createdAt(),
+                                cursor.id(),
+                                PageRequest.of(0, size + 1));
 
-        List<Resume> resumes = result.getContent();
-        List<ResumeSummaryDto> items = new ArrayList<>(resumes.size());
+        boolean hasMore = resumes.size() > size;
+        List<Resume> pageResumes = hasMore ? resumes.subList(0, size) : resumes;
+        List<ResumeSummaryDto> items =
+                pageResumes.stream().map(resumeMapper::toSummaryDto).toList();
 
-        for (Resume r : resumes) {
-            Long positionId = null;
-            String positionName = null;
-            if (r.getPosition() != null) {
-                positionId = r.getPosition().getId();
-                positionName = r.getPosition().getName();
-            }
+        String next =
+                hasMore && !pageResumes.isEmpty() ? encodeCursor(pageResumes.getLast()) : null;
+        return new CursorResponse<>(items, null, next);
+    }
 
-            Long companyId = null;
-            String companyName = null;
-            if (r.getCompany() != null) {
-                companyId = r.getCompany().getId();
-                companyName = r.getCompany().getName();
-            }
-
-            items.add(
-                    new ResumeSummaryDto(
-                            r.getId(),
-                            r.getName(),
-                            positionId,
-                            positionName,
-                            companyId,
-                            companyName,
-                            r.getCurrentVersionNo(),
-                            r.getUpdatedAt()));
-        }
-
-        PagingResponse.PageMeta meta =
-                new PagingResponse.PageMeta(
-                        result.getNumber(),
-                        result.getSize(),
-                        result.getTotalElements(),
-                        result.getTotalPages(),
-                        result.hasNext());
-
-        return new PagingResponse<>(items, meta);
+    private String encodeCursor(Resume resume) {
+        return resume.getUpdatedAt() + "|" + resume.getId();
     }
 
     public Long create(Long userId, ResumeCreateRequest req) {
@@ -166,31 +158,7 @@ public class ResumeService {
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        Long positionId = null;
-        String positionName = null;
-        if (resume.getPosition() != null) {
-            positionId = resume.getPosition().getId();
-            positionName = resume.getPosition().getName();
-        }
-
-        Long companyId = null;
-        String companyName = null;
-        if (resume.getCompany() != null) {
-            companyId = resume.getCompany().getId();
-            companyName = resume.getCompany().getName();
-        }
-
-        return new ResumeDetailDto(
-                resume.getId(),
-                resume.getName(),
-                positionId,
-                positionName,
-                companyId,
-                companyName,
-                resume.getCurrentVersionNo(),
-                version.getContent(),
-                resume.getCreatedAt(),
-                resume.getUpdatedAt());
+        return resumeMapper.toDetailDto(resume, version);
     }
 
     private static final long AI_PROCESSING_TIMEOUT_MINUTES = 5;

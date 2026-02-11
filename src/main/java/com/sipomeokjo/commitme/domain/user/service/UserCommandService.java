@@ -10,6 +10,7 @@ import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepositor
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
+import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
@@ -22,7 +23,6 @@ import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +41,7 @@ public class UserCommandService {
     private final S3UploadService s3UploadService;
     private final AuthRepository authRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenCacheService refreshTokenCacheService;
     private final Clock clock;
 
     public OnboardingResponse onboard(Long userId, OnboardingRequest request) {
@@ -101,7 +102,10 @@ public class UserCommandService {
                         .findById(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.deactivate(Instant.now(clock));
-        refreshTokenRepository.revokeAllByUserId(userId, LocalDateTime.now(clock));
+
+        var activeTokenHashes = refreshTokenRepository.findActiveTokenHashesByUserId(userId);
+        refreshTokenRepository.revokeAllByUserId(userId, Instant.now(clock));
+        refreshTokenCacheService.evictAll(activeTokenHashes);
 
         for (Auth auth : authRepository.findAllByUser_Id(userId)) {
             auth.clearSensitiveInfo();
@@ -198,7 +202,7 @@ public class UserCommandService {
                 .document("dummy")
                 .policyType(policyType)
                 .policyVersion("0000-00-00")
-                .agreedAt(LocalDateTime.now())
+                .agreedAt(Instant.now(clock))
                 .build();
     }
 
