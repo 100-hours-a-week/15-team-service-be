@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@Deprecated
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
     @Query(
@@ -39,4 +40,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
         """)
     List<ChatMessage> findLatestByChatroomId(
             @Param("chatroomId") Long chatroomId, Pageable pageable);
+
+    long countByChatroomId(@Param("chatroomId") Long chatroomId);
 }
