@@ -65,7 +65,8 @@ public class ChatMessageMigrationService {
                     ChatMessageDocument document = toDocument(message, attachments);
                     documents.add(document);
                 } catch (Exception e) {
-                    log.error("Failed to convert message id={}: {}", message.getId(), e.getMessage());
+                    log.error(
+                            "Failed to convert message id={}: {}", message.getId(), e.getMessage());
                     totalFailed++;
                 }
             }
@@ -83,13 +84,11 @@ public class ChatMessageMigrationService {
             page++;
         } while (messagePage.hasNext());
 
-        log.info(
-                "Migration completed. Total migrated: {}, Failed: {}", totalMigrated, totalFailed);
+        log.info("Migration completed. Total migrated: {}, Failed: {}", totalMigrated, totalFailed);
         return new MigrationResult(totalMigrated, totalFailed);
     }
 
-    private ChatMessageDocument toDocument(
-            ChatMessage message, List<ChatAttachment> attachments) {
+    private ChatMessageDocument toDocument(ChatMessage message, List<ChatAttachment> attachments) {
         List<ChatAttachmentEmbedded> embeddedAttachments =
                 attachments.stream()
                         .map(

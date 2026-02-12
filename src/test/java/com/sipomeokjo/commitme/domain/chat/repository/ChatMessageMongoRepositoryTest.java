@@ -23,9 +23,8 @@ import org.springframework.test.context.ContextConfiguration;
 @DataMongoTest
 @ContextConfiguration(classes = MongoTestConfig.class)
 @EnableMongoRepositories(basePackageClasses = ChatMessageMongoRepository.class)
-@org.springframework.test.context.TestPropertySource(properties = {
-        "de.flapdoodle.mongodb.embedded.version=6.0.5"
-})
+@org.springframework.test.context.TestPropertySource(
+        properties = {"de.flapdoodle.mongodb.embedded.version=6.0.5"})
 class ChatMessageMongoRepositoryTest {
 
     @Autowired private ChatMessageMongoRepository chatMessageMongoRepository;
@@ -69,10 +68,11 @@ class ChatMessageMongoRepositoryTest {
         List<ChatMessageDocument> saved =
                 chatMessageMongoRepository.saveAll(List.of(message1, message2, message3));
 
-        ChatMessageDocument cursorMessage = saved.stream()
-                .filter(m -> m.getMessage().equals("세번째 메시지"))
-                .findFirst()
-                .orElseThrow();
+        ChatMessageDocument cursorMessage =
+                saved.stream()
+                        .filter(m -> m.getMessage().equals("세번째 메시지"))
+                        .findFirst()
+                        .orElseThrow();
 
         List<ChatMessageDocument> result =
                 chatMessageMongoRepository.findByChatroomWithCursor(
@@ -96,7 +96,8 @@ class ChatMessageMongoRepositoryTest {
         chatMessageMongoRepository.saveAll(List.of(message1, message2));
 
         List<ChatMessageDocument> result =
-                chatMessageMongoRepository.findLatestByChatroomId(CHATROOM_ID, PageRequest.of(0, 1));
+                chatMessageMongoRepository.findLatestByChatroomId(
+                        CHATROOM_ID, PageRequest.of(0, 1));
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getMessage()).isEqualTo("최신 메시지");
@@ -149,7 +150,8 @@ class ChatMessageMongoRepositoryTest {
 
         ChatMessageDocument saved = chatMessageMongoRepository.save(message);
 
-        ChatMessageDocument found = chatMessageMongoRepository.findById(saved.getId()).orElseThrow();
+        ChatMessageDocument found =
+                chatMessageMongoRepository.findById(saved.getId()).orElseThrow();
 
         assertThat(found.getAttachments()).hasSize(2);
         assertThat(found.getAttachments().get(0).getFileUrl())

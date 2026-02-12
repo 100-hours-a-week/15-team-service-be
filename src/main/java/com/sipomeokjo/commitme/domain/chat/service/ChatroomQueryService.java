@@ -19,7 +19,7 @@ public class ChatroomQueryService {
 
     private final ChatroomRepository chatroomRepository;
     private final ChatMessageMongoRepository chatMessageMongoRepository;
-	
+
     public List<ChatroomResponse> getAllChatroom() {
         List<Chatroom> chatrooms = chatroomRepository.findAllWithPosition();
         List<ChatroomWithLatest> merged =

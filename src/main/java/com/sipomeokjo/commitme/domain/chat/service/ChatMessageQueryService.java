@@ -42,7 +42,10 @@ public class ChatMessageQueryService {
         } else {
             documents =
                     chatMessageMongoRepository.findByChatroomWithCursor(
-                            chatroomId, cursor.createdAt(), cursor.id(), PageRequest.of(0, size + 1));
+                            chatroomId,
+                            cursor.createdAt(),
+                            cursor.id(),
+                            PageRequest.of(0, size + 1));
         }
 
         boolean hasMorePast = documents.size() > size;
@@ -52,7 +55,10 @@ public class ChatMessageQueryService {
         Map<Long, Integer> userNumbersByUserId = fetchUserNumbers(chatroomId);
         List<ChatMessageResponse> responses =
                 pageAsc.stream()
-                        .map(doc -> chatMessageMongoMapper.toChatMessageResponse(doc, userNumbersByUserId))
+                        .map(
+                                doc ->
+                                        chatMessageMongoMapper.toChatMessageResponse(
+                                                doc, userNumbersByUserId))
                         .toList();
 
         String next = hasMorePast && !pageAsc.isEmpty() ? encodeCursor(pageAsc.getFirst()) : null;

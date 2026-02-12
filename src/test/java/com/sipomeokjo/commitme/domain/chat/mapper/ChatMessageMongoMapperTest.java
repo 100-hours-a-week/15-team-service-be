@@ -70,7 +70,8 @@ class ChatMessageMongoMapperTest {
     @Test
     @DisplayName("첨부파일이 포함된 메시지를 변환한다")
     void toChatMessageResponseWithAttachments() {
-        given(s3UploadService.toCdnUrl(anyString())).willAnswer(inv -> "https://cdn.example.com/" + inv.getArgument(0));
+        given(s3UploadService.toCdnUrl(anyString()))
+                .willAnswer(inv -> "https://cdn.example.com/" + inv.getArgument(0));
 
         Instant now = Instant.now();
         ChatAttachmentEmbedded attachment =
@@ -101,7 +102,8 @@ class ChatMessageMongoMapperTest {
 
         assertThat(response.files()).hasSize(1);
         assertThat(response.files().get(0).id()).isEqualTo(10L);
-        assertThat(response.files().get(0).fileUrl()).isEqualTo("https://cdn.example.com/image.jpg");
+        assertThat(response.files().get(0).fileUrl())
+                .isEqualTo("https://cdn.example.com/image.jpg");
         assertThat(response.files().get(0).fileType()).isEqualTo("IMAGE");
     }
 

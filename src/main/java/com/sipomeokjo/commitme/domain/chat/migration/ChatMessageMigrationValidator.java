@@ -38,7 +38,8 @@ public class ChatMessageMigrationValidator {
             long mongoCount = chatMessageMongoRepository.countByChatroomId(chatroomId);
 
             ChatroomValidation validation =
-                    new ChatroomValidation(chatroomId, mysqlCount, mongoCount, mysqlCount == mongoCount);
+                    new ChatroomValidation(
+                            chatroomId, mysqlCount, mongoCount, mysqlCount == mongoCount);
 
             chatroomValidations.add(validation);
 
@@ -57,8 +58,7 @@ public class ChatMessageMigrationValidator {
 
         log.info("Validation completed. Valid: {}", isValid);
 
-        return new ValidationResult(
-                mysqlTotalCount, mongoTotalCount, chatroomValidations, isValid);
+        return new ValidationResult(mysqlTotalCount, mongoTotalCount, chatroomValidations, isValid);
     }
 
     public record ValidationResult(
