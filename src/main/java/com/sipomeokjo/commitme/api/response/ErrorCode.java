@@ -69,6 +69,7 @@ public enum ErrorCode implements ResponseCode {
     COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "COMPANY_NOT_FOUND", "존재하지 않는 기업입니다."),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "존재하지 않는 리소스입니다."),
     CHATROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHATROOM_NOT_FOUND", "채팅방을 찾을 수 없습니다."),
+    INTERVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "INTERVIEW_NOT_FOUND", "면접을 찾을 수 없습니다."),
     OAUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "OAUTH_ACCESS_DENIED", "소셜 로그인 권한이 거부되었습니다."),
     OAUTH_ACCOUNT_WITHDRAWN(
             HttpStatus.FORBIDDEN, "OAUTH_ACCOUNT_WITHDRAWN", "탈퇴한 계정입니다. 30일 후 재가입 가능합니다."),
