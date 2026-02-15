@@ -1,11 +1,13 @@
 package com.sipomeokjo.commitme.domain.chat.pubsub;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageSendResponse;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
@@ -20,6 +22,10 @@ public class ChatMessageSubscriber implements MessageListener {
     private static final String CHAT_TOPIC_PREFIX = "/topic/chats/";
 
     private final GenericJackson2JsonRedisSerializer chatMessageSerializer;
+
+    @Qualifier("chatRedisObjectMapper")
+    private final ObjectMapper chatRedisObjectMapper;
+
     private final SimpMessagingTemplate messagingTemplate;
 
     @Override
@@ -40,6 +46,9 @@ public class ChatMessageSubscriber implements MessageListener {
             Object value = chatMessageSerializer.deserialize(message.getBody());
             if (value instanceof ChatBroadcastPayload payload) {
                 return payload;
+            }
+            if (value != null) {
+                return chatRedisObjectMapper.convertValue(value, ChatBroadcastPayload.class);
             }
             return null;
         } catch (Exception e) {
