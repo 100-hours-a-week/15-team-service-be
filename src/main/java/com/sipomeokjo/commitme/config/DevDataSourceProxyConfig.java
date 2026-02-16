@@ -2,9 +2,11 @@ package com.sipomeokjo.commitme.config;
 
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
+import com.sipomeokjo.commitme.logging.DevQueryLogEntryCreator;
 import net.ttddyy.dsproxy.support.ProxyDataSource;
 import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
-import org.hibernate.engine.jdbc.internal.FormatStyle;
+import net.ttddyy.dsproxy.listener.logging.SLF4JLogLevel;
+import net.ttddyy.dsproxy.listener.logging.SLF4JQueryLoggingListener;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,12 +22,14 @@ public class DevDataSourceProxyConfig {
             @Override
             public Object postProcessAfterInitialization(Object bean, String beanName) {
                 if (bean instanceof DataSource && !(bean instanceof ProxyDataSource)) {
+                    SLF4JQueryLoggingListener listener = new SLF4JQueryLoggingListener();
+                    listener.setLogLevel(SLF4JLogLevel.DEBUG);
+                    listener.setQueryLogEntryCreator(new DevQueryLogEntryCreator(true));
+
                     return ProxyDataSourceBuilder.create((DataSource) bean)
                             .name("CommitmeDS")
                             .countQuery()
-                            .logQueryBySlf4j()
-                            .multiline()
-                            .formatQuery(query -> FormatStyle.BASIC.getFormatter().format(query))
+                            .listener(listener)
                             .logSlowQueryBySlf4j(1, TimeUnit.SECONDS)
                             .build();
                 }
