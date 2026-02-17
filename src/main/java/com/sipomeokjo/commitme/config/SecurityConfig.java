@@ -82,7 +82,9 @@ public class SecurityConfig {
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers(
-                                                "/api/v1/resume/callback", "/uploads/**"))
+                                                "/api/v1/resume/callback",
+                                                "/api/resume/*/callback",
+                                                "/uploads/**"))
                 .cors(Customizer.withDefaults())
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -105,6 +107,7 @@ public class SecurityConfig {
                                                 "/auth/github",
                                                 "/auth/token",
                                                 "/api/v1/resume/callback",
+                                                "/api/resume/*/callback",
                                                 "/actuator/health",
                                                 "/swagger/**",
                                                 "/swagger-ui/**",

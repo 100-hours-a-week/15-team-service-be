@@ -15,6 +15,8 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
 
     Optional<Resume> findByIdAndUser_Id(Long resumeId, Long userId);
 
+    boolean existsByIdAndUser_Id(Long resumeId, Long userId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM Resume r WHERE r.id = :resumeId AND r.user.id = :userId")
     Optional<Resume> findByIdAndUserIdWithLock(

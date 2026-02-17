@@ -1,10 +1,13 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.auth.repository.AuthRepository;
 import com.sipomeokjo.commitme.domain.resume.config.AiProperties;
+import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeEditRequest;
+import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeEditResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateResponse;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
@@ -13,6 +16,7 @@ import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -23,13 +27,14 @@ import org.springframework.web.client.RestClient;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ResumeAiRequestService {
-
     private final ResumeVersionRepository resumeVersionRepository;
     private final AuthRepository authRepository;
     private final AccessTokenCipher accessTokenCipher;
     private final RestClient aiClient;
     private final AiProperties aiProperties;
+    private final ObjectMapper objectMapper;
 
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -79,6 +84,42 @@ public class ResumeAiRequestService {
             version.startProcessing(aiRes.jobId());
         } catch (Exception e) {
             version.failNow("AI_GENERATE_FAILED", e.getMessage());
+        }
+    }
+
+    public String requestEdit(Long resumeId, String resumeJson, String requestMessage) {
+        if (resumeJson == null || resumeJson.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+		
+        if (requestMessage == null || requestMessage.isBlank()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
+        try {
+            AiResumeEditRequest aiReq =
+                    new AiResumeEditRequest(
+                            resumeId, objectMapper.readTree(resumeJson), requestMessage);
+
+            AiResumeEditResponse aiRes =
+                    aiClient.post()
+                            .uri(aiProperties.getBaseUrl() + aiProperties.getResumeEditPath())
+                            .body(aiReq)
+                            .retrieve()
+                            .body(AiResumeEditResponse.class);
+
+            if (aiRes == null || aiRes.jobId() == null || aiRes.jobId().isBlank()) {
+                log.warn("[AI_EDIT] invalid_response");
+                throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+            }
+
+            return aiRes.jobId();
+        } catch (BusinessException e) {
+            log.warn("[AI_EDIT] failed error={}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.warn("[AI_EDIT] failed error={}", e.getMessage());
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
 }

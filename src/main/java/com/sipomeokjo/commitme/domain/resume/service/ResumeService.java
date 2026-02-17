@@ -163,6 +163,11 @@ public class ResumeService {
         return resumeMapper.toDetailDto(resume, version);
     }
 
+    @Transactional(readOnly = true)
+    public boolean existsByResumeIdAndUserId(Long resumeId, Long userId) {
+        return resumeRepository.existsByIdAndUser_Id(resumeId, userId);
+    }
+
     private static final long AI_PROCESSING_TIMEOUT_MINUTES = 5;
 
     public ResumeVersionDto getVersion(Long userId, Long resumeId, int versionNo) {
