@@ -252,8 +252,7 @@ public class ResumeService {
         resumeVersionRepository.save(next);
 
         try {
-            String jobId =
-                    resumeAiRequestService.requestEdit(resumeId, next.getContent(), message);
+            String jobId = resumeAiRequestService.requestEdit(resumeId, next.getContent(), message);
             next.startProcessing(jobId);
             log.debug(
                     "[RESUME_EDIT] ai_requested userId={} resumeId={} versionNo={} taskId={}",

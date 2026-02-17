@@ -5,8 +5,7 @@ import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageSendResponse;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
@@ -16,9 +15,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class ChatMessageSubscriber implements MessageListener {
-
-    private static final Logger log = LoggerFactory.getLogger(ChatMessageSubscriber.class);
     private static final String CHAT_TOPIC_PREFIX = "/topic/chats/";
 
     private final GenericJackson2JsonRedisSerializer chatMessageSerializer;

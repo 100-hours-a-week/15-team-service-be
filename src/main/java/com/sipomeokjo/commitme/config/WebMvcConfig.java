@@ -1,12 +1,12 @@
 package com.sipomeokjo.commitme.config;
 
-import com.sipomeokjo.commitme.security.resolver.CurrentUserIdArgumentResolver;
 import com.sipomeokjo.commitme.logging.MdcApiInterceptor;
+import com.sipomeokjo.commitme.security.resolver.CurrentUserIdArgumentResolver;
 import java.util.List;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration

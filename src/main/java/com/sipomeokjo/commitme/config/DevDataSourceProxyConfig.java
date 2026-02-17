@@ -1,12 +1,12 @@
 package com.sipomeokjo.commitme.config;
 
+import com.sipomeokjo.commitme.logging.DevQueryLogEntryCreator;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
-import com.sipomeokjo.commitme.logging.DevQueryLogEntryCreator;
-import net.ttddyy.dsproxy.support.ProxyDataSource;
-import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 import net.ttddyy.dsproxy.listener.logging.SLF4JLogLevel;
 import net.ttddyy.dsproxy.listener.logging.SLF4JQueryLoggingListener;
+import net.ttddyy.dsproxy.support.ProxyDataSource;
+import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

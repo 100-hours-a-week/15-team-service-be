@@ -44,7 +44,8 @@ public class ResumeController {
     @GetMapping("/{resumeId}/versions/{versionNo}")
     public ResponseEntity<APIResponse<ResumeVersionDto>> getVersion(
             @CurrentUserId Long userId, @PathVariable Long resumeId, @PathVariable int versionNo) {
-        return APIResponse.onSuccess(SuccessCode.OK, resumeService.getVersion(userId, resumeId, versionNo));
+        return APIResponse.onSuccess(
+                SuccessCode.OK, resumeService.getVersion(userId, resumeId, versionNo));
     }
 
     @PatchMapping("/{resumeId}/name")
@@ -62,7 +63,8 @@ public class ResumeController {
             @CurrentUserId Long userId,
             @PathVariable Long resumeId,
             @RequestBody ResumeEditRequest request) {
-        return APIResponse.onSuccess(SuccessCode.RESUME_EDIT_REQUESTED, resumeService.edit(userId, resumeId, request));
+        return APIResponse.onSuccess(
+                SuccessCode.RESUME_EDIT_REQUESTED, resumeService.edit(userId, resumeId, request));
     }
 
     @PostMapping("/{resumeId}/versions/{versionNo}")
