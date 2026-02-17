@@ -19,7 +19,7 @@ public class ResumeAiCallbackService {
     private final ResumeVersionRepository resumeVersionRepository;
     private final ObjectMapper objectMapper;
 
-    public void handleCallback(AiResumeCallbackRequest req) {
+    public ResumeAiCallbackResult handleCallback(AiResumeCallbackRequest req) {
 
         if (req == null || req.jobId() == null || req.jobId().isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
@@ -36,24 +36,24 @@ public class ResumeAiCallbackService {
 
         if (version.getStatus() == ResumeVersionStatus.SUCCEEDED
                 || version.getStatus() == ResumeVersionStatus.FAILED) {
-            return;
+            return toResult(version, false);
         }
 
         String status = req.status().trim();
 
         if ("success".equalsIgnoreCase(status)) {
-            if (req.resume() == null) {
-                version.failNow("BAD_CALLBACK", "resume is null");
-                return;
+            if (req.content() == null) {
+                version.failNow("BAD_CALLBACK", "content is null");
+                return toResult(version, true);
             }
 
             try {
-                String json = objectMapper.writeValueAsString(req.resume());
+                String json = objectMapper.writeValueAsString(req.content());
                 version.succeed(json);
             } catch (Exception e) {
                 version.failNow("JSON_SERIALIZATION_FAILED", e.getMessage());
             }
-            return;
+            return toResult(version, true);
         }
 
         if ("failed".equalsIgnoreCase(status)) {
@@ -69,9 +69,20 @@ public class ResumeAiCallbackService {
                             : req.error().message();
 
             version.failNow(code, msg);
-            return;
+            return toResult(version, true);
         }
 
         version.failNow("BAD_CALLBACK", "invalid status=" + req.status());
+        return toResult(version, true);
+    }
+
+    private ResumeAiCallbackResult toResult(ResumeVersion version, boolean updated) {
+        return new ResumeAiCallbackResult(
+                version.getResume().getId(),
+                version.getVersionNo(),
+                version.getAiTaskId(),
+                version.getStatus(),
+                version.getUpdatedAt(),
+                updated);
     }
 }

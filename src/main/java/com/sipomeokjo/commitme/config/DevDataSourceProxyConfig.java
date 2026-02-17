@@ -1,5 +1,6 @@
 package com.sipomeokjo.commitme.config;
 
+import com.sipomeokjo.commitme.logging.DevQueryLogEntryCreator;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import com.sipomeokjo.commitme.logging.DevQueryLogEntryCreator;

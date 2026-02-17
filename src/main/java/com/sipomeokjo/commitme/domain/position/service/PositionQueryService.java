@@ -18,7 +18,7 @@ public class PositionQueryService {
     private final PositionRepository positionRepository;
     private final PositionMapper positionMapper;
 
-	@Cacheable(cacheNames = "positions", key = "'all'")
+    @Cacheable(cacheNames = "positions", key = "'all'")
     public List<PositionResponse> getPositions() {
         return positionRepository.findAll(Sort.by(Sort.Direction.ASC, "id")).stream()
                 .map(positionMapper::toResponse)

@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -21,8 +22,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtFilter extends OncePerRequestFilter {
-
     private final AccessTokenProvider tokenProvider;
 
     @Override
@@ -31,6 +32,12 @@ public class JwtFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String token = resolveToken(request);
 
+        if (token == null) {
+            log.debug(
+                    "[JWT] missing_token method={} uri={}",
+                    request.getMethod(),
+                    request.getRequestURI());
+        }
         if (token != null && tokenProvider.validateToken(token)) {
             String statusValue = tokenProvider.getStatus(token);
             UserStatus status = parseStatus(statusValue);
@@ -45,7 +52,18 @@ public class JwtFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(
                                 customUserDetails, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+            } else {
+                log.warn(
+                        "[JWT] invalid_status method={} uri={} status={}",
+                        request.getMethod(),
+                        request.getRequestURI(),
+                        statusValue);
             }
+        } else if (token != null) {
+            log.warn(
+                    "[JWT] invalid_token method={} uri={}",
+                    request.getMethod(),
+                    request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);
