@@ -62,6 +62,21 @@ public class ResumeVersion extends BaseEntity {
         return v;
     }
 
+    public static ResumeVersion createNext(Resume resume, int versionNo, String content) {
+        ResumeVersion v = new ResumeVersion();
+        v.resume = resume;
+        v.versionNo = versionNo;
+        v.status = ResumeVersionStatus.QUEUED;
+
+        if (content == null || content.isBlank()) {
+            v.content = "{}";
+        } else {
+            v.content = content;
+        }
+
+        return v;
+    }
+
     public void commitNow() {
         this.committedAt = Instant.now();
     }

@@ -58,6 +58,7 @@ public enum ErrorCode implements ResponseCode {
     RESUME_VERSION_NOT_READY(HttpStatus.CONFLICT, "RESUME_VERSION_409", "이력서 버전이 아직 준비되지 않았습니다."),
     RESUME_GENERATION_IN_PROGRESS(
             HttpStatus.CONFLICT, "RESUME_GENERATION_IN_PROGRESS", "이미 생성 중인 이력서가 있습니다."),
+    RESUME_EDIT_IN_PROGRESS(HttpStatus.CONFLICT, "RESUME_EDIT_IN_PROGRESS", "이력서 수정 작업이 진행 중입니다."),
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", "이미 존재하는 리소스입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "존재하지 않는 회원입니다."),
     USER_SETTINGS_NOT_FOUND(HttpStatus.NOT_FOUND, "USER_SETTINGS_NOT_FOUND", "유저 설정을 찾을 수 없습니다."),

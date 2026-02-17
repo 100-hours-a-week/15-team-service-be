@@ -22,6 +22,7 @@ import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -30,8 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ResumeService {
-
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final UserRepository userRepository;
@@ -42,6 +43,7 @@ public class ResumeService {
     private final CompanyRepository companyRepository;
 
     private final ApplicationEventPublisher eventPublisher;
+    private final ResumeAiRequestService resumeAiRequestService;
 
     @Transactional(readOnly = true)
     public CursorResponse<ResumeSummaryDto> list(
@@ -87,7 +89,7 @@ public class ResumeService {
                         .findByIdWithLock(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<ResumeVersion> pendingVersions =
+        List<Long> pendingVersions =
                 resumeVersionRepository.findByUserIdAndStatusIn(
                         userId,
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
@@ -206,6 +208,85 @@ public class ResumeService {
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
         resume.rename(name);
+    }
+
+    public ResumeEditResponse edit(Long userId, Long resumeId, ResumeEditRequest req) {
+        String message = (req == null || req.getMessage() == null) ? "" : req.getMessage().trim();
+        if (message.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUserIdWithLock(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+
+        List<Long> pendingVersions =
+                resumeVersionRepository.findByResumeIdAndStatusInWithLock(
+                        resume.getId(),
+                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
+        if (!pendingVersions.isEmpty()) {
+            log.warn(
+                    "[RESUME_EDIT] in_progress userId={} resumeId={} pendingCount={}",
+                    userId,
+                    resumeId,
+                    pendingVersions.size());
+            throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
+        }
+
+        var latestSucceeded =
+                resumeVersionRepository
+                        .findLatestContentByResumeIdAndStatus(
+                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+
+        int nextVersionNo =
+                resumeVersionRepository
+                        .findLatestVersionNoByResumeId(resume.getId())
+                        .map(v -> v.getVersionNo() + 1)
+                        .orElse(1);
+
+        ResumeVersion next =
+                ResumeVersion.createNext(resume, nextVersionNo, latestSucceeded.getContent());
+        resumeVersionRepository.save(next);
+
+        try {
+            String jobId =
+                    resumeAiRequestService.requestEdit(resumeId, next.getContent(), message);
+            next.startProcessing(jobId);
+            log.debug(
+                    "[RESUME_EDIT] ai_requested userId={} resumeId={} versionNo={} taskId={}",
+                    userId,
+                    resumeId,
+                    next.getVersionNo(),
+                    jobId);
+        } catch (BusinessException e) {
+            next.failNow("AI_EDIT_FAILED", e.getMessage());
+            log.warn(
+                    "[RESUME_EDIT] ai_failed userId={} resumeId={} versionNo={} error={}",
+                    userId,
+                    resumeId,
+                    next.getVersionNo(),
+                    e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            next.failNow("AI_EDIT_FAILED", e.getMessage());
+            log.warn(
+                    "[RESUME_EDIT] ai_failed userId={} resumeId={} versionNo={} error={}",
+                    userId,
+                    resumeId,
+                    next.getVersionNo(),
+                    e.getMessage());
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+
+        return new ResumeEditResponse(
+                resume.getId(),
+                next.getVersionNo(),
+                resume.getName(),
+                next.getAiTaskId(),
+                next.getUpdatedAt());
     }
 
     public void saveVersion(Long userId, Long resumeId, int versionNo) {

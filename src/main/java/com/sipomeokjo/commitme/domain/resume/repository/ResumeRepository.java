@@ -1,17 +1,24 @@
 package com.sipomeokjo.commitme.domain.resume.repository;
 
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ResumeRepository extends JpaRepository<Resume, Long> {
 
     Optional<Resume> findByIdAndUser_Id(Long resumeId, Long userId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Resume r WHERE r.id = :resumeId AND r.user.id = :userId")
+    Optional<Resume> findByIdAndUserIdWithLock(
+            @Param("resumeId") Long resumeId, @Param("userId") Long userId);
 
     @Query(
             "SELECT DISTINCT r FROM Resume r "
