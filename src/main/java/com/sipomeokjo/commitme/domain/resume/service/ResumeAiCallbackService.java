@@ -31,8 +31,7 @@ public class ResumeAiCallbackService {
         handleCallbackInternal(req, true);
     }
 
-    private void handleCallbackInternal(
-            AiResumeCallbackRequest req, boolean publishEvent) {
+    private void handleCallbackInternal(AiResumeCallbackRequest req, boolean publishEvent) {
 
         if (req == null || req.jobId() == null || req.jobId().isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
@@ -106,7 +105,7 @@ public class ResumeAiCallbackService {
         if (publishEvent) {
             publishSseEvent(result, req);
         }
-	}
+    }
 
     private ResumeAiCallbackResult toResult(ResumeVersion version, boolean updated) {
         return new ResumeAiCallbackResult(
