@@ -91,7 +91,7 @@ public class ResumeAiRequestService {
         if (resumeJson == null || resumeJson.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
-		
+
         if (requestMessage == null || requestMessage.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }

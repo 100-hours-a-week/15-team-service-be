@@ -2,6 +2,8 @@ package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditFailedSsePayload;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditSsePayload;
+import com.sipomeokjo.commitme.domain.resume.event.ResumeEditCompletedEvent;
+import com.sipomeokjo.commitme.domain.resume.event.ResumeEditFailedEvent;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -9,6 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
@@ -130,5 +134,32 @@ public class ResumeSseService {
     private int emittersCount(Long resumeId) {
         List<SseEmitter> emitters = emittersByResumeId.get(resumeId);
         return emitters == null ? 0 : emitters.size();
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleEditCompleted(ResumeEditCompletedEvent event) {
+        if (event == null || event.content() == null) {
+            return;
+        }
+        sendEditCompleted(
+                event.resumeId(),
+                event.versionNo(),
+                event.taskId(),
+                event.updatedAt(),
+                event.content());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleEditFailed(ResumeEditFailedEvent event) {
+        if (event == null) {
+            return;
+        }
+        sendEditFailed(
+                event.resumeId(),
+                event.versionNo(),
+                event.taskId(),
+                event.updatedAt(),
+                event.errorCode(),
+                event.errorMessage());
     }
 }
