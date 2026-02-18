@@ -14,7 +14,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,11 +28,10 @@ import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.service.UserCommandService;
 import com.sipomeokjo.commitme.domain.user.service.UserQueryService;
 import com.sipomeokjo.commitme.security.CookieProperties;
-import com.sipomeokjo.commitme.security.handler.CustomUserDetails;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
 import com.sipomeokjo.commitme.security.jwt.JwtProperties;
+import com.sipomeokjo.commitme.support.TestSupport;
 import java.time.Duration;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.restdocs.AutoConfigureRestDocs;
@@ -45,15 +43,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.HttpHeaders;
 import org.springframework.restdocs.payload.JsonFieldType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 @WebMvcTest(UserController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -94,7 +85,7 @@ class UserControllerDocsTest {
                 new UserProfileResponse(1L, "profile-url", "홍길동", 2L, "01012345678", true, false);
         given(userQueryService.getUserProfile(1L)).willReturn(response);
 
-        mockMvc.perform(get("/user").with(authenticatedUser(UserStatus.ACTIVE)))
+        mockMvc.perform(get("/user").with(TestSupport.testAuthenticatedUser(UserStatus.ACTIVE)))
                 .andExpect(status().isOk())
                 .andDo(
                         document(
@@ -131,8 +122,7 @@ class UserControllerDocsTest {
                                                         fieldWithPath("data.phonePolicyAgreed")
                                                                 .type(JsonFieldType.BOOLEAN)
                                                                 .description("전화번호 개인정보 동의"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     @Test
@@ -147,7 +137,7 @@ class UserControllerDocsTest {
 
         mockMvc.perform(
                         patch("/user")
-                                .with(authenticatedUser(UserStatus.ACTIVE))
+                                .with(TestSupport.testAuthenticatedUser(UserStatus.ACTIVE))
                                 .with(csrf())
                                 .contentType("application/json")
                                 .content(objectMapper.writeValueAsString(request)))
@@ -203,8 +193,7 @@ class UserControllerDocsTest {
                                                         fieldWithPath("data.status")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("회원 상태"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     @Test
@@ -219,7 +208,7 @@ class UserControllerDocsTest {
 
         mockMvc.perform(
                         post("/user/onboarding")
-                                .with(authenticatedUser(UserStatus.PENDING))
+                                .with(TestSupport.testAuthenticatedUser(UserStatus.PENDING))
                                 .with(csrf())
                                 .contentType("application/json")
                                 .content(objectMapper.writeValueAsString(request)))
@@ -266,13 +255,15 @@ class UserControllerDocsTest {
                                                 .build()),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description("access_token 쿠키"))))
-                .andDo(print());
+                                                .description("access_token 쿠키"))));
     }
 
     @Test
     void withdraw_docs() throws Exception {
-        mockMvc.perform(delete("/user").with(authenticatedUser(UserStatus.ACTIVE)).with(csrf()))
+        mockMvc.perform(
+                        delete("/user")
+                                .with(TestSupport.testAuthenticatedUser(UserStatus.ACTIVE))
+                                .with(csrf()))
                 .andExpect(status().isOk())
                 .andDo(
                         document(
@@ -294,22 +285,6 @@ class UserControllerDocsTest {
                                                 .build()),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description("access_token/refresh_token 만료 쿠키"))))
-                .andDo(print());
-    }
-
-    private RequestPostProcessor authenticatedUser(UserStatus status) {
-        List<GrantedAuthority> authorities =
-                List.of(new SimpleGrantedAuthority("ROLE_" + status.name()));
-        CustomUserDetails details = new CustomUserDetails(1L, status, authorities);
-        return request -> {
-            SecurityContext context = SecurityContextHolder.createEmptyContext();
-            context.setAuthentication(
-                    new UsernamePasswordAuthenticationToken(details, null, authorities));
-            SecurityContextHolder.setContext(context);
-            request.setAttribute(
-                    HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
-            return request;
-        };
+                                                .description("access_token/refresh_token 만료 쿠키"))));
     }
 }
