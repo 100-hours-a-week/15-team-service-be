@@ -10,7 +10,6 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWit
 import static org.springframework.restdocs.request.RequestDocumentation.parameterWithName;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.sipomeokjo.commitme.api.pagination.CursorRequest;
@@ -93,8 +92,7 @@ class ChatControllerDocsTest {
                                                         fieldWithPath("data[].lastUpdatedAt")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("마지막 업데이트 시각"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     @Test
@@ -199,8 +197,7 @@ class ChatControllerDocsTest {
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("다음 커서")
                                                                 .optional())
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     private RequestPostProcessor authenticatedUser() {

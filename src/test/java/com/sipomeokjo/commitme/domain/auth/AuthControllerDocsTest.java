@@ -14,7 +14,6 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWit
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -144,8 +143,7 @@ class AuthControllerDocsTest {
                                                 .build()),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description("로그인 state 쿠키"))))
-                .andDo(print());
+                                                .description("로그인 state 쿠키"))));
     }
 
     @Test
@@ -187,8 +185,7 @@ class AuthControllerDocsTest {
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
                                                 .description(
-                                                        "재발급된 access_token, refresh_token 쿠키"))))
-                .andDo(print());
+                                                        "재발급된 access_token, refresh_token 쿠키"))));
     }
 
     @Test
@@ -223,8 +220,7 @@ class AuthControllerDocsTest {
                                                 .description("프론트엔드 리다이렉트 URL"),
                                         headerWithName(HttpHeaders.SET_COOKIE)
                                                 .description(
-                                                        "access_token, refresh_token, state 만료 쿠키"))))
-                .andDo(print());
+                                                        "access_token, refresh_token, state 만료 쿠키"))));
     }
 
     @Test
@@ -251,7 +247,7 @@ class AuthControllerDocsTest {
                                                 .build()),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description("access_token, refresh_token 만료 쿠키"))))
-                .andDo(print());
+                                                .description(
+                                                        "access_token, refresh_token 만료 쿠키"))));
     }
 }

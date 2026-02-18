@@ -14,7 +14,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -131,8 +130,7 @@ class UserControllerDocsTest {
                                                         fieldWithPath("data.phonePolicyAgreed")
                                                                 .type(JsonFieldType.BOOLEAN)
                                                                 .description("전화번호 개인정보 동의"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     @Test
@@ -203,8 +201,7 @@ class UserControllerDocsTest {
                                                         fieldWithPath("data.status")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("회원 상태"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     @Test
@@ -266,8 +263,7 @@ class UserControllerDocsTest {
                                                 .build()),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description("access_token 쿠키"))))
-                .andDo(print());
+                                                .description("access_token 쿠키"))));
     }
 
     @Test
@@ -294,8 +290,7 @@ class UserControllerDocsTest {
                                                 .build()),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description("access_token/refresh_token 만료 쿠키"))))
-                .andDo(print());
+                                                .description("access_token/refresh_token 만료 쿠키"))));
     }
 
     private RequestPostProcessor authenticatedUser(UserStatus status) {

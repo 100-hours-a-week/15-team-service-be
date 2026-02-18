@@ -10,7 +10,6 @@ import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWit
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -87,8 +86,7 @@ class UserSettingControllerDocsTest {
                                                                         "data.interviewResumeDefaultsEnabled")
                                                                 .type(JsonFieldType.BOOLEAN)
                                                                 .description("면접/이력서 기본값 사용 여부"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     @Test
@@ -139,8 +137,7 @@ class UserSettingControllerDocsTest {
                                                                         "data.interviewResumeDefaultsEnabled")
                                                                 .type(JsonFieldType.BOOLEAN)
                                                                 .description("면접/이력서 기본값 사용 여부"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 
     private RequestPostProcessor authenticatedUser() {
