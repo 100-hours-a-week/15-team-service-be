@@ -14,15 +14,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.config.WebMvcConfig;
-import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.userSetting.controller.UserSettingController;
 import com.sipomeokjo.commitme.domain.userSetting.dto.UserSettingsResponse;
 import com.sipomeokjo.commitme.domain.userSetting.dto.UserSettingsUpdateRequest;
 import com.sipomeokjo.commitme.domain.userSetting.service.UserSettingCommandService;
 import com.sipomeokjo.commitme.domain.userSetting.service.UserSettingQueryService;
-import com.sipomeokjo.commitme.security.handler.CustomUserDetails;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
-import java.util.List;
+import com.sipomeokjo.commitme.support.TestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.restdocs.AutoConfigureRestDocs;
@@ -31,15 +29,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.restdocs.payload.JsonFieldType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 @WebMvcTest(UserSettingController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -60,7 +51,7 @@ class UserSettingControllerDocsTest {
         UserSettingsResponse response = new UserSettingsResponse(1L, true, false);
         given(userSettingQueryService.getSettings(1L)).willReturn(response);
 
-        mockMvc.perform(get("/user/settings").with(authenticatedUser()))
+        mockMvc.perform(get("/user/settings").with(TestSupport.testAuthenticatedUser()))
                 .andExpect(status().isOk())
                 .andDo(
                         document(
@@ -100,7 +91,7 @@ class UserSettingControllerDocsTest {
 
         mockMvc.perform(
                         patch("/user/settings")
-                                .with(authenticatedUser())
+                                .with(TestSupport.testAuthenticatedUser())
                                 .with(csrf())
                                 .contentType("application/json")
                                 .content(objectMapper.writeValueAsString(request)))
@@ -138,20 +129,5 @@ class UserSettingControllerDocsTest {
                                                                 .type(JsonFieldType.BOOLEAN)
                                                                 .description("면접/이력서 기본값 사용 여부"))
                                                 .build())));
-    }
-
-    private RequestPostProcessor authenticatedUser() {
-        List<GrantedAuthority> authorities =
-                List.of(new SimpleGrantedAuthority("ROLE_" + UserStatus.ACTIVE.name()));
-        CustomUserDetails details = new CustomUserDetails(1L, UserStatus.ACTIVE, authorities);
-        return request -> {
-            SecurityContext context = SecurityContextHolder.createEmptyContext();
-            context.setAuthentication(
-                    new UsernamePasswordAuthenticationToken(details, null, authorities));
-            SecurityContextHolder.setContext(context);
-            request.setAttribute(
-                    HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
-            return request;
-        };
     }
 }

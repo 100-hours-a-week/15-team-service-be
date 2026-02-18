@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.restdocs.request.RequestDocumentation.parameterWithName;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,9 +21,8 @@ import com.sipomeokjo.commitme.domain.chat.entity.ChatMessageRole;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatMessageStatus;
 import com.sipomeokjo.commitme.domain.chat.service.ChatMessageQueryService;
 import com.sipomeokjo.commitme.domain.chat.service.ChatroomQueryService;
-import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
-import com.sipomeokjo.commitme.security.handler.CustomUserDetails;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
+import com.sipomeokjo.commitme.support.TestSupport;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -34,12 +32,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.restdocs.payload.JsonFieldType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 @WebMvcTest(ChatController.class)
 @AutoConfigureMockMvc(addFilters = false)
@@ -61,7 +55,7 @@ class ChatControllerDocsTest {
                                 1L, "채팅방1", "마지막 메시지", Instant.parse("2026-01-30T06:00:00Z")));
         given(chatroomQueryService.getAllChatroom()).willReturn(responses);
 
-        mockMvc.perform(get("/chats").with(authenticatedUser()))
+        mockMvc.perform(get("/chats").with(TestSupport.testAuthenticatedUser()))
                 .andExpect(status().isOk())
                 .andDo(
                         document(
@@ -121,7 +115,7 @@ class ChatControllerDocsTest {
                         get("/chats/{chatroomId}", 1L)
                                 .param("next", "")
                                 .param("size", "20")
-                                .with(authenticatedUser()))
+                                .with(TestSupport.testAuthenticatedUser()))
                 .andExpect(status().isOk())
                 .andDo(
                         document(
@@ -198,12 +192,5 @@ class ChatControllerDocsTest {
                                                                 .description("다음 커서")
                                                                 .optional())
                                                 .build())));
-    }
-
-    private RequestPostProcessor authenticatedUser() {
-        List<GrantedAuthority> authorities =
-                List.of(new SimpleGrantedAuthority("ROLE_" + UserStatus.ACTIVE.name()));
-        CustomUserDetails details = new CustomUserDetails(1L, UserStatus.ACTIVE, authorities);
-        return authentication(new UsernamePasswordAuthenticationToken(details, null, authorities));
     }
 }
