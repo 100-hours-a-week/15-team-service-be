@@ -109,9 +109,19 @@ jobs:
           category: "/language:java"
 
       # ✅ CI: Docker 이미지 "빌드만" 검증 (푸시 X)
-      - name: Docker build (no push)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker build (ARM64)
         run: |
-          docker build -t be-api:${GITHUB_SHA} .
+          docker buildx build \
+            --platform linux/arm64 \
+            -t be-api:${GITHUB_SHA} \
+            --load \
+            .
 
       # ✅ CD가 재사용할 수 있도록 Docker image를 artifact로 전달
       - name: Save docker image to tar (main only)
