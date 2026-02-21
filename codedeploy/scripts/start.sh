@@ -12,5 +12,6 @@ docker run -d \
 	--restart=always \
 	-p 8080:8080 \
 	-e SPRING_PROFILES_ACTIVE=prod \
+    -e SPRING_CONFIG_ADDITIONAL_LOCATION="file:/config/" \
   -v "${CONFIG_FILE}:/config/application-prod.yml:ro" \
   "${IMAGE_URI}"
