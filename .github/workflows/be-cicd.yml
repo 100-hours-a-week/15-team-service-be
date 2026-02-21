@@ -115,7 +115,7 @@ jobs:
 
       # ✅ CD가 재사용할 수 있도록 Docker image를 artifact로 전달
       - name: Save docker image to tar (main only)
-	      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
         run: |
           docker save be-api:${GITHUB_SHA} -o be-image-${GITHUB_SHA}.tar
 
