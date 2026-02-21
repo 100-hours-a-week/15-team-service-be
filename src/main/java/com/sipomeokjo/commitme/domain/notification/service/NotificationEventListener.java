@@ -18,23 +18,27 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationEventListener {
-    private final NotificationRepository notificationRepository;
-    private final UserRepository userRepository;
-
-    @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleCreate(NotificationCreateEvent event) {
-        if (event == null || event.userId() == null || event.type() == null) {
-            return;
-        }
-
-        User user = userRepository.findById(event.userId()).orElse(null);
-        if (user == null) {
-            log.warn("[NOTIFICATION] user_not_found userId={}", event.userId());
-            return;
-        }
-
-        notificationRepository.save(Notification.create(user, event.type(), event.payload()));
-    }
+	private final NotificationRepository notificationRepository;
+	private final UserRepository userRepository;
+	private final NotificationSseService notificationSseService;
+	
+	@Async
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void handleCreate(NotificationCreateEvent event) {
+		if (event == null || event.userId() == null || event.type() == null) {
+			return;
+		}
+		
+		User user = userRepository.findById(event.userId()).orElse(null);
+		if (user == null) {
+			log.warn("[NOTIFICATION] user_not_found userId={}", event.userId());
+			return;
+		}
+		
+		Notification saved =
+				notificationRepository.save(
+						Notification.create(user, event.type(), event.payload()));
+		notificationSseService.send(saved);
+	}
 }
