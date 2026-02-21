@@ -48,4 +48,12 @@ public class Notification {
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    public static Notification create(User user, NotificationType type, String payload) {
+        Notification notification = new Notification();
+        notification.user = user;
+        notification.type = type;
+        notification.payload = payload;
+        return notification;
+    }
 }
