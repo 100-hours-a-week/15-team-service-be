@@ -50,8 +50,8 @@ server:
   port: 8080
 
 spring:
-	application:
-		name: CommitMe
+  application:
+    name: CommitMe
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: "${DB_URL}"
@@ -67,7 +67,7 @@ spring:
     show-sql: false
     
   flyway:
-	  enabled: true
+    enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: "20260204.0"
