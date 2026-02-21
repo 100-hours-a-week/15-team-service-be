@@ -193,10 +193,13 @@ jobs:
 
       - name: Create CodeDeploy bundle
         run: |
-          mkdir -p bundle/codedeploy
-          cp -r codedeploy/* bundle/codedeploy/
+          mkdir -p bundle
 
-          echo "${IMAGE_URI}" > bundle/codedeploy/image-uri.txt
+          cp codedeploy/appspec.yml bundle/
+
+          cp -r codedeploy/scripts bundle/scripts
+
+          echo "${IMAGE_URI}" > bundle/image-uri.txt
 
           cd bundle
           zip -r ../deployment.zip .
