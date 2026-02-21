@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -25,6 +26,15 @@ public class SseEmitterRegistry {
 
     public List<SseEmitter> getEmitters(Long key) {
         return emittersByKey.get(key);
+    }
+
+    public void forEachEmitter(BiConsumer<Long, SseEmitter> consumer) {
+        emittersByKey.forEach(
+                (key, emitters) -> {
+                    for (SseEmitter emitter : emitters) {
+                        consumer.accept(key, emitter);
+                    }
+                });
     }
 
     public void remove(Long key, SseEmitter emitter) {
