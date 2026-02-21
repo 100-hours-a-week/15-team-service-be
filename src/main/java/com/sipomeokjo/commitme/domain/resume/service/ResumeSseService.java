@@ -1,14 +1,13 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
+import com.sipomeokjo.commitme.api.sse.SseEmitterRegistry;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditFailedSsePayload;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditSsePayload;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeEditCompletedEvent;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeEditFailedEvent;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
@@ -16,27 +15,20 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
 public class ResumeSseService {
-    private static final long EMITTER_TIMEOUT_MS = 30 * 60 * 1000L;
-    private final Map<Long, List<SseEmitter>> emittersByResumeId = new ConcurrentHashMap<>();
+    private final SseEmitterRegistry sseEmitterRegistry;
 
     public SseEmitter subscribe(Long resumeId) {
-        SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MS);
-        emittersByResumeId
-                .computeIfAbsent(resumeId, key -> new CopyOnWriteArrayList<>())
-                .add(emitter);
-
-        emitter.onCompletion(() -> removeEmitter(resumeId, emitter));
-        emitter.onTimeout(() -> removeEmitter(resumeId, emitter));
-        emitter.onError(ex -> removeEmitter(resumeId, emitter));
+        SseEmitter emitter = sseEmitterRegistry.register(resumeId);
 
         try {
             emitter.send(SseEmitter.event().name("connected").data("ok"));
             log.debug("[RESUME_SSE] connected_event resumeId={}", resumeId);
         } catch (IOException ex) {
             log.warn("[RESUME_SSE] connected_event_failed resumeId={}", resumeId, ex);
-            removeEmitter(resumeId, emitter);
+            sseEmitterRegistry.remove(resumeId, emitter);
         }
 
         return emitter;
@@ -51,7 +43,7 @@ public class ResumeSseService {
         if (resumeId == null) {
             return;
         }
-        List<SseEmitter> emitters = emittersByResumeId.get(resumeId);
+        List<SseEmitter> emitters = sseEmitterRegistry.getEmitters(resumeId);
         if (emitters == null || emitters.isEmpty()) {
             log.debug("[RESUME_SSE] no_emitters resumeId={}", resumeId);
             return;
@@ -76,7 +68,7 @@ public class ResumeSseService {
                         versionNo,
                         taskId,
                         ex);
-                removeEmitter(resumeId, emitter);
+                sseEmitterRegistry.remove(resumeId, emitter);
             }
         }
     }
@@ -91,7 +83,7 @@ public class ResumeSseService {
         if (resumeId == null) {
             return;
         }
-        List<SseEmitter> emitters = emittersByResumeId.get(resumeId);
+        List<SseEmitter> emitters = sseEmitterRegistry.getEmitters(resumeId);
         if (emitters == null || emitters.isEmpty()) {
             log.debug("[RESUME_SSE] no_emitters resumeId={}", resumeId);
             return;
@@ -111,29 +103,9 @@ public class ResumeSseService {
                         versionNo,
                         taskId,
                         ex);
-                removeEmitter(resumeId, emitter);
+                sseEmitterRegistry.remove(resumeId, emitter);
             }
         }
-    }
-
-    private void removeEmitter(Long resumeId, SseEmitter emitter) {
-        List<SseEmitter> emitters = emittersByResumeId.get(resumeId);
-        if (emitters == null) {
-            return;
-        }
-        emitters.remove(emitter);
-        if (emitters.isEmpty()) {
-            emittersByResumeId.remove(resumeId);
-        }
-        log.debug(
-                "[RESUME_SSE] remove_emitter resumeId={} emitters={}",
-                resumeId,
-                emittersCount(resumeId));
-    }
-
-    private int emittersCount(Long resumeId) {
-        List<SseEmitter> emitters = emittersByResumeId.get(resumeId);
-        return emitters == null ? 0 : emitters.size();
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

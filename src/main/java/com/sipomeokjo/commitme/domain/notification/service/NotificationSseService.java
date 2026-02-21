@@ -2,14 +2,12 @@ package com.sipomeokjo.commitme.domain.notification.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sipomeokjo.commitme.api.sse.SseEmitterRegistry;
 import com.sipomeokjo.commitme.domain.notification.dto.NotificationSsePayload;
 import com.sipomeokjo.commitme.domain.notification.entity.Notification;
 import com.sipomeokjo.commitme.domain.notification.repository.NotificationRepository;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,24 +17,18 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationSseService {
-    private static final long EMITTER_TIMEOUT_MS = 30 * 60 * 1000L;
     private final NotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
-    private final Map<Long, List<SseEmitter>> emittersByUserId = new ConcurrentHashMap<>();
+    private final SseEmitterRegistry sseEmitterRegistry;
 
     public SseEmitter subscribe(Long userId, String lastEventId) {
-        SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MS);
-        emittersByUserId.computeIfAbsent(userId, key -> new CopyOnWriteArrayList<>()).add(emitter);
-
-        emitter.onCompletion(() -> removeEmitter(userId, emitter));
-        emitter.onTimeout(() -> removeEmitter(userId, emitter));
-        emitter.onError(ex -> removeEmitter(userId, emitter));
+        SseEmitter emitter = sseEmitterRegistry.register(userId);
 
         try {
             emitter.send(SseEmitter.event().name("connected").data("ok"));
         } catch (IOException ex) {
             log.warn("[NOTIFICATION_SSE] connected_event_failed userId={}", userId, ex);
-            removeEmitter(userId, emitter);
+            sseEmitterRegistry.remove(userId, emitter);
             return emitter;
         }
 
@@ -53,7 +45,7 @@ public class NotificationSseService {
             return;
         }
         Long userId = notification.getUser().getId();
-        List<SseEmitter> emitters = emittersByUserId.get(userId);
+        List<SseEmitter> emitters = sseEmitterRegistry.getEmitters(userId);
         if (emitters == null || emitters.isEmpty()) {
             return;
         }
@@ -72,7 +64,7 @@ public class NotificationSseService {
                         userId,
                         notification.getId(),
                         ex);
-                removeEmitter(userId, emitter);
+                sseEmitterRegistry.remove(userId, emitter);
             }
         }
     }
@@ -97,7 +89,7 @@ public class NotificationSseService {
                         userId,
                         notification.getId(),
                         ex);
-                removeEmitter(userId, emitter);
+                sseEmitterRegistry.remove(userId, emitter);
                 return;
             }
         }
@@ -129,17 +121,6 @@ public class NotificationSseService {
         } catch (NumberFormatException ex) {
             log.warn("[NOTIFICATION_SSE] last_event_id_invalid value={}", lastEventId);
             return null;
-        }
-    }
-
-    private void removeEmitter(Long userId, SseEmitter emitter) {
-        List<SseEmitter> emitters = emittersByUserId.get(userId);
-        if (emitters == null) {
-            return;
-        }
-        emitters.remove(emitter);
-        if (emitters.isEmpty()) {
-            emittersByUserId.remove(userId);
         }
     }
 }
