@@ -44,6 +44,8 @@ AI_GENERATE_PATH="$(get_ssm "${PARAM_BASE}/AI_GENERATE_PATH")"
 AI_EDIT_PATH="$(get_ssm "${PARAM_BASE}/AI_EDIT_PATH")"
 AI_CALLBACK_PATH="$(get_ssm "${PARAM_BASE}/AI_CALLBACK_PATH")"
 
+REDIS_IP="$(get_ssm "${PARAM_BASE}/REDIS_IP")"
+
 # 2) application-prod.yml 생성 (prod에서 바뀌는 것만 override)
 cat > "$OUT_FILE" <<YAML
 server:
@@ -52,11 +54,18 @@ server:
 spring:
   application:
     name: CommitMe
+  output:
+    ansi:
+      enabled: always
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: "${DB_URL}"
     username: "${DB_USER}"
     password: "${DB_PASS}"
+  data:
+    redis:
+      host: "${REDIS_IP}"
+      port: 6379
     
   jpa:
     hibernate:
