@@ -49,7 +49,8 @@ public class ResumeService {
     public CursorResponse<ResumeSummaryDto> list(
             Long userId, CursorRequest request, String keyword, String sortedBy) {
         ResumeSortBy sortBy = ResumeSortBy.from(sortedBy);
-        CursorParser.Cursor cursor = cursorParser.parse(request == null ? null : request.next());
+        CursorParser.Cursor cursor =
+                cursorParser.parseCompositeCursor(request == null ? null : request.next());
         int size = CursorRequest.resolveLimit(request, 10);
         String normalizedKeyword = KeywordValidator.normalize(keyword, 30);
 
