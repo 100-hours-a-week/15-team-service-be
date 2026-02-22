@@ -126,7 +126,7 @@ public class UserCommandService {
             throw new BusinessException(ErrorCode.USER_NAME_REQUIRED);
         }
         if (containsWhitespace(name) || containsEmoji(name)) {
-            throw new BusinessException(ErrorCode.USER_NAME_INVALID_INPUT);
+            throw new BusinessException(ErrorCode.USER_NAME_INVALID);
         }
         String trimmed = name.trim();
         if (trimmed.length() < 2 || trimmed.length() > 10) {

@@ -1,11 +1,11 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.api.sse.SseEmitterRegistry;
+import com.sipomeokjo.commitme.api.sse.SseExceptionUtils;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditFailedSsePayload;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditSsePayload;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeEditCompletedEvent;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeEditFailedEvent;
-import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +26,13 @@ public class ResumeSseService {
         try {
             emitter.send(SseEmitter.event().name("connected").data("ok"));
             log.debug("[RESUME_SSE] connected_event resumeId={}", resumeId);
-        } catch (IOException ex) {
-            log.warn("[RESUME_SSE] connected_event_failed resumeId={}", resumeId, ex);
-            sseEmitterRegistry.remove(resumeId, emitter);
+        } catch (Exception ex) {
+            if (SseExceptionUtils.isClientDisconnected(ex)) {
+                log.debug("[RESUME_SSE] connected_event_client_disconnected resumeId={}", resumeId);
+            } else {
+                log.warn("[RESUME_SSE] connected_event_failed resumeId={}", resumeId, ex);
+            }
+            sseEmitterRegistry.completeWithError(resumeId, emitter, ex);
         }
 
         return emitter;
@@ -61,14 +65,22 @@ public class ResumeSseService {
         for (SseEmitter emitter : emitters) {
             try {
                 emitter.send(SseEmitter.event().name("resume-edit-complete").data(payload));
-            } catch (IOException ex) {
-                log.warn(
-                        "[RESUME_SSE] send_failed resumeId={} versionNo={} taskId={}",
-                        resumeId,
-                        versionNo,
-                        taskId,
-                        ex);
-                sseEmitterRegistry.remove(resumeId, emitter);
+            } catch (Exception ex) {
+                if (SseExceptionUtils.isClientDisconnected(ex)) {
+                    log.debug(
+                            "[RESUME_SSE] client_disconnected resumeId={} versionNo={} taskId={}",
+                            resumeId,
+                            versionNo,
+                            taskId);
+                } else {
+                    log.warn(
+                            "[RESUME_SSE] send_failed resumeId={} versionNo={} taskId={}",
+                            resumeId,
+                            versionNo,
+                            taskId,
+                            ex);
+                }
+                sseEmitterRegistry.completeWithError(resumeId, emitter, ex);
             }
         }
     }
@@ -96,14 +108,22 @@ public class ResumeSseService {
         for (SseEmitter emitter : emitters) {
             try {
                 emitter.send(SseEmitter.event().name("resume-edit-failed").data(payload));
-            } catch (IOException ex) {
-                log.warn(
-                        "[RESUME_SSE] send_failed resumeId={} versionNo={} taskId={}",
-                        resumeId,
-                        versionNo,
-                        taskId,
-                        ex);
-                sseEmitterRegistry.remove(resumeId, emitter);
+            } catch (Exception ex) {
+                if (SseExceptionUtils.isClientDisconnected(ex)) {
+                    log.debug(
+                            "[RESUME_SSE] client_disconnected resumeId={} versionNo={} taskId={}",
+                            resumeId,
+                            versionNo,
+                            taskId);
+                } else {
+                    log.warn(
+                            "[RESUME_SSE] send_failed resumeId={} versionNo={} taskId={}",
+                            resumeId,
+                            versionNo,
+                            taskId,
+                            ex);
+                }
+                sseEmitterRegistry.completeWithError(resumeId, emitter, ex);
             }
         }
     }

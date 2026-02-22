@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.api.exception;
 
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.api.sse.SseExceptionUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j
@@ -64,16 +67,52 @@ public class GlobalExceptionHandler {
         return toResponse(errorCode, request);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleException(Exception e, HttpServletRequest request) {
-        ErrorCode errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public ResponseEntity<?> handleAsyncRequestNotUsableException(
+            AsyncRequestNotUsableException e, HttpServletRequest request) {
+        if (isSseRequest(request) && SseExceptionUtils.isClientDisconnected(e)) {
+            return ResponseEntity.noContent().build();
+        }
+
         log.error(
                 "[EXCEPTION] internal_error uri={} method={} accept={}",
                 safeUri(request),
                 safeMethod(request),
                 safeAccept(request),
                 e);
-        return toResponse(errorCode, request);
+        return toResponse(ErrorCode.INTERNAL_SERVER_ERROR, request);
+    }
+
+    @ExceptionHandler(AsyncRequestTimeoutException.class)
+    public ResponseEntity<?> handleAsyncRequestTimeoutException(
+            AsyncRequestTimeoutException e, HttpServletRequest request) {
+        if (isSseRequest(request)) {
+            log.debug("[EXCEPTION] sse_timeout_trace", e);
+            return ResponseEntity.noContent().build();
+        }
+
+        log.error(
+                "[EXCEPTION] internal_error uri={} method={} accept={}",
+                safeUri(request),
+                safeMethod(request),
+                safeAccept(request),
+                e);
+        return toResponse(ErrorCode.INTERNAL_SERVER_ERROR, request);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<?> handleException(Exception e, HttpServletRequest request) {
+        if (isSseRequest(request) && SseExceptionUtils.isClientDisconnected(e)) {
+            return ResponseEntity.noContent().build();
+        }
+
+        log.error(
+                "[EXCEPTION] internal_error uri={} method={} accept={}",
+                safeUri(request),
+                safeMethod(request),
+                safeAccept(request),
+                e);
+        return toResponse(ErrorCode.INTERNAL_SERVER_ERROR, request);
     }
 
     private ResponseEntity<?> toResponse(ErrorCode errorCode, HttpServletRequest request) {

@@ -3,10 +3,10 @@ package com.sipomeokjo.commitme.domain.notification.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.sse.SseEmitterRegistry;
+import com.sipomeokjo.commitme.api.sse.SseExceptionUtils;
 import com.sipomeokjo.commitme.domain.notification.dto.NotificationSsePayload;
 import com.sipomeokjo.commitme.domain.notification.entity.Notification;
 import com.sipomeokjo.commitme.domain.notification.repository.NotificationRepository;
-import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +18,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Slf4j
 public class NotificationSseService {
     private final NotificationRepository notificationRepository;
+    private final NotificationBadgeService notificationBadgeService;
     private final ObjectMapper objectMapper;
     private final SseEmitterRegistry sseEmitterRegistry;
 
@@ -25,10 +26,18 @@ public class NotificationSseService {
         SseEmitter emitter = sseEmitterRegistry.register(userId);
 
         try {
-            emitter.send(SseEmitter.event().name("connected").data("ok"));
-        } catch (IOException ex) {
-            log.warn("[NOTIFICATION_SSE] connected_event_failed userId={}", userId, ex);
-            sseEmitterRegistry.remove(userId, emitter);
+            emitter.send(
+                    SseEmitter.event()
+                            .name("connected")
+                            .data(notificationBadgeService.getBadge(userId)));
+        } catch (Exception ex) {
+            if (SseExceptionUtils.isClientDisconnected(ex)) {
+                log.debug(
+                        "[NOTIFICATION_SSE] connected_event_client_disconnected userId={}", userId);
+            } else {
+                log.warn("[NOTIFICATION_SSE] connected_event_failed userId={}", userId, ex);
+            }
+            sseEmitterRegistry.completeWithError(userId, emitter, ex);
             return emitter;
         }
 
@@ -58,13 +67,20 @@ public class NotificationSseService {
                                 .id(String.valueOf(notification.getId()))
                                 .name("notification")
                                 .data(payload));
-            } catch (IOException ex) {
-                log.warn(
-                        "[NOTIFICATION_SSE] send_failed userId={} notificationId={}",
-                        userId,
-                        notification.getId(),
-                        ex);
-                sseEmitterRegistry.remove(userId, emitter);
+            } catch (Exception ex) {
+                if (SseExceptionUtils.isClientDisconnected(ex)) {
+                    log.debug(
+                            "[NOTIFICATION_SSE] client_disconnected userId={} notificationId={}",
+                            userId,
+                            notification.getId());
+                } else {
+                    log.warn(
+                            "[NOTIFICATION_SSE] send_failed userId={} notificationId={}",
+                            userId,
+                            notification.getId(),
+                            ex);
+                }
+                sseEmitterRegistry.completeWithError(userId, emitter, ex);
             }
         }
     }
@@ -83,13 +99,20 @@ public class NotificationSseService {
                                 .id(String.valueOf(notification.getId()))
                                 .name("notification")
                                 .data(toPayload(notification)));
-            } catch (IOException ex) {
-                log.warn(
-                        "[NOTIFICATION_SSE] replay_failed userId={} notificationId={}",
-                        userId,
-                        notification.getId(),
-                        ex);
-                sseEmitterRegistry.remove(userId, emitter);
+            } catch (Exception ex) {
+                if (SseExceptionUtils.isClientDisconnected(ex)) {
+                    log.debug(
+                            "[NOTIFICATION_SSE] replay_client_disconnected userId={} notificationId={}",
+                            userId,
+                            notification.getId());
+                } else {
+                    log.warn(
+                            "[NOTIFICATION_SSE] replay_failed userId={} notificationId={}",
+                            userId,
+                            notification.getId(),
+                            ex);
+                }
+                sseEmitterRegistry.completeWithError(userId, emitter, ex);
                 return;
             }
         }

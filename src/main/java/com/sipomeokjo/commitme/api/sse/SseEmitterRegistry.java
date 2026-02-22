@@ -48,6 +48,16 @@ public class SseEmitterRegistry {
         }
     }
 
+    public void completeWithError(Long key, SseEmitter emitter, Throwable throwable) {
+        try {
+            emitter.completeWithError(throwable);
+        } catch (Exception ignored) {
+            // Emitter가 제거 혹은 connection 끊긴 상태이므로 추가적인 예외 처리 필요하지 않음
+        } finally {
+            remove(key, emitter);
+        }
+    }
+
     public int count(Long key) {
         List<SseEmitter> emitters = emittersByKey.get(key);
         return emitters == null ? 0 : emitters.size();

@@ -1,6 +1,5 @@
 package com.sipomeokjo.commitme.api.sse;
 
-import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,9 +22,13 @@ public class SseHeartbeatScheduler {
                 (key, emitter) -> {
                     try {
                         emitter.send(SseEmitter.event().name(HEARTBEAT_EVENT).data(HEARTBEAT_DATA));
-                    } catch (IOException ex) {
-                        log.debug("[SSE_HEARTBEAT] send_failed key={}", key, ex);
-                        sseEmitterRegistry.remove(key, emitter);
+                    } catch (Exception ex) {
+                        if (SseExceptionUtils.isClientDisconnected(ex)) {
+                            log.debug("[SSE_HEARTBEAT] client_disconnected key={}", key);
+                        } else {
+                            log.warn("[SSE_HEARTBEAT] send_failed key={}", key, ex);
+                        }
+                        sseEmitterRegistry.completeWithError(key, emitter, ex);
                     }
                 });
     }

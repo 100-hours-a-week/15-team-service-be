@@ -22,7 +22,7 @@ public class CompanyService {
     @Transactional
     public CompanyResponse create(CompanyCreateRequest request) {
         if (companyRepository.existsByName(request.name())) {
-            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
+            throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
         }
 
         Company company =
@@ -36,7 +36,7 @@ public class CompanyService {
         Company company =
                 companyRepository
                         .findById(companyId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+                        .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
 
         return toResponse(company);
     }
@@ -50,7 +50,7 @@ public class CompanyService {
         Company company =
                 companyRepository
                         .findById(companyId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+                        .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
 
         company.update(request.name(), request.preferred(), request.idealTalent());
 
@@ -60,7 +60,7 @@ public class CompanyService {
     @Transactional
     public void delete(Long companyId) {
         if (!companyRepository.existsById(companyId)) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
+            throw new BusinessException(ErrorCode.COMPANY_NOT_FOUND);
         }
         companyRepository.deleteById(companyId);
     }
@@ -70,7 +70,7 @@ public class CompanyService {
         Company company =
                 companyRepository
                         .findById(companyId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+                        .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
 
         company.verify(verified);
         return toResponse(company);
