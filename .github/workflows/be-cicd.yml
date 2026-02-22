@@ -1,0 +1,230 @@
+name: BE CI / CD
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "**/*.java"
+      - "**/*.kt"
+      - "**/*.gradle"
+      - "**/*.gradle.kts"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+      - ".github/workflows/**"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - "Dockerfile"
+      - "codedeploy/**"
+
+  push:
+    branches: [ "dev", "main", "ci/be-v2" ]
+    paths:
+      - "**/*.java"
+      - "**/*.kt"
+      - "**/*.gradle"
+      - "**/*.gradle.kts"
+      - "gradle/**"
+      - "gradlew"
+      - "gradlew.bat"
+      - ".github/workflows/**"
+      - "**/*.yml"
+      - "**/*.yaml"
+      - "Dockerfile"
+      - "codedeploy/**"
+
+concurrency:
+  group: be-ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
+jobs:
+  be-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java-version: [ "21" ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy Secret Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "vuln"
+          format: "table"
+          exit-code: "1"
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: java
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ matrix.java-version }}
+          cache: "gradle"
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Check formatting
+        run: ./gradlew spotlessCheck --no-daemon
+
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          JAVA_HOME: /opt/jdk
+        with:
+          project: "BE-Project"
+          path: "."
+          format: "HTML"
+          args: >-
+            --failOnCVSS 7
+
+      # ✅ CI: JAR 빌드/테스트까지 수행
+      - name: Build
+        run: ./gradlew --no-daemon clean build
+
+      - name: Tests & JaCoCo Coverage
+        run: ./gradlew --no-daemon test jacocoTestReport
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:java"
+
+      # ✅ CI: Docker 이미지 "빌드만" 검증 (푸시 X)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker build (ARM64)
+        run: |
+          docker buildx build \
+            --platform linux/arm64 \
+            -t be-api:${GITHUB_SHA} \
+            --load \
+            .
+
+      # ✅ CD가 재사용할 수 있도록 Docker image를 artifact로 전달
+      - name: Save docker image to tar (main only)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
+        run: |
+          docker save be-api:${GITHUB_SHA} -o be-image-${GITHUB_SHA}.tar
+
+      - name: Upload docker image artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
+        uses: actions/upload-artifact@v4
+        with:
+          name: be-docker-image
+          path: be-image-${{ github.sha }}.tar
+          retention-days: 1
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: be-artifacts-java${{ matrix.java-version }}
+          path: |
+            build/test-results/test/
+            build/reports/tests/test/
+            build/reports/jacoco/test/html/
+          retention-days: 1
+
+  be-deploy:
+    needs: [be-ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # ✅ CD는 main merge(push)일 때만 실행
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
+
+    env:
+      AWS_REGION: ap-northeast-2
+
+      # ---- ECR ----
+      ECR_REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
+      ECR_REGISTRY: ${{ secrets.AWS_ECR_REGISTRY }}
+
+      # ---- CodeDeploy/S3 ----
+      CODEDEPLOY_APP_NAME: ${{ secrets.AWS_CODEDEPLOY_APP_NAME }}
+      CODEDEPLOY_DEPLOYMENT_GROUP: ${{ secrets.AWS_CODEDEPLOY_DEPLOYMENT_GROUP }}
+      S3_BUCKET: ${{ secrets.AWS_CODEDEPLOY_BUCKET }}
+      S3_PREFIX: be-server/delpoy
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ✅ CI에서 만든 docker image artifact 다운로드
+      - name: Download docker image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: be-docker-image
+
+      - name: Load docker image
+        run: |
+          docker load -i be-image-${GITHUB_SHA}.tar
+          docker image ls | head -n 20
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ✅ CD: ECR push부터 시작 (빌드는 CI에서 이미 완료)
+      - name: Tag and push to ECR
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+          echo "IMAGE_URI=${IMAGE_URI}" >> $GITHUB_ENV
+
+          docker tag "be-api:${GITHUB_SHA}" "${IMAGE_URI}"
+          docker push "${IMAGE_URI}"
+
+      - name: Create CodeDeploy bundle
+        run: |
+          mkdir -p bundle
+
+          cp codedeploy/appspec.yml bundle/
+
+          cp -r codedeploy/scripts bundle/scripts
+
+          echo "${IMAGE_URI}" > bundle/image-uri.txt
+
+          cd bundle
+          zip -r ../deployment.zip .
+
+      - name: Upload bundle to S3
+        run: |
+          S3_KEY="${S3_PREFIX}-${{github.sha}}.zip"
+          echo "S3_KEY=${S3_KEY}" >> $GITHUB_ENV
+
+          aws s3 cp deployment.zip "s3://${S3_BUCKET}/${S3_KEY}"
+
+      - name: Trigger CodeDeploy deployment
+        run: |
+          aws deploy create-deployment \
+            --application-name "${CODEDEPLOY_APP_NAME}" \
+            --deployment-group-name "${CODEDEPLOY_DEPLOYMENT_GROUP}" \
+            --s3-location bucket="${S3_BUCKET}",key="${S3_KEY}",bundleType=zip \
+            --description "BE deploy from GitHub Actions - ${GITHUB_SHA}"
