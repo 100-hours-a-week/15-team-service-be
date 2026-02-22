@@ -76,10 +76,10 @@ spring:
     show-sql: false
     
   flyway:
-    enabled: false
-    # locations: classpath:db/migration
-    # baseline-on-migrate: true
-    # baseline-version: "20260204.0"
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: "20260210.0"
     
 logging:
   level:
