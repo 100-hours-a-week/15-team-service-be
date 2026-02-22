@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class CursorParser {
 
-    public Cursor parse(String cursor) {
+    public Cursor parseCompositeCursor(String cursor) {
         if (cursor == null || cursor.isBlank()) {
             return new Cursor(null, null);
         }
@@ -20,6 +20,21 @@ public class CursorParser {
             Instant createdAt = Instant.parse(parts[0]);
             Long id = Long.parseLong(parts[1]);
             return new Cursor(createdAt, id);
+        } catch (Exception ex) {
+            throw new BusinessException(ErrorCode.INVALID_CURSOR_VALUE);
+        }
+    }
+
+    public Long parseIdCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            long value = Long.parseLong(cursor);
+            if (value < 1) {
+                throw new NumberFormatException();
+            }
+            return value;
         } catch (Exception ex) {
             throw new BusinessException(ErrorCode.INVALID_CURSOR_VALUE);
         }
