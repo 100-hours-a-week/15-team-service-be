@@ -41,8 +41,9 @@ public class ResumeMapper {
                 info.positionName(),
                 info.companyId(),
                 info.companyName(),
-                resume.getCurrentVersionNo(),
+                version.getVersionNo(),
                 version.getContent(),
+                version.getCommittedAt(),
                 resume.getCreatedAt(),
                 resume.getUpdatedAt());
     }
