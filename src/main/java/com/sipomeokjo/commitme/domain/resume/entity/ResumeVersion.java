@@ -47,6 +47,9 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "committed_at")
     private Instant committedAt;
 
+    @Column(name = "preview_shown_at")
+    private Instant previewShownAt;
+
     public static ResumeVersion createV1(Resume resume, String content) {
         ResumeVersion v = new ResumeVersion();
         v.resume = resume;
@@ -79,6 +82,12 @@ public class ResumeVersion extends BaseEntity {
 
     public void commitNow() {
         this.committedAt = Instant.now();
+    }
+
+    public void markPreviewShownNow() {
+        if (this.previewShownAt == null) {
+            this.previewShownAt = Instant.now();
+        }
     }
 
     public void markQueued() {

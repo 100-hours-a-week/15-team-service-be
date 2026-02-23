@@ -18,8 +18,9 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
 
     Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
 
-    Optional<ResumeVersion> findTopByResume_IdAndStatusOrderByVersionNoDesc(
-            Long resumeId, ResumeVersionStatus status);
+    Optional<ResumeVersion>
+            findTopByResume_IdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
+                    Long resumeId, ResumeVersionStatus status);
 
     @Query(
             value =

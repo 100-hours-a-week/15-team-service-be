@@ -146,20 +146,34 @@ public class ResumeService {
         return saved.getId();
     }
 
-    @Transactional(readOnly = true)
     public ResumeDetailDto get(Long userId, Long resumeId) {
 
         Resume resume =
                 resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
+                        .findByIdAndUserIdWithLock(resumeId, userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+
+        ResumeVersion previewVersion =
+                resumeVersionRepository
+                        .findTopByResume_IdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
+                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .filter(v -> !v.getVersionNo().equals(resume.getCurrentVersionNo()))
+                        .orElse(null);
+
+        if (previewVersion != null) {
+            previewVersion.markPreviewShownNow();
+            return resumeMapper.toDetailDto(resume, previewVersion);
+        }
 
         ResumeVersion version =
                 resumeVersionRepository
-                        .findTopByResume_IdAndStatusOrderByVersionNoDesc(
-                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .findByResume_IdAndVersionNo(resume.getId(), resume.getCurrentVersionNo())
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+
+        if (version.getStatus() != ResumeVersionStatus.SUCCEEDED) {
+            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
+        }
 
         return resumeMapper.toDetailDto(resume, version);
     }
