@@ -20,7 +20,7 @@ on:
       - "codedeploy/**"
 
   push:
-    branches: [ "dev", "main", "ci/be-v2" ]
+    branches: [ "dev", "main", "ci/be-v2-2" ]
     paths:
       - "**/*.java"
       - "**/*.kt"
@@ -125,12 +125,12 @@ jobs:
 
       # ✅ CD가 재사용할 수 있도록 Docker image를 artifact로 전달
       - name: Save docker image to tar (main only)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2-2')
         run: |
           docker save be-api:${GITHUB_SHA} -o be-image-${GITHUB_SHA}.tar
 
       - name: Upload docker image artifact
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2-2')
         uses: actions/upload-artifact@v4
         with:
           name: be-docker-image
@@ -153,7 +153,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # ✅ CD는 main merge(push)일 때만 실행
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ci/be-v2-2')
 
     env:
       AWS_REGION: ap-northeast-2
