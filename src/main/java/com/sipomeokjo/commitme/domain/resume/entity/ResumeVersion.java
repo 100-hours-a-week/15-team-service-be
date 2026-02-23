@@ -116,6 +116,10 @@ public class ResumeVersion extends BaseEntity {
         } else {
             this.content = contentJson;
         }
+
+        if (this.resume != null) {
+            this.resume.touchUpdatedAtNow();
+        }
     }
 
     public void failNow(String errorCode, String message) {

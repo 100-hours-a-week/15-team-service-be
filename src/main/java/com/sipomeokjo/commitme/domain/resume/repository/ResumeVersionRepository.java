@@ -24,17 +24,6 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
 
     @Query(
             value =
-                    "SELECT rv.version_no AS versionNo, rv.content AS content "
-                            + "FROM resume_version rv "
-                            + "WHERE rv.resume_id = :resumeId AND rv.status = :status "
-                            + "ORDER BY rv.version_no DESC "
-                            + "LIMIT 1",
-            nativeQuery = true)
-    Optional<ResumeVersionContentView> findLatestContentByResumeIdAndStatus(
-            @Param("resumeId") Long resumeId, @Param("status") ResumeVersionStatus status);
-
-    @Query(
-            value =
                     "SELECT rv.version_no AS versionNo "
                             + "FROM resume_version rv "
                             + "WHERE rv.resume_id = :resumeId "
