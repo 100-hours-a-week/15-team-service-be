@@ -1,6 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.repository;
 
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
+import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.List;
@@ -25,7 +26,7 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
     @Query(
             "SELECT DISTINCT r FROM Resume r "
                     + "JOIN ResumeVersion rv ON rv.resume = r "
-                    + "WHERE r.user.id = :userId AND rv.status = 'SUCCEEDED' "
+                    + "WHERE r.user.id = :userId AND rv.status = :status "
                     + "AND (:keyword is null OR r.name LIKE CONCAT('%', :keyword, '%')) "
                     + "AND (:cursorUpdatedAt is null "
                     + "OR r.updatedAt > :cursorUpdatedAt "
@@ -33,6 +34,7 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
                     + "ORDER BY r.updatedAt ASC, r.id ASC")
     List<Resume> findSucceededByUserIdWithCursorAsc(
             @Param("userId") Long userId,
+            @Param("status") ResumeVersionStatus status,
             @Param("keyword") String keyword,
             @Param("cursorUpdatedAt") Instant cursorUpdatedAt,
             @Param("cursorId") Long cursorId,
@@ -41,7 +43,7 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
     @Query(
             "SELECT DISTINCT r FROM Resume r "
                     + "JOIN ResumeVersion rv ON rv.resume = r "
-                    + "WHERE r.user.id = :userId AND rv.status = 'SUCCEEDED' "
+                    + "WHERE r.user.id = :userId AND rv.status = :status "
                     + "AND (:keyword is null OR r.name LIKE CONCAT('%', :keyword, '%')) "
                     + "AND (:cursorUpdatedAt is null "
                     + "OR r.updatedAt < :cursorUpdatedAt "
@@ -49,6 +51,7 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
                     + "ORDER BY r.updatedAt DESC, r.id DESC")
     List<Resume> findSucceededByUserIdWithCursorDesc(
             @Param("userId") Long userId,
+            @Param("status") ResumeVersionStatus status,
             @Param("keyword") String keyword,
             @Param("cursorUpdatedAt") Instant cursorUpdatedAt,
             @Param("cursorId") Long cursorId,
