@@ -83,7 +83,7 @@ public class SecurityConfig {
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers(
-                                                "/api/v1/resume/callback",
+												"/api/resume/callback",
                                                 "/api/resume/*/callback",
                                                 "/uploads/**"))
                 .cors(Customizer.withDefaults())
@@ -110,7 +110,7 @@ public class SecurityConfig {
                                                 "/auth/github/loginUrl",
                                                 "/auth/github",
                                                 "/auth/token",
-                                                "/api/v1/resume/callback",
+												"/api/resume/callback",
                                                 "/api/resume/*/callback",
                                                 "/actuator/health",
                                                 "/swagger/**",
