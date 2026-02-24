@@ -79,7 +79,7 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
-    baseline-version: "20260210.0"
+    baseline-version: "20260223.0"
     
 logging:
   level:
