@@ -258,7 +258,7 @@ public class ResumeService {
 
         var latestSucceeded =
                 resumeVersionRepository
-                        .findTopByResume_IdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
+                        .findTopByResume_IdAndStatusOrderByVersionNoDesc(
                                 resume.getId(), ResumeVersionStatus.SUCCEEDED)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
