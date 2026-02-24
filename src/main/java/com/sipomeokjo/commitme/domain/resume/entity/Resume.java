@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -61,5 +62,9 @@ public class Resume extends BaseEntity {
 
     public void setCurrentVersionNo(int versionNo) {
         this.currentVersionNo = versionNo;
+    }
+
+    public void touchUpdatedAtNow() {
+        this.updatedAt = Instant.now();
     }
 }

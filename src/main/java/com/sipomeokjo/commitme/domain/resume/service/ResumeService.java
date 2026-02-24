@@ -58,12 +58,14 @@ public class ResumeService {
                 (sortBy == ResumeSortBy.UPDATED_ASC)
                         ? resumeRepository.findSucceededByUserIdWithCursorAsc(
                                 userId,
+                                ResumeVersionStatus.SUCCEEDED,
                                 normalizedKeyword,
                                 cursor.createdAt(),
                                 cursor.id(),
                                 PageRequest.of(0, size + 1))
                         : resumeRepository.findSucceededByUserIdWithCursorDesc(
                                 userId,
+                                ResumeVersionStatus.SUCCEEDED,
                                 normalizedKeyword,
                                 cursor.createdAt(),
                                 cursor.id(),
@@ -231,7 +233,7 @@ public class ResumeService {
     }
 
     public ResumeEditResponse edit(Long userId, Long resumeId, ResumeEditRequest req) {
-        String message = (req == null || req.getMessage() == null) ? "" : req.getMessage().trim();
+        String message = (req == null || req.message() == null) ? "" : req.message().trim();
         if (message.isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
@@ -256,7 +258,7 @@ public class ResumeService {
 
         var latestSucceeded =
                 resumeVersionRepository
-                        .findLatestContentByResumeIdAndStatus(
+                        .findTopByResume_IdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
                                 resume.getId(), ResumeVersionStatus.SUCCEEDED)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
