@@ -45,6 +45,7 @@ AI_EDIT_PATH="$(get_ssm "${PARAM_BASE}/AI_EDIT_PATH")"
 AI_CALLBACK_PATH="$(get_ssm "${PARAM_BASE}/AI_CALLBACK_PATH")"
 
 REDIS_IP="$(get_ssm "${PARAM_BASE}/REDIS_IP")"
+REDIS_PW="$(get_ssm "${PARAM_BASE}/REDIS_PW")"
 
 # 2) application-prod.yml 생성 (prod에서 바뀌는 것만 override)
 cat > "$OUT_FILE" <<YAML
@@ -66,6 +67,7 @@ spring:
     redis:
       host: "${REDIS_IP}"
       port: 6379
+      password: "${REDIS_PW}"
     
   jpa:
     hibernate:
