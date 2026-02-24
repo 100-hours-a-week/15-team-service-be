@@ -42,7 +42,7 @@ public class LocalSecurityConfig {
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers(
-                                                "/api/v1/resume/callback",
+												"/api/resume/*/callback",
                                                 "/api/resume/*/callback",
                                                 "/uploads/**"))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
