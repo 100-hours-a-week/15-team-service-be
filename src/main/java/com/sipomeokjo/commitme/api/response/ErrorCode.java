@@ -100,6 +100,16 @@ public enum ErrorCode implements ResponseCode {
     INVALID_KEYWORD_VALUE(
             HttpStatus.BAD_REQUEST, "INVALID_KEYWORD_VALUE", "검색어 값이 유효하지 않거나 손상되었습니다."),
 
+    // 면접
+    INTERVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "INTERVIEW_NOT_FOUND", "면접을 찾을 수 없습니다."),
+    INTERVIEW_ALREADY_ENDED(HttpStatus.BAD_REQUEST, "INTERVIEW_ALREADY_ENDED", "이미 종료된 면접입니다."),
+    INTERVIEW_SESSION_INVALID(
+            HttpStatus.BAD_REQUEST, "INTERVIEW_SESSION_INVALID", "유효하지 않은 면접 세션입니다."),
+
+    // AI
+    AI_SERVICE_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE, "AI_SERVICE_UNAVAILABLE", "AI 서버에 연결할 수 없습니다."),
+
     // 전역
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "잘못된 요청입니다."),
     METHOD_NOT_ALLOWED(
