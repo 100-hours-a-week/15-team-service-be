@@ -115,6 +115,8 @@ public class SecurityConfig {
                                                 "/api/resume/*/callback",
                                                 "/api/ai/callback/**",
                                                 "/actuator/health",
+                                                "/actuator/prometheus", // internal scrape path
+                                                // (SG/ALB 제한 전제)
                                                 "/swagger/**",
                                                 "/swagger-ui/**",
                                                 "/swagger-ui.html",
