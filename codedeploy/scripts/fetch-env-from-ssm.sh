@@ -62,6 +62,9 @@ spring:
     url: "${DB_URL}"
     username: "${DB_USER}"
     password: "${DB_PASS}"
+    hikari:
+      register-mbeans: true
+      pool-name: CommitmeHikariPool
   data:
     redis:
       host: "${REDIS_IP}"
@@ -91,9 +94,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: CommitMe
+      env: prod
         
 app:
+  observability:
+    jdbc:
+      slow-query-threshold-ms: 300
   auth:
     redirect-uri: "${APP_AUTH_REDIRECT_URI}"
   cors:
