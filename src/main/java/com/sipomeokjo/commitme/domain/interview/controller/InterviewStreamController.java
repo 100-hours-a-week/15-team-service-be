@@ -4,6 +4,7 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.interview.entity.Interview;
 import com.sipomeokjo.commitme.domain.interview.repository.InterviewRepository;
+import com.sipomeokjo.commitme.domain.interview.service.InterviewCommandService;
 import com.sipomeokjo.commitme.domain.interview.sse.InterviewSseEmitterManager;
 import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class InterviewStreamController {
 
     private final InterviewSseEmitterManager sseEmitterManager;
     private final InterviewRepository interviewRepository;
+    private final InterviewCommandService interviewCommandService;
 
     @GetMapping(value = "/{interviewId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@CurrentUserId Long userId, @PathVariable Long interviewId) {
@@ -33,6 +35,8 @@ public class InterviewStreamController {
             throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_ENDED);
         }
 
-        return sseEmitterManager.create(interviewId);
+        SseEmitter emitter = sseEmitterManager.create(interviewId);
+        interviewCommandService.sendNextQuestionIfAvailable(interviewId);
+        return emitter;
     }
 }

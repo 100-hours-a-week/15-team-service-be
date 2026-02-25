@@ -21,4 +21,5 @@ public class AiProperties {
     private String interviewAnswerPath;
     private String interviewEndPath;
     private String interviewCallbackUrl;
+    private String sttTranscribePath;
 }

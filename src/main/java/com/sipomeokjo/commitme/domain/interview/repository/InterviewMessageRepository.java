@@ -9,7 +9,16 @@ public interface InterviewMessageRepository extends MongoRepository<InterviewMes
 
     List<InterviewMessage> findByInterviewIdOrderByTurnNoAsc(Long interviewId);
 
+    List<InterviewMessage> findByInterviewIdAndTurnNoIsNotNullOrderByTurnNoAsc(Long interviewId);
+
     void deleteByInterviewId(Long interviewId);
 
     Optional<InterviewMessage> findByInterviewIdAndTurnNo(Long interviewId, Integer turnNo);
+
+    Optional<InterviewMessage> findFirstByInterviewIdAndTurnNoIsNotNullOrderByTurnNoDesc(
+            Long interviewId);
+
+    Optional<InterviewMessage>
+            findFirstByInterviewIdAndQuestionOrderIsNotNullAndAskedAtIsNullOrderByQuestionOrderAsc(
+                    Long interviewId);
 }

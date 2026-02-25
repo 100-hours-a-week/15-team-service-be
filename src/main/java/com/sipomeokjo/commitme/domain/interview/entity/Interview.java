@@ -110,6 +110,10 @@ public class Interview extends BaseEntity {
         this.totalFeedback = totalFeedback;
     }
 
+    public void updateAiSessionId(String aiSessionId) {
+        this.aiSessionId = aiSessionId;
+    }
+
     public boolean isEnded() {
         return this.endedAt != null;
     }

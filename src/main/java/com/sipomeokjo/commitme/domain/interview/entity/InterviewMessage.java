@@ -18,9 +18,17 @@ import org.springframework.data.mongodb.core.mapping.Field;
 public class InterviewMessage {
 
     @Builder
-    private InterviewMessage(Long interviewId, Integer turnNo, String question, Instant askedAt) {
+    private InterviewMessage(
+            Long interviewId,
+            Integer turnNo,
+            Integer questionOrder,
+            String questionId,
+            String question,
+            Instant askedAt) {
         this.interviewId = interviewId;
         this.turnNo = turnNo;
+        this.questionOrder = questionOrder;
+        this.questionId = questionId;
         this.question = question;
         this.askedAt = askedAt;
     }
@@ -30,6 +38,32 @@ public class InterviewMessage {
         return InterviewMessage.builder()
                 .interviewId(interviewId)
                 .turnNo(turnNo)
+                .questionOrder(null)
+                .questionId(null)
+                .question(question)
+                .askedAt(askedAt)
+                .build();
+    }
+
+    public static InterviewMessage createFromGeneratedQuestion(
+            Long interviewId, Integer questionOrder, String questionId, String question) {
+        return InterviewMessage.builder()
+                .interviewId(interviewId)
+                .turnNo(null)
+                .questionOrder(questionOrder)
+                .questionId(questionId)
+                .question(question)
+                .askedAt(null)
+                .build();
+    }
+
+    public static InterviewMessage createFollowUpQuestion(
+            Long interviewId, Integer turnNo, String questionId, String question, Instant askedAt) {
+        return InterviewMessage.builder()
+                .interviewId(interviewId)
+                .turnNo(turnNo)
+                .questionOrder(null)
+                .questionId(questionId)
                 .question(question)
                 .askedAt(askedAt)
                 .build();
@@ -43,6 +77,12 @@ public class InterviewMessage {
 
     @Field("turn_no")
     private Integer turnNo;
+
+    @Field("question_order")
+    private Integer questionOrder;
+
+    @Field("question_id")
+    private String questionId;
 
     @Field("question")
     private String question;
@@ -78,5 +118,10 @@ public class InterviewMessage {
         this.answerInputType = answerInputType;
         this.audioUrl = audioUrl;
         this.answeredAt = Instant.now();
+    }
+
+    public void markAsked(Integer turnNo, Instant askedAt) {
+        this.turnNo = turnNo;
+        this.askedAt = askedAt;
     }
 }

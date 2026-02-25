@@ -5,6 +5,7 @@ import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewAnswerRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewCreateRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewDetailResponse;
+import com.sipomeokjo.commitme.domain.interview.dto.InterviewMessageResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewStartResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewTypeResponse;
@@ -45,6 +46,14 @@ public class InterviewController {
             @CurrentUserId Long userId, @PathVariable Long interviewId) {
         InterviewDetailResponse interview = interviewQueryService.getInterview(userId, interviewId);
         return APIResponse.onSuccess(SuccessCode.INTERVIEW_FETCHED, interview);
+    }
+
+    @GetMapping("/{interviewId}/messages")
+    public ResponseEntity<APIResponse<List<InterviewMessageResponse>>> getInterviewMessages(
+            @CurrentUserId Long userId, @PathVariable Long interviewId) {
+        List<InterviewMessageResponse> messages =
+                interviewQueryService.getInterviewMessages(userId, interviewId);
+        return APIResponse.onSuccess(SuccessCode.INTERVIEW_FETCHED, messages);
     }
 
     @GetMapping("/types")
