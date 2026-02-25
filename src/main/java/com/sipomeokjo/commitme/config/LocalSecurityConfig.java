@@ -42,8 +42,9 @@ public class LocalSecurityConfig {
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers(
-												"/api/resume/*/callback",
+                                                "/api/resume/callback",
                                                 "/api/resume/*/callback",
+                                                "/api/ai/callback/**",
                                                 "/uploads/**"))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .httpBasic(Customizer.withDefaults())

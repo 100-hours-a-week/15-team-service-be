@@ -15,4 +15,10 @@ public class AiProperties {
     private String resumeEditPath;
     private String resumeCallbackUrl;
     private String callbackSecret;
+
+    // Interview
+    private String interviewStartPath;
+    private String interviewAnswerPath;
+    private String interviewEndPath;
+    private String interviewCallbackUrl;
 }
