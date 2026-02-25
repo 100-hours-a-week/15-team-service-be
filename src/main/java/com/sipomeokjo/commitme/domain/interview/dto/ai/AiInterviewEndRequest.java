@@ -1,8 +1,6 @@
 package com.sipomeokjo.commitme.domain.interview.dto.ai;
 
-import com.sipomeokjo.commitme.domain.interview.entity.AnswerInputType;
 import com.sipomeokjo.commitme.domain.interview.entity.InterviewType;
-import java.time.Instant;
 import java.util.List;
 
 public record AiInterviewEndRequest(
@@ -16,8 +14,7 @@ public record AiInterviewEndRequest(
             Integer turnNo,
             String question,
             String answer,
-            AnswerInputType answerInputType,
-            String audioUrl,
-            Instant askedAt,
-            Instant answeredAt) {}
+            String answerInputType,
+            String askedAt,
+            String answeredAt) {}
 }
