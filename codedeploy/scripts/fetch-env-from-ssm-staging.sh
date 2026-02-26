@@ -2,8 +2,9 @@
 set -euo pipefail
 
 AWS_REGION="ap-northeast-2"
-OUT_FILE="/home/ubuntu/deploy/be/application-prod.yml"
+OUT_FILE="/home/ubuntu/deploy/be/application-staging.yml"
 PARAM_BASE="/commitme/v2/prod/be-server"
+PARAM_BASE_STAGING="/commitme/v2/staging/be-server"
 
 umask 077
 
@@ -19,8 +20,8 @@ get_ssm() {
 }
 
 # 1) SSM에서 "변하는 값"만 읽기
-DOMAIN="$(get_ssm "${PARAM_BASE}/DOMAIN")"
-DOMAIN_CSRF="$(get_ssm "${PARAM_BASE}/DOMAIN_CSRF")"
+DOMAIN="$(get_ssm "${PARAM_BASE_STAGING}/DOMAIN")"
+DOMAIN_CSRF="$(get_ssm "${PARAM_BASE_STAGING}/DOMAIN_CSRF")"
 
 DB_URL="$(get_ssm "${PARAM_BASE}/PROD_DB_NAME")"
 DB_USER="$(get_ssm "${PARAM_BASE}/PROD_MYSQL_ID")"
@@ -31,9 +32,9 @@ ACCESS_TOKEN_KEY="$(get_ssm "${PARAM_BASE}/ACCESS_TOKEN_KEY")"
 
 GITHUB_CLIENT_ID="$(get_ssm "${PARAM_BASE}/GITHUB_CLIENT_ID")"
 GITHUB_CLIENT_SECRET="$(get_ssm "${PARAM_BASE}/GITHUB_CLIENT_SECRET")"
-GITHUB_REDIRECT_URI="$(get_ssm "${PARAM_BASE}/GITHUB_OAUTH_REDIRECT")"
+GITHUB_REDIRECT_URI="$(get_ssm "${PARAM_BASE_STAGING}/GITHUB_OAUTH_REDIRECT")"
 
-APP_AUTH_REDIRECT_URI="$(get_ssm "${PARAM_BASE}/FE_OAUTH_REDIRECT")"
+APP_AUTH_REDIRECT_URI="$(get_ssm "${PARAM_BASE_STAGING}/FE_OAUTH_REDIRECT")"
 
 S3_BUCKET_NAME="$(get_ssm "${PARAM_BASE}/S3_BUCKET_NAME")"
 S3_ACCESS_KEY="$(get_ssm "${PARAM_BASE}/S3_ACCESS_KEY")"
@@ -42,12 +43,12 @@ S3_SECRET_KEY="$(get_ssm "${PARAM_BASE}/S3_SECRET_KEY")"
 AI_BASE_URL="$(get_ssm "${PARAM_BASE}/AI_BASE_URL")"
 AI_GENERATE_PATH="$(get_ssm "${PARAM_BASE}/AI_GENERATE_PATH")"
 AI_EDIT_PATH="$(get_ssm "${PARAM_BASE}/AI_EDIT_PATH")"
-AI_CALLBACK_PATH="$(get_ssm "${PARAM_BASE}/AI_CALLBACK_PATH")"
+AI_CALLBACK_PATH="$(get_ssm "${PARAM_BASE_STAGING}/AI_CALLBACK_PATH")"
 
 AI_INTERVIEW_START_PATH="$(get_ssm "${PARAM_BASE}/AI_INTERVIEW_START_PATH")"
 AI_INTERVIEW_ANSWER_PATH="$(get_ssm "${PARAM_BASE}/AI_INTERVIEW_ANSWER_PATH")"
 AI_INTERVIEW_END_PATH="$(get_ssm "${PARAM_BASE}/AI_INTERVIEW_END_PATH")"
-AI_INTERVIEW_CALLBACK_PATH="$(get_ssm "${PARAM_BASE}/AI_INTERVIEW_CALLBACK_PATH")"
+AI_INTERVIEW_CALLBACK_PATH="$(get_ssm "${PARAM_BASE_STAGING}/AI_INTERVIEW_CALLBACK_PATH")"
 AI_STT_TRANSCRIBE_PATH="$(get_ssm "${PARAM_BASE}/AI_STT_TRANSCRIBE_PATH")"
 
 REDIS_IP="$(get_ssm "${PARAM_BASE}/REDIS_IP")"
@@ -69,9 +70,6 @@ spring:
     url: "${DB_URL}"
     username: "${DB_USER}"
     password: "${DB_PASS}"
-    hikari:
-      register-mbeans: true
-      pool-name: CommitmeHikariPool
   data:
     redis:
       host: "${REDIS_IP}"
@@ -103,15 +101,8 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
-  metrics:
-    tags:
-      application: CommitMe
-      env: prod
         
 app:
-  observability:
-    jdbc:
-      slow-query-threshold-ms: 300
   auth:
     redirect-uri: "${APP_AUTH_REDIRECT_URI}"
   cors:
