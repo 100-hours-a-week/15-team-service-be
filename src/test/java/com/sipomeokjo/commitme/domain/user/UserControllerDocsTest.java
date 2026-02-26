@@ -19,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.config.WebMvcConfig;
+import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.domain.user.controller.UserController;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
@@ -58,7 +59,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @WebMvcTest(UserController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @AutoConfigureRestDocs(outputDir = "build/generated-snippets")
-@Import({WebMvcConfig.class, UserControllerDocsTest.TestConfig.class})
+@Import({WebMvcConfig.class, AuthCookieWriter.class, UserControllerDocsTest.TestConfig.class})
 class UserControllerDocsTest {
 
     @Autowired private MockMvc mockMvc;
