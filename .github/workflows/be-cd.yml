@@ -3,7 +3,7 @@ name: Backend CD Pipeline (Big Bang)
 # 1. 트리거: 'Backend CI Pipeline' 워크플로우가 'main' 브랜치에서 '완료'되었을 때 실행
 on:
   push:
-    branches: [ "main", "cd/be-cd2" ]
+    branches: [ "main", "v1" ]
   workflow_dispatch:
 
 concurrency:

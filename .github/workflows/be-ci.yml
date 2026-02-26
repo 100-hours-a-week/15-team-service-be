@@ -14,9 +14,9 @@ on:
       - ".github/workflows/**"
       - "**/*.yml"
       - "**/*.yaml"
-    branches: [ "main", "cd/be-cd2" ]
+    branches: [ "main", "v1" ]
   push:
-    branches: [ "dev", "cd/be-cd2" ]
+    branches: [ "dev", "v1" ]
 
 concurrency:
   group: ci-${{ github.ref }}
