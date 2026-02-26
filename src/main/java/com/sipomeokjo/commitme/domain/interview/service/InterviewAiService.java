@@ -91,7 +91,7 @@ public class InterviewAiService {
         if (inputType == null) {
             return "text";
         }
-        return inputType == AnswerInputType.AUDIO ? "voice" : "text";
+        return inputType == AnswerInputType.AUDIO ? "stt" : "text";
     }
 
     private String toIsoString(java.time.Instant instant) {

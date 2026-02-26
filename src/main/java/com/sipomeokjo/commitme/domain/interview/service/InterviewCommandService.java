@@ -64,6 +64,8 @@ public class InterviewCommandService {
 
         interview.updateName(request.name());
 
+        interviewRepository.save(interview);
+
         return interviewMapper.toResponse(interview);
     }
 
@@ -106,7 +108,7 @@ public class InterviewCommandService {
         AiInterviewGenerateRequest generateRequest =
                 buildGenerateRequest(resumeVersion, request.interviewType(), position.getName());
 
-        String interviewName = generateInterviewName(position.getName());
+        String interviewName = generateInterviewName(position.getName(), request.interviewType());
 
         Interview interview =
                 Interview.create(user, position, company, interviewName, request.interviewType());
@@ -231,8 +233,20 @@ public class InterviewCommandService {
         return interview.getTotalFeedback();
     }
 
-    private String generateInterviewName(String positionName) {
-        return positionName + " 모의 면접";
+    private String generateInterviewName(String positionName, InterviewType interviewType) {
+        String date = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).toString();
+        String typeLabel = toInterviewTypeLabel(interviewType);
+        return String.join("_", date, positionName, typeLabel);
+    }
+
+    private String toInterviewTypeLabel(InterviewType interviewType) {
+        if (interviewType == null) {
+            return "면접";
+        }
+        return switch (interviewType) {
+            case BEHAVIORAL -> "인성";
+            case TECHNICAL -> "기술";
+        };
     }
 
     private ResumeVersion resolveResumeVersion(InterviewCreateRequest request) {
