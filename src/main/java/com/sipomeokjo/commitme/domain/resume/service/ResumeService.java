@@ -98,7 +98,8 @@ public class ResumeService {
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
 
         for (ResumeVersion v : pendingVersions) {
-            if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
+            if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)
+                    || v.isQueuedTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
                 v.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
                 log.info(
                         "[RESUME_CREATE] timeout_failed userId={} versionId={}", userId, v.getId());
