@@ -3,6 +3,7 @@ package com.sipomeokjo.commitme.security.oauth;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -23,6 +24,13 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
             HttpServletResponse response,
             AccessDeniedException accessDeniedException)
             throws IOException {
+        DispatcherType dispatcherType = request.getDispatcherType();
+        if (dispatcherType == DispatcherType.ASYNC || dispatcherType == DispatcherType.ERROR) {
+            return;
+        }
+        if (response.isCommitted()) {
+            return;
+        }
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");

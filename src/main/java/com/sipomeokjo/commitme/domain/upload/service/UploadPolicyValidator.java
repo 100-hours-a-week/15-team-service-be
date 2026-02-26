@@ -19,9 +19,10 @@ public class UploadPolicyValidator {
 
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png");
 
-    private static final Set<String> AUDIO_CONTENT_TYPES = Set.of("audio/mpeg", "audio/wav");
+    private static final Set<String> AUDIO_CONTENT_TYPES =
+            Set.of("audio/mpeg", "audio/wav", "audio/webm");
 
-    private static final Set<String> AUDIO_EXTENSIONS = Set.of("mp3", "wav");
+    private static final Set<String> AUDIO_EXTENSIONS = Set.of("mp3", "wav", "webm");
 
     private static final Map<UploadPurpose, UploadPolicy> POLICIES =
             Map.of(

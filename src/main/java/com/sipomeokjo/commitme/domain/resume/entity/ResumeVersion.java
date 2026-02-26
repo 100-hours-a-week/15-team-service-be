@@ -46,6 +46,9 @@ public class ResumeVersion extends BaseEntity {
     @Column(name = "committed_at")
     private LocalDateTime committedAt;
 
+    @Column(name = "preview_shown_at")
+    private Instant previewShownAt;
+
     public static ResumeVersion createV1(Resume resume, String content) {
         ResumeVersion v = new ResumeVersion();
         v.resume = resume;
@@ -61,8 +64,29 @@ public class ResumeVersion extends BaseEntity {
         return v;
     }
 
+    public static ResumeVersion createNext(Resume resume, int versionNo, String content) {
+        ResumeVersion v = new ResumeVersion();
+        v.resume = resume;
+        v.versionNo = versionNo;
+        v.status = ResumeVersionStatus.QUEUED;
+
+        if (content == null || content.isBlank()) {
+            v.content = "{}";
+        } else {
+            v.content = content;
+        }
+
+        return v;
+    }
+
     public void commitNow() {
         this.committedAt = LocalDateTime.now();
+    }
+
+    public void markPreviewShownNow() {
+        if (this.previewShownAt == null) {
+            this.previewShownAt = Instant.now();
+        }
     }
 
     public void markQueued() {
@@ -91,6 +115,10 @@ public class ResumeVersion extends BaseEntity {
         } else {
             this.content = contentJson;
         }
+
+        if (this.resume != null) {
+            this.resume.touchUpdatedAtNow();
+        }
     }
 
     public void failNow(String errorCode, String message) {
@@ -107,5 +135,16 @@ public class ResumeVersion extends BaseEntity {
             return false;
         }
         return this.startedAt.plusMinutes(timeoutMinutes).isBefore(LocalDateTime.now());
+    }
+
+    public boolean isQueuedTimedOut(long timeoutMinutes) {
+        if (this.status != ResumeVersionStatus.QUEUED) {
+            return false;
+        }
+        Instant created = this.getCreatedAt();
+        if (created == null) {
+            return false;
+        }
+        return created.plus(Duration.ofMinutes(timeoutMinutes)).isBefore(Instant.now());
     }
 }

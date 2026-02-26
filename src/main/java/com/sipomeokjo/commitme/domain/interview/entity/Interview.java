@@ -16,7 +16,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -25,6 +27,41 @@ import lombok.NoArgsConstructor;
 @Table(name = "interview")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Interview extends BaseEntity {
+
+    @Builder
+    private Interview(
+            User user,
+            Position position,
+            Company company,
+            String name,
+            InterviewType interviewType,
+            String aiSessionId,
+            Instant startedAt) {
+        this.user = user;
+        this.position = position;
+        this.company = company;
+        this.name = name;
+        this.interviewType = interviewType;
+        this.aiSessionId = aiSessionId;
+        this.startedAt = startedAt;
+    }
+
+    public static Interview create(
+            User user,
+            Position position,
+            Company company,
+            String name,
+            InterviewType interviewType) {
+        return Interview.builder()
+                .user(user)
+                .position(position)
+                .company(company)
+                .name(name)
+                .interviewType(interviewType)
+                .aiSessionId(UUID.randomUUID().toString())
+                .startedAt(Instant.now())
+                .build();
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -60,4 +97,24 @@ public class Interview extends BaseEntity {
 
     @Column(name = "ended_at")
     private Instant endedAt;
+
+    public void updateName(String name) {
+        this.name = name;
+    }
+
+    public void end() {
+        this.endedAt = Instant.now();
+    }
+
+    public void updateFeedback(String totalFeedback) {
+        this.totalFeedback = totalFeedback;
+    }
+
+    public void updateAiSessionId(String aiSessionId) {
+        this.aiSessionId = aiSessionId;
+    }
+
+    public boolean isEnded() {
+        return this.endedAt != null;
+    }
 }

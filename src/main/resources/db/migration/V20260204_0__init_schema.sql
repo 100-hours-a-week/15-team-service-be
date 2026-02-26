@@ -72,31 +72,6 @@ CREATE TABLE `interview` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Table structure for table `interview_message`
---
-
-DROP TABLE IF EXISTS `interview_message`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `interview_message` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `created_at` datetime(6) NOT NULL,
-  `updated_at` datetime(6) DEFAULT NULL,
-  `ai_responded_at` datetime(6) DEFAULT NULL,
-  `answer` text,
-  `answer_input_type` enum('AUDIO','TEXT') DEFAULT NULL,
-  `answered_at` datetime(6) DEFAULT NULL,
-  `asked_at` datetime(6) NOT NULL,
-  `question` text,
-  `turn_no` int NOT NULL,
-  `interview_id` bigint NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `FK7diqmimpybjxonti15dqoln7m` (`interview_id`),
-  CONSTRAINT `FK7diqmimpybjxonti15dqoln7m` FOREIGN KEY (`interview_id`) REFERENCES `interview` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
 -- Table structure for table `notification`
 --
 

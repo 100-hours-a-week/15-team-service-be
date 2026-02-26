@@ -18,14 +18,45 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
 
     Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
 
+    Optional<ResumeVersion>
+            findTopByResume_IdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
+                    Long resumeId, ResumeVersionStatus status);
+
     Optional<ResumeVersion> findTopByResume_IdAndStatusOrderByVersionNoDesc(
             Long resumeId, ResumeVersionStatus status);
+
+    @Query(
+            value =
+                    "SELECT rv.version_no AS versionNo "
+                            + "FROM resume_version rv "
+                            + "WHERE rv.resume_id = :resumeId "
+                            + "ORDER BY rv.version_no DESC "
+                            + "LIMIT 1",
+            nativeQuery = true)
+    Optional<ResumeVersionNoView> findLatestVersionNoByResumeId(@Param("resumeId") Long resumeId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+            "SELECT rv.id FROM ResumeVersion rv "
+                    + "WHERE rv.resume.id = :resumeId "
+                    + "AND rv.status IN :statuses")
+    List<Long> findByResumeIdAndStatusInWithLock(
+            @Param("resumeId") Long resumeId,
+            @Param("statuses") List<ResumeVersionStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+            "SELECT rv.id FROM ResumeVersion rv "
+                    + "WHERE rv.resume.user.id = :userId "
+                    + "AND rv.status IN :statuses")
+    List<Long> findByUserIdAndStatusIn(
+            @Param("userId") Long userId, @Param("statuses") List<ResumeVersionStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
             "SELECT rv FROM ResumeVersion rv "
                     + "WHERE rv.resume.user.id = :userId "
                     + "AND rv.status IN :statuses")
-    List<ResumeVersion> findByUserIdAndStatusIn(
+    List<ResumeVersion> findEntitiesByUserIdAndStatusIn(
             @Param("userId") Long userId, @Param("statuses") List<ResumeVersionStatus> statuses);
 }

@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @Slf4j
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/resume")
+@RequestMapping("/api/resume")
 public class ResumeAiCallbackController {
 
     private final ResumeAiCallbackService resumeAiCallbackService;
@@ -52,6 +52,36 @@ public class ResumeAiCallbackController {
         }
 
         resumeAiCallbackService.handleCallback(req);
+        return APIResponse.onSuccess(SuccessCode.OK);
+    }
+
+    @PostMapping("/{jobId}/callback")
+    public ResponseEntity<APIResponse<Void>> callback(
+            @RequestHeader(value = "X-AI-Callback-Secret", required = false) String secret,
+            @PathVariable String jobId,
+            HttpServletRequest request,
+            @RequestBody AiResumeCallbackRequest req) {
+        boolean secretMatches = secret != null && secret.equals(aiProperties.getCallbackSecret());
+
+        if (!secretMatches) {
+            log.warn(
+                    "[AI_CALLBACK] unauthorized uri={} remote={} pathJobId={} bodyJobId={} status={} secretPresent={} secretMatches={}",
+                    request.getRequestURI(),
+                    request.getRemoteAddr(),
+                    jobId,
+                    req == null ? null : req.jobId(),
+                    req == null ? null : req.status(),
+                    secret != null,
+                    false);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (req == null || req.jobId() == null || !req.jobId().equals(jobId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
+        resumeAiCallbackService.handleEditCallback(req);
+
         return APIResponse.onSuccess(SuccessCode.OK);
     }
 }
