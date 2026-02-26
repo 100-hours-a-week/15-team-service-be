@@ -14,4 +14,7 @@ public interface AuthRepository extends JpaRepository<Auth, Long> {
     Optional<Auth> findByUser_IdAndProvider(Long userId, AuthProvider provider);
 
     List<Auth> findAllByUser_Id(Long userId);
+
+    List<Auth> findAllByProviderAndProviderUserIdStartingWith(
+            AuthProvider provider, String providerUserIdPrefix);
 }
