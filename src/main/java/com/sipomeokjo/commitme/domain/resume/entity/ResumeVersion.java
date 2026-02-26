@@ -137,4 +137,15 @@ public class ResumeVersion extends BaseEntity {
         }
         return this.startedAt.plus(Duration.ofMinutes(timeoutMinutes)).isBefore(Instant.now());
     }
+
+    public boolean isQueuedTimedOut(long timeoutMinutes) {
+        if (this.status != ResumeVersionStatus.QUEUED) {
+            return false;
+        }
+        Instant created = this.getCreatedAt();
+        if (created == null) {
+            return false;
+        }
+        return created.plus(Duration.ofMinutes(timeoutMinutes)).isBefore(Instant.now());
+    }
 }

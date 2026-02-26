@@ -198,7 +198,7 @@ public class InterviewCommandService {
         sendNextQuestionIfAvailable(interviewId);
     }
 
-    public void end(Long userId, Long interviewId) {
+    public String end(Long userId, Long interviewId) {
         Interview interview =
                 interviewRepository
                         .findByIdAndUserId(interviewId, userId)
@@ -223,12 +223,12 @@ public class InterviewCommandService {
                     interviewAiService.endInterview(interview, messages);
             if (endResponse != null && "success".equalsIgnoreCase(endResponse.status())) {
                 interview.updateFeedback(writeFeedbackJson(endResponse));
-                sseEmitterManager.sendFeedback(
-                        interviewId, Map.of("totalFeedback", interview.getTotalFeedback()));
             }
         }
 
         sseEmitterManager.sendEnd(interviewId);
+
+        return interview.getTotalFeedback();
     }
 
     private String generateInterviewName(String positionName) {

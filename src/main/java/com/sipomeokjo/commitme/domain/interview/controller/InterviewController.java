@@ -5,6 +5,7 @@ import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewAnswerRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewCreateRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewDetailResponse;
+import com.sipomeokjo.commitme.domain.interview.dto.InterviewEndResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewMessageResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewStartResponse;
@@ -96,9 +97,10 @@ public class InterviewController {
     }
 
     @PostMapping("/{interviewId}/end")
-    public ResponseEntity<APIResponse<Void>> endInterview(
+    public ResponseEntity<APIResponse<InterviewEndResponse>> endInterview(
             @CurrentUserId Long userId, @PathVariable Long interviewId) {
-        interviewCommandService.end(userId, interviewId);
-        return APIResponse.onSuccess(SuccessCode.INTERVIEW_ENDED);
+        String totalFeedback = interviewCommandService.end(userId, interviewId);
+        return APIResponse.onSuccess(
+                SuccessCode.INTERVIEW_ENDED, new InterviewEndResponse(totalFeedback));
     }
 }
