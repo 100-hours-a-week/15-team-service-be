@@ -9,31 +9,32 @@ import org.springframework.stereotype.Component;
 @Component
 public class UserMapper {
 
-    public UserProfileResponse toProfileResponse(User user) {
+    public UserProfileResponse toProfileResponse(
+            User user, String profileImageUrl, boolean privacyAgreed, boolean phonePolicyAgreed) {
         if (user == null) {
             return null;
         }
         return new UserProfileResponse(
                 user.getId(),
-                user.getProfileImageUrl(),
+                profileImageUrl,
                 user.getName(),
                 user.getPosition() == null ? null : user.getPosition().getId(),
-                user.getPhone()
-        );
+                user.getPhone(),
+                privacyAgreed,
+                phonePolicyAgreed);
     }
 
-    public UserUpdateResponse toUpdateResponse(User user) {
+    public UserUpdateResponse toUpdateResponse(User user, String profileImageUrl) {
         if (user == null) {
             return null;
         }
         return new UserUpdateResponse(
                 user.getId(),
-                user.getProfileImageUrl(),
+                profileImageUrl,
                 user.getName(),
                 user.getPosition() == null ? null : user.getPosition().getId(),
                 user.getPhone(),
-                user.getStatus()
-        );
+                user.getStatus());
     }
 
     public OnboardingResponse toOnboardingResponse(User user) {

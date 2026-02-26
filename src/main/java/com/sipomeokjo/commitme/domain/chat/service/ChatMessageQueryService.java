@@ -1,7 +1,7 @@
 package com.sipomeokjo.commitme.domain.chat.service;
 
-import com.sipomeokjo.commitme.api.pagination.CursorRequest;
 import com.sipomeokjo.commitme.api.pagination.CursorParser;
+import com.sipomeokjo.commitme.api.pagination.CursorRequest;
 import com.sipomeokjo.commitme.api.pagination.CursorResponse;
 import com.sipomeokjo.commitme.domain.chat.dto.ChatMessageResponse;
 import com.sipomeokjo.commitme.domain.chat.entity.ChatAttachment;
@@ -31,16 +31,14 @@ public class ChatMessageQueryService {
     private final ChatMessageMapper chatMessageMapper;
     private final CursorParser cursorParser;
 
-    public CursorResponse<ChatMessageResponse> getChatMessages(Long chatroomId, CursorRequest request) {
+    public CursorResponse<ChatMessageResponse> getChatMessages(
+            Long chatroomId, CursorRequest request) {
         CursorParser.Cursor cursor = cursorParser.parse(request == null ? null : request.next());
         int size = (request == null ? 15 : request.limit(15));
 
-        List<ChatMessage> messages = chatMessageRepository.findByChatroomWithCursor(
-                chatroomId,
-                cursor.createdAt(),
-                cursor.id(),
-                PageRequest.of(0, size + 1)
-        );
+        List<ChatMessage> messages =
+                chatMessageRepository.findByChatroomWithCursor(
+                        chatroomId, cursor.createdAt(), cursor.id(), PageRequest.of(0, size + 1));
 
         boolean hasMorePast = messages.size() > size;
         List<ChatMessage> pageDesc = hasMorePast ? messages.subList(0, size) : messages;
@@ -48,17 +46,17 @@ public class ChatMessageQueryService {
 
         Map<Long, List<ChatAttachment>> attachmentsByMessageId = fetchAttachments(pageAsc);
         Map<Long, Integer> userNumbersByUserId = fetchUserNumbers(chatroomId);
-        List<ChatMessageResponse> responses = pageAsc.stream()
-                .map(message -> chatMessageMapper.toChatMessageResponse(
-                        message,
-                        attachmentsByMessageId,
-                        userNumbersByUserId
-                ))
-                .toList();
+        List<ChatMessageResponse> responses =
+                pageAsc.stream()
+                        .map(
+                                message ->
+                                        chatMessageMapper.toChatMessageResponse(
+                                                message,
+                                                attachmentsByMessageId,
+                                                userNumbersByUserId))
+                        .toList();
 
-        String next = hasMorePast && !pageAsc.isEmpty()
-                ? encodeCursor(pageAsc.getFirst())
-                : null;
+        String next = hasMorePast && !pageAsc.isEmpty() ? encodeCursor(pageAsc.getFirst()) : null;
 
         return new CursorResponse<>(responses, null, next);
     }
@@ -67,24 +65,21 @@ public class ChatMessageQueryService {
         if (messages.isEmpty()) {
             return Collections.emptyMap();
         }
-        List<Long> messageIds = messages.stream()
-                .map(ChatMessage::getId)
-                .toList();
+        List<Long> messageIds = messages.stream().map(ChatMessage::getId).toList();
         return chatAttachmentRepository.findByMessageIdIn(messageIds).stream()
                 .collect(Collectors.groupingBy(attachment -> attachment.getMessage().getId()));
     }
 
     private Map<Long, Integer> fetchUserNumbers(Long chatroomId) {
         return chatUserNumberRepository.findByChatroomId(chatroomId).stream()
-                .collect(Collectors.toMap(
-                        chatUserNumber -> chatUserNumber.getUser().getId(),
-                        ChatUserNumber::getNumber,
-                        (existing, replacement) -> existing
-                ));
+                .collect(
+                        Collectors.toMap(
+                                chatUserNumber -> chatUserNumber.getUser().getId(),
+                                ChatUserNumber::getNumber,
+                                (existing, replacement) -> existing));
     }
 
     private String encodeCursor(ChatMessage message) {
         return message.getCreatedAt().toString() + "|" + message.getId();
     }
-
 }

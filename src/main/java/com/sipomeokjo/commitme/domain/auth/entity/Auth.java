@@ -15,9 +15,9 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Builder;
 
 @Getter
 @Entity
@@ -43,7 +43,7 @@ public class Auth extends BaseEntity {
     @Column(name = "provider_username")
     private String providerUsername;
 
-    @Column(name = "access_token", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "access_token", columnDefinition = "TEXT")
     private String accessToken;
 
     @Column(name = "token_scopes", columnDefinition = "TEXT")
@@ -53,7 +53,15 @@ public class Auth extends BaseEntity {
     private LocalDateTime tokenExpiresAt;
 
     @Builder
-    public Auth(Long id, User user, AuthProvider provider, String providerUserId, String providerUsername, String accessToken, String tokenScopes, LocalDateTime tokenExpiresAt) {
+    public Auth(
+            Long id,
+            User user,
+            AuthProvider provider,
+            String providerUserId,
+            String providerUsername,
+            String accessToken,
+            String tokenScopes,
+            LocalDateTime tokenExpiresAt) {
         this.id = id;
         this.user = user;
         this.provider = provider;
@@ -64,10 +72,21 @@ public class Auth extends BaseEntity {
         this.tokenExpiresAt = tokenExpiresAt;
     }
 
-    public void updateTokenInfo(String providerUsername, String accessToken, String tokenScopes, LocalDateTime tokenExpiresAt) {
+    public void updateTokenInfo(
+            String providerUsername,
+            String accessToken,
+            String tokenScopes,
+            LocalDateTime tokenExpiresAt) {
         this.providerUsername = providerUsername;
         this.accessToken = accessToken;
         this.tokenScopes = tokenScopes;
         this.tokenExpiresAt = tokenExpiresAt;
+    }
+
+    public void clearSensitiveInfo() {
+        this.providerUsername = null;
+        this.accessToken = null;
+        this.tokenScopes = null;
+        this.tokenExpiresAt = null;
     }
 }

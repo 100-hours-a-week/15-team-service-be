@@ -6,7 +6,7 @@ import com.sipomeokjo.commitme.domain.userSetting.dto.UserSettingsResponse;
 import com.sipomeokjo.commitme.domain.userSetting.dto.UserSettingsUpdateRequest;
 import com.sipomeokjo.commitme.domain.userSetting.service.UserSettingCommandService;
 import com.sipomeokjo.commitme.domain.userSetting.service.UserSettingQueryService;
-import com.sipomeokjo.commitme.security.CurrentUserId;
+import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,15 +26,15 @@ public class UserSettingController {
     @GetMapping
     public ResponseEntity<APIResponse<UserSettingsResponse>> getSettings(
             @CurrentUserId Long userId) {
-        return APIResponse.onSuccess(SuccessCode.USER_SETTINGS_FETCHED,
-				userSettingQueryService.getSettings(userId));
+        return APIResponse.onSuccess(
+                SuccessCode.USER_SETTINGS_FETCHED, userSettingQueryService.getSettings(userId));
     }
 
     @PatchMapping
     public ResponseEntity<APIResponse<UserSettingsResponse>> updateSettings(
-            @CurrentUserId Long userId,
-            @RequestBody UserSettingsUpdateRequest request) {
-        return APIResponse.onSuccess(SuccessCode.USER_SETTINGS_UPDATED,
-				userSettingCommandService.updateSettings(userId, request));
+            @CurrentUserId Long userId, @RequestBody UserSettingsUpdateRequest request) {
+        return APIResponse.onSuccess(
+                SuccessCode.USER_SETTINGS_UPDATED,
+                userSettingCommandService.updateSettings(userId, request));
     }
 }

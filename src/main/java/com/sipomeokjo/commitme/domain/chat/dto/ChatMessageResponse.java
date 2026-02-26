@@ -12,9 +12,7 @@ public record ChatMessageResponse(
         List<ChatAttachmentResponse> files,
         ChatMessageStatus status,
         Long sender,
-		Long senderNumber,
+        Long senderNumber,
         Long mentionTo,
-		Long mentionToNumber,
-        Instant sendAt
-) {
-}
+        Long mentionToNumber,
+        Instant sendAt) {}

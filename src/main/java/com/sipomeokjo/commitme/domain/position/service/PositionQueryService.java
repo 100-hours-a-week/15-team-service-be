@@ -18,8 +18,7 @@ public class PositionQueryService {
     private final PositionMapper positionMapper;
 
     public List<PositionResponse> getPositions() {
-        return positionRepository.findAll(Sort.by(Sort.Direction.ASC, "id"))
-                .stream()
+        return positionRepository.findAll(Sort.by(Sort.Direction.ASC, "id")).stream()
                 .map(positionMapper::toResponse)
                 .toList();
     }

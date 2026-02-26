@@ -5,6 +5,6 @@ public record UserProfileResponse(
         String profileImageUrl,
         String name,
         Long positionId,
-        String phone
-) {
-}
+        String phone,
+        boolean privacyAgreed,
+        boolean phonePolicyAgreed) {}
