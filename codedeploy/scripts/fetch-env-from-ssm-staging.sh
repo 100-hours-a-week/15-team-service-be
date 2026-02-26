@@ -74,8 +74,8 @@ spring:
     password: "${DB_PASS}"
   data:
     mongodb:
-		  uri: "${MONGO_URI}"
-		  auto-index-creation: true
+      uri: "${MONGO_URI}"
+      auto-index-creation: true
     redis:
       host: "${REDIS_IP}"
       port: 6379
