@@ -31,7 +31,8 @@ public class AuthSessionIssueService {
         String refreshToken = refreshTokenProvider.generateRawToken();
         String refreshTokenHash = refreshTokenProvider.hash(refreshToken);
 
-        LocalDateTime refreshExpiresAt = LocalDateTime.now(clock).plus(jwtProperties.getRefreshExpiration());
+        LocalDateTime refreshExpiresAt =
+                LocalDateTime.now(clock).plus(jwtProperties.getRefreshExpiration());
         RefreshToken refreshTokenEntity =
                 RefreshToken.builder()
                         .user(userRepository.getReferenceById(userId))

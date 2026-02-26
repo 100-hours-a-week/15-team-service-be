@@ -255,7 +255,7 @@ public class LoadtestAuthService {
                         .document(DEFAULT_POLICY_DOCUMENT)
                         .policyType(PolicyType.PRIVACY)
                         .policyVersion(DEFAULT_POLICY_VERSION)
-                        .agreedAt(Instant.now(clock))
+                        .agreedAt(LocalDateTime.now(clock))
                         .build());
     }
 
