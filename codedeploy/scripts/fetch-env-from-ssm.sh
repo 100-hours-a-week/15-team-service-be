@@ -53,6 +53,8 @@ AI_STT_TRANSCRIBE_PATH="$(get_ssm "${PARAM_BASE}/AI_STT_TRANSCRIBE_PATH")"
 REDIS_IP="$(get_ssm "${PARAM_BASE}/REDIS_IP")"
 REDIS_PW="$(get_ssm "${PARAM_BASE}/REDIS_PW")"
 
+MONGO_URI="$(get_ssm "${PARAM_BASE}/MONGO_URI")"
+
 # 2) application-prod.yml 생성 (prod에서 바뀌는 것만 override)
 cat > "$OUT_FILE" <<YAML
 server:
@@ -73,6 +75,9 @@ spring:
       register-mbeans: true
       pool-name: CommitmeHikariPool
   data:
+    mongodb:
+		  uri: "${MONGO_URI}"
+		  auto-index-creation: true
     redis:
       host: "${REDIS_IP}"
       port: 6379
