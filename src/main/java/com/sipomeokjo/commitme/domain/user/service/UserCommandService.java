@@ -22,7 +22,6 @@ import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -101,7 +100,7 @@ public class UserCommandService {
                         .findById(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.deactivate(Instant.now(clock));
-        refreshTokenRepository.revokeAllByUserId(userId, LocalDateTime.now(clock));
+        refreshTokenRepository.revokeAllByUserId(userId, Instant.now(clock));
 
         for (Auth auth : authRepository.findAllByUser_Id(userId)) {
             auth.clearSensitiveInfo();
@@ -198,7 +197,7 @@ public class UserCommandService {
                 .document("dummy")
                 .policyType(policyType)
                 .policyVersion("0000-00-00")
-                .agreedAt(LocalDateTime.now())
+                .agreedAt(Instant.now(clock))
                 .build();
     }
 
