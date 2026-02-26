@@ -45,6 +45,12 @@ AI_GENERATE_PATH="$(get_ssm "${PARAM_BASE}/AI_GENERATE_PATH")"
 AI_EDIT_PATH="$(get_ssm "${PARAM_BASE}/AI_EDIT_PATH")"
 AI_CALLBACK_PATH="$(get_ssm "${PARAM_BASE_STAGING}/AI_CALLBACK_PATH")"
 
+AI_INTERVIEW_START_PATH="$(get_ssm "${PARAM_BASE}/AI_INTERVIEW_START_PATH")"
+AI_INTERVIEW_ANSWER_PATH="$(get_ssm "${PARAM_BASE}/AI_INTERVIEW_ANSWER_PATH")"
+AI_INTERVIEW_END_PATH="$(get_ssm "${PARAM_BASE}/AI_INTERVIEW_END_PATH")"
+AI_INTERVIEW_CALLBACK_PATH="$(get_ssm "${PARAM_BASE_STAGING}/AI_INTERVIEW_CALLBACK_PATH")"
+AI_STT_TRANSCRIBE_PATH="$(get_ssm "${PARAM_BASE}/AI_STT_TRANSCRIBE_PATH")"
+
 REDIS_IP="$(get_ssm "${PARAM_BASE}/REDIS_IP")"
 REDIS_PW="$(get_ssm "${PARAM_BASE}/REDIS_PW")"
 
@@ -120,6 +126,10 @@ app:
     secret-key: "${S3_SECRET_KEY}"
     cdn-base-url: "https://cdn.commit-me.com"
     presign-duration-minutes: 30
+  loadtest:
+    mock-auth:
+      enabled: false
+      default-position-id: 0
 
 security:
   jwt:
@@ -144,6 +154,13 @@ ai:
   resume-generate-path: "${AI_GENERATE_PATH}"
   resume-edit-path: "${AI_EDIT_PATH}"
   resume-callback-url: "${AI_CALLBACK_PATH}"
+
+  interview-start-path: "${AI_INTERVIEW_START_PATH}"
+  interview-answer-path: "${AI_INTERVIEW_ANSWER_PATH}"
+  interview-end-path: "${AI_INTERVIEW_END_PATH}"
+  interview-callback-url: "${AI_INTERVIEW_CALLBACK_PATH}"
+  stt-transcribe-path: "${AI_STT_TRANSCRIBE_PATH}"
+
   callback-secret: "dev-secret"
     
 YAML
