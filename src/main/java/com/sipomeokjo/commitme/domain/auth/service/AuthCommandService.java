@@ -4,6 +4,7 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.auth.config.GithubProperties;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
+import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.dto.GithubAccessTokenResponse;
 import com.sipomeokjo.commitme.domain.auth.dto.GithubUserResponse;
 import com.sipomeokjo.commitme.domain.auth.entity.Auth;
@@ -43,6 +44,7 @@ public class AuthCommandService {
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final AuthSessionIssueService authSessionIssueService;
     private final AccessTokenCipher accessTokenCipher;
     private final AccessTokenProvider accessTokenProvider;
     private final RefreshTokenProvider refreshTokenProvider;
@@ -95,21 +97,13 @@ public class AuthCommandService {
                     null);
         }
 
-        String accessToken = accessTokenProvider.createAccessToken(user.getId(), user.getStatus());
-        String refreshToken = refreshTokenProvider.generateRawToken();
-        String refreshTokenHash = refreshTokenProvider.hash(refreshToken);
-
-        RefreshToken refreshTokenEntity =
-                RefreshToken.builder()
-                        .user(user)
-                        .tokenHash(refreshTokenHash)
-                        .expiresAt(LocalDateTime.now().plus(jwtProperties.getRefreshExpiration()))
-                        .revokedAt(null)
-                        .build();
-        refreshTokenRepository.save(refreshTokenEntity);
+        AuthTokenReissueResult tokenResult =
+                authSessionIssueService.issueTokens(user.getId(), user.getStatus());
 
         return new AuthLoginResult(
-                accessToken, refreshToken, user.getStatus() == UserStatus.ACTIVE);
+                tokenResult.accessToken(),
+                tokenResult.refreshToken(),
+                user.getStatus() == UserStatus.ACTIVE);
     }
 
     public String reissueAccessToken(String refreshToken) {

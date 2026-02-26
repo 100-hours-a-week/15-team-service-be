@@ -45,6 +45,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'net.ttddyy:datasource-proxy:1.10'
     implementation platform('software.amazon.awssdk:bom:2.30.27')
     implementation 'software.amazon.awssdk:s3'

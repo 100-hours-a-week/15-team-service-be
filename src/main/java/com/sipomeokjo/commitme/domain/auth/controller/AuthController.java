@@ -4,9 +4,9 @@ import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.auth.dto.LoginUrlResponse;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCommandService;
+import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
 import com.sipomeokjo.commitme.security.CookieProperties;
-import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import jakarta.servlet.http.HttpServletResponse;
 import java.time.Duration;
 import lombok.AllArgsConstructor;
@@ -28,8 +28,8 @@ public class AuthController {
 
     private final AuthQueryService authQueryService;
     private final AuthCommandService authCommandService;
+    private final AuthCookieWriter authCookieWriter;
     private final CookieProperties cookieProperties;
-    private final JwtProperties jwtProperties;
 
     @GetMapping("/github/loginUrl")
     public ResponseEntity<APIResponse<LoginUrlResponse>> getLoginUrl(HttpServletResponse response) {
@@ -55,16 +55,7 @@ public class AuthController {
             @CookieValue(value = "refresh_token", required = false) String refreshToken,
             HttpServletResponse response) {
         String accessToken = authCommandService.reissueAccessToken(refreshToken);
-
-        ResponseCookie accessCookie =
-                ResponseCookie.from("access_token", accessToken)
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/")
-                        .maxAge(jwtProperties.getAccessExpiration())
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+        authCookieWriter.writeAccessTokenCookie(response, accessToken);
 
         return APIResponse.onSuccess(SuccessCode.ACCESS_TOKEN_REISSUED);
     }

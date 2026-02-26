@@ -2,8 +2,8 @@ package com.sipomeokjo.commitme.security.oauth;
 
 import com.sipomeokjo.commitme.config.AuthRedirectProperties;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
+import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.security.CookieProperties;
-import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -22,7 +22,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RequiredArgsConstructor
 public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
-    private final JwtProperties jwtProperties;
+    private final AuthCookieWriter authCookieWriter;
     private final CookieProperties cookieProperties;
     private final AuthRedirectProperties authRedirectProperties;
 
@@ -44,25 +44,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
             return;
         }
 
-        ResponseCookie accessCookie =
-                ResponseCookie.from("access_token", accessToken)
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/")
-                        .maxAge(jwtProperties.getAccessExpiration())
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
-
-        ResponseCookie refreshCookie =
-                ResponseCookie.from("refresh_token", refreshToken)
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/auth/token")
-                        .maxAge(jwtProperties.getRefreshExpiration())
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+        authCookieWriter.writeAuthCookies(response, accessToken, refreshToken);
 
         ResponseCookie expireState =
                 ResponseCookie.from("state", "")

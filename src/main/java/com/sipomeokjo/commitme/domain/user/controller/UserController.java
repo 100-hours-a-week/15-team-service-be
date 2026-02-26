@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.domain.user.controller;
 
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
+import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
 import com.sipomeokjo.commitme.domain.user.dto.UserProfileResponse;
@@ -9,16 +10,11 @@ import com.sipomeokjo.commitme.domain.user.dto.UserUpdateRequest;
 import com.sipomeokjo.commitme.domain.user.dto.UserUpdateResponse;
 import com.sipomeokjo.commitme.domain.user.service.UserCommandService;
 import com.sipomeokjo.commitme.domain.user.service.UserQueryService;
-import com.sipomeokjo.commitme.security.CookieProperties;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
-import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Duration;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,9 +32,8 @@ public class UserController {
 
     private final UserCommandService userCommandService;
     private final UserQueryService userQueryService;
+    private final AuthCookieWriter authCookieWriter;
     private final AccessTokenProvider accessTokenProvider;
-    private final JwtProperties jwtProperties;
-    private final CookieProperties cookieProperties;
 
     @GetMapping
     public ResponseEntity<APIResponse<UserProfileResponse>> getProfile(@CurrentUserId Long userId) {
@@ -61,15 +56,7 @@ public class UserController {
         OnboardingResponse onboardingResponse = userCommandService.onboard(userId, request);
         String accessToken =
                 accessTokenProvider.createAccessToken(userId, onboardingResponse.status());
-        ResponseCookie accessCookie =
-                ResponseCookie.from("access_token", accessToken)
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/")
-                        .maxAge(jwtProperties.getAccessExpiration())
-                        .build();
-        httpResponse.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+        authCookieWriter.writeAccessTokenCookie(httpResponse, accessToken);
         return APIResponse.onSuccess(SuccessCode.ONBOARDING_COMPLETED, onboardingResponse);
     }
 
@@ -77,29 +64,7 @@ public class UserController {
     public ResponseEntity<APIResponse<Void>> deactivate(
             @CurrentUserId Long userId, HttpServletResponse httpResponse) {
         userCommandService.deactivate(userId);
-        expireAuthCookies(httpResponse);
+        authCookieWriter.expireAuthCookies(httpResponse);
         return APIResponse.onSuccess(SuccessCode.OK);
-    }
-
-    private void expireAuthCookies(HttpServletResponse response) {
-        ResponseCookie expireAccess =
-                ResponseCookie.from("access_token", "")
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/")
-                        .maxAge(Duration.ZERO)
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, expireAccess.toString());
-
-        ResponseCookie expireRefresh =
-                ResponseCookie.from("refresh_token", "")
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/auth/token")
-                        .maxAge(Duration.ZERO)
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, expireRefresh.toString());
     }
 }
