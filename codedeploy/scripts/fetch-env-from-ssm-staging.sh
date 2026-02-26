@@ -100,7 +100,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,metrics,prometheus
         
 app:
   auth:
