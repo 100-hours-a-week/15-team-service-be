@@ -24,6 +24,7 @@ import com.sipomeokjo.commitme.domain.auth.controller.AuthController;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCommandService;
+import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
 import com.sipomeokjo.commitme.security.CookieProperties;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
@@ -65,6 +66,7 @@ import org.springframework.test.web.servlet.MockMvc;
     AuthLoginSuccessHandler.class,
     AuthLoginFailureHandler.class,
     AuthLogoutSuccessHandler.class,
+    AuthCookieWriter.class,
     AuthControllerDocsTest.TestConfig.class
 })
 class AuthControllerDocsTest {
