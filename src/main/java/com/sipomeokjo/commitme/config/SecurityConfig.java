@@ -95,6 +95,9 @@ public class SecurityConfig {
                                 auth.dispatcherTypeMatchers(
                                                 DispatcherType.ASYNC, DispatcherType.ERROR)
                                         .permitAll()
+                                        // 기본값은 denyAll, 별도 loadtest 보안 체인(enabled=true)에서만 허용
+                                        .requestMatchers("/internal/loadtest/**")
+                                        .denyAll()
                                         .requestMatchers(HttpMethod.GET, "/positions")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/auth/token")
