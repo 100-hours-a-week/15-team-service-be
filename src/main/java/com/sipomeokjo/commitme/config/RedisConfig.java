@@ -3,6 +3,9 @@ package com.sipomeokjo.commitme.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.sipomeokjo.commitme.api.sse.distributed.RedisSseDeliverySubscriber;
+import com.sipomeokjo.commitme.api.sse.distributed.SseInstanceIdProvider;
+import com.sipomeokjo.commitme.api.sse.distributed.SseRedisChannelNames;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +17,9 @@ import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -57,6 +63,26 @@ public class RedisConfig {
         template.setHashKeySerializer(new StringRedisSerializer());
         template.setHashValueSerializer(serializer);
         return template;
+    }
+
+    @Bean
+    public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
+        return new StringRedisTemplate(connectionFactory);
+    }
+
+    @Bean
+    public RedisMessageListenerContainer redisMessageListenerContainer(
+            RedisConnectionFactory connectionFactory,
+            RedisSseDeliverySubscriber redisSseDeliverySubscriber,
+            SseInstanceIdProvider sseInstanceIdProvider) {
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.addMessageListener(
+                redisSseDeliverySubscriber,
+                new ChannelTopic(
+                        SseRedisChannelNames.deliveryChannelForInstance(
+                                sseInstanceIdProvider.getInstanceId())));
+        return container;
     }
 
     @Bean
