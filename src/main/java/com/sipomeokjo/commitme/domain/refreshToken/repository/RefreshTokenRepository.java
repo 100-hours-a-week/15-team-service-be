@@ -13,6 +13,16 @@ import org.springframework.stereotype.Repository;
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    @Query(
+            """
+            select count(token)
+              from RefreshToken token
+             where token.user.id = :userId
+               and token.revokedAt is null
+               and token.expiresAt > :now
+            """)
+    int countActiveByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
             """
