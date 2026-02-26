@@ -3,7 +3,7 @@ package com.sipomeokjo.commitme.domain.policy.entity;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.global.BaseEntity;
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import lombok.*;
 
 @Getter
@@ -33,5 +33,5 @@ public class PolicyAgreement extends BaseEntity {
     private String policyVersion;
 
     @Column(name = "agreed_at")
-    private LocalDateTime agreedAt;
+    private Instant agreedAt;
 }

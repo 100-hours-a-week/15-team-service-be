@@ -6,7 +6,6 @@ import static com.epages.restdocs.apispec.ResourceSnippetParameters.builder;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.restdocs.payload.PayloadDocumentation.fieldWithPath;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.sipomeokjo.commitme.domain.position.controller.PositionController;
@@ -66,7 +65,6 @@ class PositionControllerDocsTest {
                                                         fieldWithPath("data[].name")
                                                                 .type(JsonFieldType.STRING)
                                                                 .description("포지션명"))
-                                                .build())))
-                .andDo(print());
+                                                .build())));
     }
 }

@@ -2,7 +2,6 @@ package com.sipomeokjo.commitme.domain.resume.dto;
 
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -17,9 +16,9 @@ public class ResumeVersionDto {
     private final String aiTaskId;
     private final String errorLog;
 
-    private final LocalDateTime startedAt;
-    private final LocalDateTime finishedAt;
-    private final LocalDateTime committedAt;
+    private final Instant startedAt;
+    private final Instant finishedAt;
+    private final Instant committedAt;
 
     private final Instant createdAt;
     private final Instant updatedAt;

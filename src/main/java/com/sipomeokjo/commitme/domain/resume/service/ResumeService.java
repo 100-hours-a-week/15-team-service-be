@@ -1,8 +1,11 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
-import com.sipomeokjo.commitme.api.pagination.PagingResponse;
+import com.sipomeokjo.commitme.api.pagination.CursorParser;
+import com.sipomeokjo.commitme.api.pagination.CursorRequest;
+import com.sipomeokjo.commitme.api.pagination.CursorResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.api.validation.KeywordValidator;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
@@ -12,80 +15,74 @@ import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
+import com.sipomeokjo.commitme.domain.resume.mapper.ResumeMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ResumeService {
-
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final UserRepository userRepository;
+    private final CursorParser cursorParser;
+    private final ResumeMapper resumeMapper;
 
     private final PositionRepository positionRepository;
     private final CompanyRepository companyRepository;
 
     private final ApplicationEventPublisher eventPublisher;
+    private final ResumeAiRequestService resumeAiRequestService;
 
     @Transactional(readOnly = true)
-    public PagingResponse<ResumeSummaryDto> list(Long userId, int page, int size) {
+    public CursorResponse<ResumeSummaryDto> list(
+            Long userId, CursorRequest request, String keyword, String sortedBy) {
+        ResumeSortBy sortBy = ResumeSortBy.from(sortedBy);
+        CursorParser.Cursor cursor =
+                cursorParser.parseCompositeCursor(request == null ? null : request.next());
+        int size = CursorRequest.resolveLimit(request, 10);
+        String normalizedKeyword = KeywordValidator.normalize(keyword, 30);
 
-        PageRequest pageable =
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
-        Page<Resume> result = resumeRepository.findSucceededByUserId(userId, pageable);
+        List<Resume> resumes =
+                (sortBy == ResumeSortBy.UPDATED_ASC)
+                        ? resumeRepository.findSucceededByUserIdWithCursorAsc(
+                                userId,
+                                ResumeVersionStatus.SUCCEEDED,
+                                normalizedKeyword,
+                                cursor.createdAt(),
+                                cursor.id(),
+                                PageRequest.of(0, size + 1))
+                        : resumeRepository.findSucceededByUserIdWithCursorDesc(
+                                userId,
+                                ResumeVersionStatus.SUCCEEDED,
+                                normalizedKeyword,
+                                cursor.createdAt(),
+                                cursor.id(),
+                                PageRequest.of(0, size + 1));
 
-        List<Resume> resumes = result.getContent();
-        List<ResumeSummaryDto> items = new ArrayList<>(resumes.size());
+        boolean hasMore = resumes.size() > size;
+        List<Resume> pageResumes = hasMore ? resumes.subList(0, size) : resumes;
+        List<ResumeSummaryDto> items =
+                pageResumes.stream().map(resumeMapper::toSummaryDto).toList();
 
-        for (Resume r : resumes) {
-            Long positionId = null;
-            String positionName = null;
-            if (r.getPosition() != null) {
-                positionId = r.getPosition().getId();
-                positionName = r.getPosition().getName();
-            }
+        String next =
+                hasMore && !pageResumes.isEmpty() ? encodeCursor(pageResumes.getLast()) : null;
+        return new CursorResponse<>(items, null, next);
+    }
 
-            Long companyId = null;
-            String companyName = null;
-            if (r.getCompany() != null) {
-                companyId = r.getCompany().getId();
-                companyName = r.getCompany().getName();
-            }
-
-            items.add(
-                    new ResumeSummaryDto(
-                            r.getId(),
-                            r.getName(),
-                            positionId,
-                            positionName,
-                            companyId,
-                            companyName,
-                            r.getCurrentVersionNo(),
-                            r.getUpdatedAt()));
-        }
-
-        PagingResponse.PageMeta meta =
-                new PagingResponse.PageMeta(
-                        result.getNumber(),
-                        result.getSize(),
-                        result.getTotalElements(),
-                        result.getTotalPages(),
-                        result.hasNext());
-
-        return new PagingResponse<>(items, meta);
+    private String encodeCursor(Resume resume) {
+        return resume.getUpdatedAt() + "|" + resume.getId();
     }
 
     public Long create(Long userId, ResumeCreateRequest req) {
@@ -96,10 +93,27 @@ public class ResumeService {
                         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         List<ResumeVersion> pendingVersions =
-                resumeVersionRepository.findByUserIdAndStatusIn(
+                resumeVersionRepository.findEntitiesByUserIdAndStatusIn(
                         userId,
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
-        if (!pendingVersions.isEmpty()) {
+
+        for (ResumeVersion v : pendingVersions) {
+            if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)
+                    || v.isQueuedTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
+                v.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
+                log.info(
+                        "[RESUME_CREATE] timeout_failed userId={} versionId={}", userId, v.getId());
+            }
+        }
+
+        long stillPendingCount =
+                pendingVersions.stream()
+                        .filter(
+                                v ->
+                                        v.getStatus() == ResumeVersionStatus.QUEUED
+                                                || v.getStatus() == ResumeVersionStatus.PROCESSING)
+                        .count();
+        if (stillPendingCount > 0) {
             throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
         }
 
@@ -151,46 +165,41 @@ public class ResumeService {
         return saved.getId();
     }
 
-    @Transactional(readOnly = true)
     public ResumeDetailDto get(Long userId, Long resumeId) {
 
         Resume resume =
                 resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
+                        .findByIdAndUserIdWithLock(resumeId, userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+
+        ResumeVersion previewVersion =
+                resumeVersionRepository
+                        .findTopByResume_IdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
+                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .filter(v -> !v.getVersionNo().equals(resume.getCurrentVersionNo()))
+                        .orElse(null);
+
+        if (previewVersion != null) {
+            previewVersion.markPreviewShownNow();
+            return resumeMapper.toDetailDto(resume, previewVersion);
+        }
 
         ResumeVersion version =
                 resumeVersionRepository
-                        .findTopByResume_IdAndStatusOrderByVersionNoDesc(
-                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .findByResume_IdAndVersionNo(resume.getId(), resume.getCurrentVersionNo())
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        Long positionId = null;
-        String positionName = null;
-        if (resume.getPosition() != null) {
-            positionId = resume.getPosition().getId();
-            positionName = resume.getPosition().getName();
+        if (version.getStatus() != ResumeVersionStatus.SUCCEEDED) {
+            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
         }
 
-        Long companyId = null;
-        String companyName = null;
-        if (resume.getCompany() != null) {
-            companyId = resume.getCompany().getId();
-            companyName = resume.getCompany().getName();
-        }
+        return resumeMapper.toDetailDto(resume, version);
+    }
 
-        return new ResumeDetailDto(
-                resume.getId(),
-                resume.getName(),
-                positionId,
-                positionName,
-                companyId,
-                companyName,
-                resume.getCurrentVersionNo(),
-                version.getContent(),
-                resume.getCreatedAt(),
-                resume.getUpdatedAt());
+    @Transactional(readOnly = true)
+    public boolean existsByResumeIdAndUserId(Long resumeId, Long userId) {
+        return resumeRepository.existsByIdAndUser_Id(resumeId, userId);
     }
 
     private static final long AI_PROCESSING_TIMEOUT_MINUTES = 5;
@@ -238,6 +247,84 @@ public class ResumeService {
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
         resume.rename(name);
+    }
+
+    public ResumeEditResponse edit(Long userId, Long resumeId, ResumeEditRequest req) {
+        String message = (req == null || req.message() == null) ? "" : req.message().trim();
+        if (message.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUserIdWithLock(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+
+        List<Long> pendingVersions =
+                resumeVersionRepository.findByResumeIdAndStatusInWithLock(
+                        resume.getId(),
+                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
+        if (!pendingVersions.isEmpty()) {
+            log.warn(
+                    "[RESUME_EDIT] in_progress userId={} resumeId={} pendingCount={}",
+                    userId,
+                    resumeId,
+                    pendingVersions.size());
+            throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
+        }
+
+        var latestSucceeded =
+                resumeVersionRepository
+                        .findTopByResume_IdAndStatusOrderByVersionNoDesc(
+                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+
+        int nextVersionNo =
+                resumeVersionRepository
+                        .findLatestVersionNoByResumeId(resume.getId())
+                        .map(v -> v.getVersionNo() + 1)
+                        .orElse(1);
+
+        ResumeVersion next =
+                ResumeVersion.createNext(resume, nextVersionNo, latestSucceeded.getContent());
+        resumeVersionRepository.save(next);
+
+        try {
+            String jobId = resumeAiRequestService.requestEdit(resumeId, next.getContent(), message);
+            next.startProcessing(jobId);
+            log.debug(
+                    "[RESUME_EDIT] ai_requested userId={} resumeId={} versionNo={} taskId={}",
+                    userId,
+                    resumeId,
+                    next.getVersionNo(),
+                    jobId);
+        } catch (BusinessException e) {
+            next.failNow("AI_EDIT_FAILED", e.getMessage());
+            log.warn(
+                    "[RESUME_EDIT] ai_failed userId={} resumeId={} versionNo={} error={}",
+                    userId,
+                    resumeId,
+                    next.getVersionNo(),
+                    e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            next.failNow("AI_EDIT_FAILED", e.getMessage());
+            log.warn(
+                    "[RESUME_EDIT] ai_failed userId={} resumeId={} versionNo={} error={}",
+                    userId,
+                    resumeId,
+                    next.getVersionNo(),
+                    e.getMessage());
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+
+        return new ResumeEditResponse(
+                resume.getId(),
+                next.getVersionNo(),
+                resume.getName(),
+                next.getAiTaskId(),
+                next.getUpdatedAt());
     }
 
     public void saveVersion(Long userId, Long resumeId, int versionNo) {

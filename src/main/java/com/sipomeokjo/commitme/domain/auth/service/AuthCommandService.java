@@ -4,6 +4,7 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.auth.config.GithubProperties;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
+import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.dto.GithubAccessTokenResponse;
 import com.sipomeokjo.commitme.domain.auth.dto.GithubUserResponse;
 import com.sipomeokjo.commitme.domain.auth.entity.Auth;
@@ -11,17 +12,16 @@ import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.auth.repository.AuthRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
+import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import com.sipomeokjo.commitme.domain.userSetting.entity.UserSetting;
 import com.sipomeokjo.commitme.domain.userSetting.repository.UserSettingRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
-import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
-import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import com.sipomeokjo.commitme.security.jwt.RefreshTokenProvider;
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,11 +43,11 @@ public class AuthCommandService {
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenCacheService refreshTokenCacheService;
+    private final AuthSessionIssueService authSessionIssueService;
     private final AccessTokenCipher accessTokenCipher;
-    private final AccessTokenProvider accessTokenProvider;
     private final RefreshTokenProvider refreshTokenProvider;
     private final GithubProperties githubProperties;
-    private final JwtProperties jwtProperties;
     private final Clock clock;
     private final RestClient githubOAuthClient;
     private final RestClient githubApiClient;
@@ -95,29 +95,37 @@ public class AuthCommandService {
                     null);
         }
 
-        String accessToken = accessTokenProvider.createAccessToken(user.getId(), user.getStatus());
-        String refreshToken = refreshTokenProvider.generateRawToken();
-        String refreshTokenHash = refreshTokenProvider.hash(refreshToken);
-
-        RefreshToken refreshTokenEntity =
-                RefreshToken.builder()
-                        .user(user)
-                        .tokenHash(refreshTokenHash)
-                        .expiresAt(LocalDateTime.now().plus(jwtProperties.getRefreshExpiration()))
-                        .revokedAt(null)
-                        .build();
-        refreshTokenRepository.save(refreshTokenEntity);
+        AuthTokenReissueResult tokenResult =
+                authSessionIssueService.issueTokens(user.getId(), user.getStatus());
 
         return new AuthLoginResult(
-                accessToken, refreshToken, user.getStatus() == UserStatus.ACTIVE);
+                tokenResult.accessToken(),
+                tokenResult.refreshToken(),
+                user.getStatus() == UserStatus.ACTIVE);
     }
 
-    public String reissueAccessToken(String refreshToken) {
+    public AuthTokenReissueResult reissueAccessToken(String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
         String tokenHash = refreshTokenProvider.hash(refreshToken);
+        Instant now = Instant.now(clock);
+        var cached =
+                refreshTokenCacheService
+                        .get(tokenHash)
+                        .filter(value -> value.getExpiresAt().isAfter(now))
+                        .orElse(null);
+        if (cached != null) {
+            boolean revoked = authSessionIssueService.revokeRefreshToken(refreshToken);
+            if (!revoked) {
+                throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+            }
+            UserStatus status = UserStatus.valueOf(cached.getUserStatus());
+            return authSessionIssueService.issueTokens(cached.getUserId(), status);
+        }
+
+        refreshTokenCacheService.evict(tokenHash);
         RefreshToken refreshTokenEntity =
                 refreshTokenRepository
                         .findByTokenHash(tokenHash)
@@ -127,7 +135,6 @@ public class AuthCommandService {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        LocalDateTime now = LocalDateTime.now(clock);
         if (!refreshTokenEntity.getExpiresAt().isAfter(now)) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
@@ -137,7 +144,8 @@ public class AuthCommandService {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        return accessTokenProvider.createAccessToken(user.getId(), user.getStatus());
+        refreshTokenEntity.revoke(now);
+        return authSessionIssueService.issueTokens(user.getId(), user.getStatus());
     }
 
     private GithubAccessTokenResponse exchangeToken(String code) {

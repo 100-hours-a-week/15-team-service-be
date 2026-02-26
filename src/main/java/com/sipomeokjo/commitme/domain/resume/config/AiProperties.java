@@ -12,6 +12,14 @@ import org.springframework.stereotype.Component;
 public class AiProperties {
     private String baseUrl;
     private String resumeGeneratePath;
+    private String resumeEditPath;
     private String resumeCallbackUrl;
     private String callbackSecret;
+
+    // Interview
+    private String interviewStartPath;
+    private String interviewAnswerPath;
+    private String interviewEndPath;
+    private String interviewCallbackUrl;
+    private String sttTranscribePath;
 }

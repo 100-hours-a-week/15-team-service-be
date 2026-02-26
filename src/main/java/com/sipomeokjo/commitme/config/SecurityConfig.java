@@ -13,6 +13,7 @@ import com.sipomeokjo.commitme.security.oauth.AuthLoginSuccessHandler;
 import com.sipomeokjo.commitme.security.oauth.AuthLogoutSuccessHandler;
 import com.sipomeokjo.commitme.security.oauth.CustomAccessDeniedHandler;
 import com.sipomeokjo.commitme.security.oauth.CustomAuthenticationEntryPoint;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -82,13 +83,22 @@ public class SecurityConfig {
                                         .csrfTokenRequestHandler(
                                                 new CsrfTokenRequestAttributeHandler())
                                         .ignoringRequestMatchers(
-                                                "/api/v1/resume/callback", "/uploads/**"))
+                                                "/api/resume/callback",
+                                                "/api/resume/*/callback",
+                                                "/api/ai/callback/**",
+                                                "/uploads/**"))
                 .cors(Customizer.withDefaults())
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers(HttpMethod.GET, "/positions")
+                                auth.dispatcherTypeMatchers(
+                                                DispatcherType.ASYNC, DispatcherType.ERROR)
+                                        .permitAll()
+                                        // 기본값은 denyAll, 별도 loadtest 보안 체인(enabled=true)에서만 허용
+                                        .requestMatchers("/internal/loadtest/**")
+                                        .denyAll()
+                                        .requestMatchers(HttpMethod.GET, "/positions")
                                         .permitAll()
                                         .requestMatchers(HttpMethod.GET, "/auth/token")
                                         .permitAll()
@@ -104,8 +114,12 @@ public class SecurityConfig {
                                                 "/auth/github/loginUrl",
                                                 "/auth/github",
                                                 "/auth/token",
-                                                "/api/v1/resume/callback",
+                                                "/api/resume/callback",
+                                                "/api/resume/*/callback",
+                                                "/api/ai/callback/**",
                                                 "/actuator/health",
+                                                "/actuator/prometheus", // internal scrape path
+                                                // (SG/ALB 제한 전제)
                                                 "/swagger/**",
                                                 "/swagger-ui/**",
                                                 "/swagger-ui.html",
