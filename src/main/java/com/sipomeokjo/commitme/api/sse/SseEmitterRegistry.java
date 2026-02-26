@@ -11,9 +11,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Component
 public class SseEmitterRegistry {
     private static final long DEFAULT_TIMEOUT_MS = 30 * 60 * 1000L;
-    private final Map<Long, List<SseEmitter>> emittersByKey = new ConcurrentHashMap<>();
+    private final Map<SseStreamKey, List<SseEmitter>> emittersByKey = new ConcurrentHashMap<>();
 
-    public SseEmitter register(Long key) {
+    public SseEmitter register(SseStreamKey key) {
         SseEmitter emitter = new SseEmitter(DEFAULT_TIMEOUT_MS);
         emittersByKey.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(emitter);
 
@@ -24,11 +24,11 @@ public class SseEmitterRegistry {
         return emitter;
     }
 
-    public List<SseEmitter> getEmitters(Long key) {
+    public List<SseEmitter> getEmitters(SseStreamKey key) {
         return emittersByKey.get(key);
     }
 
-    public void forEachEmitter(BiConsumer<Long, SseEmitter> consumer) {
+    public void forEachEmitter(BiConsumer<SseStreamKey, SseEmitter> consumer) {
         emittersByKey.forEach(
                 (key, emitters) -> {
                     for (SseEmitter emitter : emitters) {
@@ -37,7 +37,7 @@ public class SseEmitterRegistry {
                 });
     }
 
-    public void remove(Long key, SseEmitter emitter) {
+    public void remove(SseStreamKey key, SseEmitter emitter) {
         List<SseEmitter> emitters = emittersByKey.get(key);
         if (emitters == null) {
             return;
@@ -48,7 +48,7 @@ public class SseEmitterRegistry {
         }
     }
 
-    public void completeWithError(Long key, SseEmitter emitter, Throwable throwable) {
+    public void completeWithError(SseStreamKey key, SseEmitter emitter, Throwable throwable) {
         try {
             emitter.completeWithError(throwable);
         } catch (Exception ignored) {
@@ -58,7 +58,7 @@ public class SseEmitterRegistry {
         }
     }
 
-    public int count(Long key) {
+    public int count(SseStreamKey key) {
         List<SseEmitter> emitters = emittersByKey.get(key);
         return emitters == null ? 0 : emitters.size();
     }
