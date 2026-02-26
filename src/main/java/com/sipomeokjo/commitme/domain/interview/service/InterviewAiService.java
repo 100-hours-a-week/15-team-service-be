@@ -50,8 +50,10 @@ public class InterviewAiService {
 
     public AiInterviewEndResponse endInterview(
             Interview interview, List<InterviewMessage> messages) {
+        // 답변이 있는 메시지만 필터링 (AI 서버에서 answer 필수)
         List<AiInterviewEndRequest.MessagePayload> messagePayloads =
                 messages.stream()
+                        .filter(m -> m.getAnswer() != null && !m.getAnswer().isBlank())
                         .map(
                                 m ->
                                         new AiInterviewEndRequest.MessagePayload(

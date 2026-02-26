@@ -214,15 +214,20 @@ public class InterviewCommandService {
                 interviewMessageRepository.findByInterviewIdAndTurnNoIsNotNullOrderByTurnNoAsc(
                         interviewId);
 
-        AiInterviewEndResponse endResponse = interviewAiService.endInterview(interview, messages);
-        if (endResponse == null || !"success".equalsIgnoreCase(endResponse.status())) {
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+        // 답변이 있는 메시지가 있는 경우에만 AI 피드백 요청
+        boolean hasAnsweredMessages =
+                messages.stream().anyMatch(m -> m.getAnswer() != null && !m.getAnswer().isBlank());
+
+        if (hasAnsweredMessages) {
+            AiInterviewEndResponse endResponse =
+                    interviewAiService.endInterview(interview, messages);
+            if (endResponse != null && "success".equalsIgnoreCase(endResponse.status())) {
+                interview.updateFeedback(writeFeedbackJson(endResponse));
+                sseEmitterManager.sendFeedback(
+                        interviewId, Map.of("totalFeedback", interview.getTotalFeedback()));
+            }
         }
 
-        interview.updateFeedback(writeFeedbackJson(endResponse));
-
-        sseEmitterManager.sendFeedback(
-                interviewId, Map.of("totalFeedback", interview.getTotalFeedback()));
         sseEmitterManager.sendEnd(interviewId);
     }
 
@@ -359,8 +364,16 @@ public class InterviewCommandService {
                 interviewMessageRepository
                         .findFirstByInterviewIdAndTurnNoIsNotNullOrderByTurnNoDesc(interviewId)
                         .orElse(null);
+
+        // 이미 질문을 보냈고 답변을 안 받은 경우 → 해당 질문을 다시 전송 (새로고침 대응)
         if (latestAsked != null
                 && (latestAsked.getAnswer() == null || latestAsked.getAnswer().isBlank())) {
+            sseEmitterManager.sendQuestion(
+                    interviewId,
+                    Map.of(
+                            "turnNo", latestAsked.getTurnNo(),
+                            "question", latestAsked.getQuestion(),
+                            "askedAt", latestAsked.getAskedAt().toString()));
             return;
         }
 
