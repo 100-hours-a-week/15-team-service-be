@@ -92,11 +92,27 @@ public class ResumeService {
                         .findByIdWithLock(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        List<Long> pendingVersions =
-                resumeVersionRepository.findByUserIdAndStatusIn(
+        List<ResumeVersion> pendingVersions =
+                resumeVersionRepository.findEntitiesByUserIdAndStatusIn(
                         userId,
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
-        if (!pendingVersions.isEmpty()) {
+
+        for (ResumeVersion v : pendingVersions) {
+            if (v.isProcessingTimedOut(AI_PROCESSING_TIMEOUT_MINUTES)) {
+                v.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
+                log.info(
+                        "[RESUME_CREATE] timeout_failed userId={} versionId={}", userId, v.getId());
+            }
+        }
+
+        long stillPendingCount =
+                pendingVersions.stream()
+                        .filter(
+                                v ->
+                                        v.getStatus() == ResumeVersionStatus.QUEUED
+                                                || v.getStatus() == ResumeVersionStatus.PROCESSING)
+                        .count();
+        if (stillPendingCount > 0) {
             throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
         }
 
