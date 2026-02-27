@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -31,8 +32,8 @@ public class AuthLogoutSuccessHandler implements LogoutSuccessHandler {
     public void onLogoutSuccess(
             HttpServletRequest request, HttpServletResponse response, Authentication authentication)
             throws IOException {
-        String refreshToken = extractCookieValue(request, REFRESH_TOKEN_COOKIE_NAME);
-        if (refreshToken != null && !refreshToken.isBlank()) {
+        List<String> refreshTokens = extractCookieValues(request, REFRESH_TOKEN_COOKIE_NAME);
+        for (String refreshToken : refreshTokens) {
             authSessionIssueService.revokeRefreshToken(refreshToken);
         }
 
@@ -47,16 +48,16 @@ public class AuthLogoutSuccessHandler implements LogoutSuccessHandler {
         log.info("[Auth][Logout] 로그아웃 처리 완료");
     }
 
-    private String extractCookieValue(HttpServletRequest request, String cookieName) {
+    private List<String> extractCookieValues(HttpServletRequest request, String cookieName) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
-            return null;
+            return List.of();
         }
         return Arrays.stream(cookies)
                 .filter(cookie -> cookieName.equals(cookie.getName()))
                 .map(Cookie::getValue)
                 .filter(value -> value != null && !value.isBlank())
-                .findFirst()
-                .orElse(null);
+                .distinct()
+                .toList();
     }
 }

@@ -5,6 +5,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.Arrays;
+import java.util.List;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -38,12 +39,12 @@ public class AuthLoginAuthenticationFilter extends AbstractAuthenticationProcess
 
         String code = request.getParameter("code");
         String state = request.getParameter("state");
-        String stateCookie = extractStateCookie(request);
+        List<String> stateCookies = extractStateCookies(request);
 
         if (code == null || code.isBlank() || state == null || state.isBlank()) {
             throw new AuthLoginAuthenticationException(ErrorCode.BAD_REQUEST);
         }
-        if (stateCookie == null || !stateCookie.equals(state)) {
+        if (stateCookies.isEmpty() || stateCookies.stream().noneMatch(state::equals)) {
             throw new AuthLoginAuthenticationException(ErrorCode.BAD_REQUEST);
         }
 
@@ -52,15 +53,16 @@ public class AuthLoginAuthenticationFilter extends AbstractAuthenticationProcess
         return this.getAuthenticationManager().authenticate(authRequest);
     }
 
-    private String extractStateCookie(HttpServletRequest request) {
+    private List<String> extractStateCookies(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
-            return null;
+            return List.of();
         }
         return Arrays.stream(cookies)
                 .filter(cookie -> "state".equals(cookie.getName()))
                 .map(Cookie::getValue)
-                .findFirst()
-                .orElse(null);
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
     }
 }
