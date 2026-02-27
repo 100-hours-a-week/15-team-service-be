@@ -2,7 +2,9 @@ package com.sipomeokjo.commitme.domain.user.controller;
 
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
+import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
+import com.sipomeokjo.commitme.domain.auth.service.AuthSessionIssueService;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
 import com.sipomeokjo.commitme.domain.user.dto.UserProfileResponse;
@@ -10,7 +12,6 @@ import com.sipomeokjo.commitme.domain.user.dto.UserUpdateRequest;
 import com.sipomeokjo.commitme.domain.user.dto.UserUpdateResponse;
 import com.sipomeokjo.commitme.domain.user.service.UserCommandService;
 import com.sipomeokjo.commitme.domain.user.service.UserQueryService;
-import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
 import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
@@ -33,7 +34,7 @@ public class UserController {
     private final UserCommandService userCommandService;
     private final UserQueryService userQueryService;
     private final AuthCookieWriter authCookieWriter;
-    private final AccessTokenProvider accessTokenProvider;
+    private final AuthSessionIssueService authSessionIssueService;
 
     @GetMapping
     public ResponseEntity<APIResponse<UserProfileResponse>> getProfile(@CurrentUserId Long userId) {
@@ -54,9 +55,10 @@ public class UserController {
             @RequestBody OnboardingRequest request,
             HttpServletResponse httpResponse) {
         OnboardingResponse onboardingResponse = userCommandService.onboard(userId, request);
-        String accessToken =
-                accessTokenProvider.createAccessToken(userId, onboardingResponse.status());
-        authCookieWriter.writeAccessTokenCookie(httpResponse, accessToken);
+        AuthTokenReissueResult tokenResult =
+                authSessionIssueService.rotateTokens(userId, onboardingResponse.status());
+        authCookieWriter.writeAuthCookies(
+                httpResponse, tokenResult.accessToken(), tokenResult.refreshToken());
         return APIResponse.onSuccess(SuccessCode.ONBOARDING_COMPLETED, onboardingResponse);
     }
 
