@@ -7,11 +7,14 @@ import com.sipomeokjo.commitme.domain.auth.dto.LoginUrlResponse;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCommandService;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Arrays;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,12 +42,26 @@ public class AuthController {
 
     @PostMapping("/token")
     public ResponseEntity<APIResponse<Void>> reissueToken(
-            @CookieValue(value = "refresh_token", required = false) String refreshToken,
-            HttpServletResponse response) {
-        AuthTokenReissueResult tokenResult = authCommandService.reissueAccessToken(refreshToken);
+            HttpServletRequest request, HttpServletResponse response) {
+        List<String> refreshTokenCandidates = extractRefreshTokenCandidates(request);
+        AuthTokenReissueResult tokenResult =
+                authCommandService.reissueAccessToken(refreshTokenCandidates);
         authCookieWriter.writeAuthCookies(
                 response, tokenResult.accessToken(), tokenResult.refreshToken());
 
         return APIResponse.onSuccess(SuccessCode.ACCESS_TOKEN_REISSUED);
+    }
+
+    private List<String> extractRefreshTokenCandidates(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return List.of();
+        }
+        return Arrays.stream(cookies)
+                .filter(cookie -> "refresh_token".equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
     }
 }

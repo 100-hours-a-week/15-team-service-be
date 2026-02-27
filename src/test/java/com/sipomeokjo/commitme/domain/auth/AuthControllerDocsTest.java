@@ -4,7 +4,7 @@ import static com.epages.restdocs.apispec.MockMvcRestDocumentationWrapper.docume
 import static com.epages.restdocs.apispec.ResourceDocumentation.resource;
 import static com.epages.restdocs.apispec.ResourceSnippetParameters.builder;
 import static org.hamcrest.Matchers.hasItem;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.restdocs.cookies.CookieDocumentation.cookieWithName;
 import static org.springframework.restdocs.cookies.CookieDocumentation.requestCookies;
@@ -160,7 +160,7 @@ class AuthControllerDocsTest {
 
     @Test
     void issueAccessToken_docs() throws Exception {
-        given(authCommandService.reissueAccessToken(anyString()))
+        given(authCommandService.reissueAccessToken(anyList()))
                 .willReturn(new AuthTokenReissueResult("new-access-token", "new-refresh-token"));
 
         mockMvc.perform(
