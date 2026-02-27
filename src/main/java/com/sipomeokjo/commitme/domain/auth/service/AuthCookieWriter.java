@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 public class AuthCookieWriter {
 
     private static final String SAME_SITE = "Lax";
+    private static final String CSRF_COOKIE_NAME = "XSRF-TOKEN";
     private static final String STATE_COOKIE_NAME = "state";
     private static final String STATE_COOKIE_PATH = "/auth/github";
     private static final Duration STATE_COOKIE_MAX_AGE = Duration.ofMinutes(10);
@@ -46,11 +47,15 @@ public class AuthCookieWriter {
     }
 
     public void expireAccessTokenCookie(HttpServletResponse response) {
-        addCookie(response, "access_token", "", "/", Duration.ZERO);
+        expireCookieWithDomainVariants(response, "access_token", "/", true);
     }
 
     public void expireRefreshTokenCookie(HttpServletResponse response) {
-        addCookie(response, "refresh_token", "", "/auth/token", Duration.ZERO);
+        expireCookieWithDomainVariants(response, "refresh_token", "/auth/token", true);
+    }
+
+    public void expireCsrfCookie(HttpServletResponse response) {
+        expireCookieWithDomainVariants(response, CSRF_COOKIE_NAME, "/", false);
     }
 
     public void writeStateCookie(HttpServletResponse response, String state) {
@@ -76,5 +81,36 @@ public class AuthCookieWriter {
         }
         ResponseCookie cookie = builder.build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void expireCookieWithDomainVariants(
+            HttpServletResponse response, String name, String path, boolean httpOnly) {
+        addCookie(response, name, "", path, Duration.ZERO, null, httpOnly);
+
+        String domain = cookieDomainPolicy.authDomain();
+        if (domain != null && !domain.isBlank()) {
+            addCookie(response, name, "", path, Duration.ZERO, domain, httpOnly);
+        }
+    }
+
+    private void addCookie(
+            HttpServletResponse response,
+            String name,
+            String value,
+            String path,
+            Duration maxAge,
+            String domain,
+            boolean httpOnly) {
+        ResponseCookie.ResponseCookieBuilder builder =
+                ResponseCookie.from(name, value)
+                        .httpOnly(httpOnly)
+                        .secure(cookieDomainPolicy.isSecure())
+                        .sameSite(SAME_SITE)
+                        .path(path)
+                        .maxAge(maxAge);
+        if (domain != null && !domain.isBlank()) {
+            builder.domain(domain);
+        }
+        response.addHeader(HttpHeaders.SET_COOKIE, builder.build().toString());
     }
 }
