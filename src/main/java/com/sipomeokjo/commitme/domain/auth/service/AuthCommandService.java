@@ -22,6 +22,7 @@ import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import com.sipomeokjo.commitme.security.jwt.RefreshTokenProvider;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -108,7 +109,30 @@ public class AuthCommandService {
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
+        return reissueAccessTokenInternal(refreshToken);
+    }
 
+    public AuthTokenReissueResult reissueAccessToken(List<String> refreshTokenCandidates) {
+        if (refreshTokenCandidates == null || refreshTokenCandidates.isEmpty()) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        for (String candidate : refreshTokenCandidates) {
+            if (candidate == null || candidate.isBlank()) {
+                continue;
+            }
+            try {
+                return reissueAccessTokenInternal(candidate);
+            } catch (BusinessException ex) {
+                if (ex.getErrorCode() != ErrorCode.REFRESH_TOKEN_INVALID) {
+                    throw ex;
+                }
+            }
+        }
+        throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+    }
+
+    private AuthTokenReissueResult reissueAccessTokenInternal(String refreshToken) {
         String tokenHash = refreshTokenProvider.hash(refreshToken);
         Instant now = Instant.now(clock);
         var cached =

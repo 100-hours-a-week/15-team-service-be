@@ -33,6 +33,7 @@ public class AuthCookieWriter {
     }
 
     public void writeRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
+        expireCookieWithDomainVariants(response, "refresh_token", "/auth/token", true);
         addCookie(
                 response,
                 "refresh_token",
