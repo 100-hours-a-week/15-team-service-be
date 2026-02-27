@@ -17,8 +17,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sipomeokjo.commitme.config.CsrfProperties;
 import com.sipomeokjo.commitme.config.WebMvcConfig;
+import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
+import com.sipomeokjo.commitme.domain.auth.service.AuthSessionIssueService;
 import com.sipomeokjo.commitme.domain.user.controller.UserController;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
@@ -28,6 +31,7 @@ import com.sipomeokjo.commitme.domain.user.dto.UserUpdateResponse;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.service.UserCommandService;
 import com.sipomeokjo.commitme.domain.user.service.UserQueryService;
+import com.sipomeokjo.commitme.security.CookieDomainPolicy;
 import com.sipomeokjo.commitme.security.CookieProperties;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
 import com.sipomeokjo.commitme.security.jwt.JwtProperties;
@@ -50,7 +54,12 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(UserController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @AutoConfigureRestDocs(outputDir = "build/generated-snippets")
-@Import({WebMvcConfig.class, AuthCookieWriter.class, UserControllerDocsTest.TestConfig.class})
+@Import({
+    WebMvcConfig.class,
+    AuthCookieWriter.class,
+    CookieDomainPolicy.class,
+    UserControllerDocsTest.TestConfig.class
+})
 class UserControllerDocsTest {
 
     @Autowired private MockMvc mockMvc;
@@ -58,6 +67,7 @@ class UserControllerDocsTest {
 
     @MockitoBean private UserQueryService userQueryService;
     @MockitoBean private UserCommandService userCommandService;
+    @MockitoBean private AuthSessionIssueService authSessionIssueService;
     @MockitoBean private AccessTokenProvider accessTokenProvider;
     @MockitoBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
@@ -77,6 +87,11 @@ class UserControllerDocsTest {
             CookieProperties properties = new CookieProperties();
             properties.setSecure(false);
             return properties;
+        }
+
+        @Bean
+        CsrfProperties csrfProperties() {
+            return new CsrfProperties("");
         }
     }
 
@@ -204,8 +219,8 @@ class UserControllerDocsTest {
         OnboardingResponse response = new OnboardingResponse(1L, UserStatus.ACTIVE);
         given(userCommandService.onboard(eq(1L), any(OnboardingRequest.class)))
                 .willReturn(response);
-        given(accessTokenProvider.createAccessToken(1L, UserStatus.ACTIVE))
-                .willReturn("access-token");
+        given(authSessionIssueService.rotateTokens(1L, UserStatus.ACTIVE))
+                .willReturn(new AuthTokenReissueResult("access-token", "refresh-token"));
 
         mockMvc.perform(
                         post("/user/onboarding")
@@ -256,7 +271,7 @@ class UserControllerDocsTest {
                                                 .build()),
                                 responseHeaders(
                                         headerWithName(HttpHeaders.SET_COOKIE)
-                                                .description("access_token 쿠키"))));
+                                                .description("access_token, refresh_token 쿠키"))));
     }
 
     @Test

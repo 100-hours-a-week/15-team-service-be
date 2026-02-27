@@ -11,6 +11,7 @@ import com.sipomeokjo.commitme.security.jwt.JwtProperties;
 import com.sipomeokjo.commitme.security.jwt.RefreshTokenProvider;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,17 @@ public class AuthSessionIssueService {
     private final RefreshTokenProvider refreshTokenProvider;
     private final JwtProperties jwtProperties;
     private final Clock clock;
+
+    public AuthTokenReissueResult rotateTokens(Long userId, UserStatus status) {
+        Instant now = Instant.now(clock);
+        List<String> activeTokenHashes =
+                refreshTokenRepository.findActiveTokenHashesByUserId(userId);
+        if (!activeTokenHashes.isEmpty()) {
+            refreshTokenRepository.revokeAllByUserId(userId, now);
+            refreshTokenCacheService.evictAll(activeTokenHashes);
+        }
+        return issueTokens(userId, status);
+    }
 
     public AuthTokenReissueResult issueTokens(Long userId, UserStatus status) {
         String accessToken = accessTokenProvider.createAccessToken(userId, status);

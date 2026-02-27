@@ -10,6 +10,7 @@ import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -31,9 +32,13 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         if (response.isCommitted()) {
             return;
         }
+        ErrorCode errorCode =
+                accessDeniedException instanceof CsrfException
+                        ? ErrorCode.CSRF_INVALID
+                        : ErrorCode.FORBIDDEN;
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
-        objectMapper.writeValue(response.getOutputStream(), APIResponse.body(ErrorCode.FORBIDDEN));
+        objectMapper.writeValue(response.getOutputStream(), APIResponse.body(errorCode));
     }
 }
