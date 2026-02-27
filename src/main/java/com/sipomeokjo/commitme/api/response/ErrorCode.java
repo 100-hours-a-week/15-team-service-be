@@ -86,6 +86,7 @@ public enum ErrorCode implements ResponseCode {
     // 권한
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "AUTH_UNAUTHORIZED", "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "AUTH_FORBIDDEN", "접근 권한이 없습니다."),
+    CSRF_INVALID(HttpStatus.FORBIDDEN, "AUTH_CSRF_INVALID", "보안 토큰이 유효하지 않습니다."),
     REFRESH_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_INVALID", "리프레시 토큰이 유효하지 않습니다."),
 
     // OAUTH

@@ -1,5 +1,6 @@
 package com.sipomeokjo.commitme.config;
 
+import com.sipomeokjo.commitme.security.CookieDomainPolicy;
 import com.sipomeokjo.commitme.security.csrf.CsrfTokenResponseCookieFilter;
 import com.sipomeokjo.commitme.security.csrf.LoggingCsrfTokenRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +20,7 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @RequiredArgsConstructor
 public class LocalSecurityConfig {
 
-    private final CsrfProperties csrfProperties;
+    private final CookieDomainPolicy cookieDomainPolicy;
 
     @Bean
     @Order(0)
@@ -28,9 +29,9 @@ public class LocalSecurityConfig {
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
         baseCsrfTokenRepository.setCookieCustomizer(
                 builder -> {
-                    if (csrfProperties.cookieDomain() != null
-                            && !csrfProperties.cookieDomain().isBlank()) {
-                        builder.domain(csrfProperties.cookieDomain());
+                    String csrfPrimaryDomain = cookieDomainPolicy.csrfDomain();
+                    if (csrfPrimaryDomain != null && !csrfPrimaryDomain.isBlank()) {
+                        builder.domain(csrfPrimaryDomain);
                     }
                 });
         LoggingCsrfTokenRepository csrfTokenRepository =

@@ -1,5 +1,6 @@
 package com.sipomeokjo.commitme.config;
 
+import com.sipomeokjo.commitme.security.CookieDomainPolicy;
 import com.sipomeokjo.commitme.security.CookieProperties;
 import com.sipomeokjo.commitme.security.CryptoProperties;
 import com.sipomeokjo.commitme.security.csrf.CsrfTokenResponseCookieFilter;
@@ -55,7 +56,7 @@ public class SecurityConfig {
     private final AuthLoginSuccessHandler authLoginSuccessHandler;
     private final AuthLoginFailureHandler authLoginFailureHandler;
     private final AuthLogoutSuccessHandler authLogoutSuccessHandler;
-    private final CsrfProperties csrfProperties;
+    private final CookieDomainPolicy cookieDomainPolicy;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -67,9 +68,9 @@ public class SecurityConfig {
                 CookieCsrfTokenRepository.withHttpOnlyFalse();
         baseCsrfTokenRepository.setCookieCustomizer(
                 builder -> {
-                    if (csrfProperties.cookieDomain() != null
-                            && !csrfProperties.cookieDomain().isBlank()) {
-                        builder.domain(csrfProperties.cookieDomain());
+                    String csrfPrimaryDomain = cookieDomainPolicy.csrfDomain();
+                    if (csrfPrimaryDomain != null && !csrfPrimaryDomain.isBlank()) {
+                        builder.domain(csrfPrimaryDomain);
                     }
                 });
         LoggingCsrfTokenRepository csrfTokenRepository =

@@ -3,15 +3,11 @@ package com.sipomeokjo.commitme.security.oauth;
 import com.sipomeokjo.commitme.config.AuthRedirectProperties;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthLoginResult;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
-import com.sipomeokjo.commitme.security.CookieProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -23,7 +19,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
     private final AuthCookieWriter authCookieWriter;
-    private final CookieProperties cookieProperties;
     private final AuthRedirectProperties authRedirectProperties;
 
     @Override
@@ -45,16 +40,7 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
         }
 
         authCookieWriter.writeAuthCookies(response, accessToken, refreshToken);
-
-        ResponseCookie expireState =
-                ResponseCookie.from("state", "")
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/auth/github")
-                        .maxAge(Duration.ZERO)
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, expireState.toString());
+        authCookieWriter.expireStateCookie(response);
 
         response.sendRedirect(buildRedirectUrl("success", onboardingCompleted));
     }
