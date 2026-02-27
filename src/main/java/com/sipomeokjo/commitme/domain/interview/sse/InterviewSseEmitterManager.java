@@ -21,22 +21,25 @@ public class InterviewSseEmitterManager {
         emitter.onCompletion(
                 () -> {
                     log.info("SSE completed for interview: {}", interviewId);
-                    emitters.remove(interviewId);
+                    removeIfCurrent(interviewId, emitter);
                 });
 
         emitter.onTimeout(
                 () -> {
                     log.info("SSE timeout for interview: {}", interviewId);
-                    emitters.remove(interviewId);
+                    removeIfCurrent(interviewId, emitter);
                 });
 
         emitter.onError(
                 e -> {
                     log.error("SSE error for interview: {}", interviewId, e);
-                    emitters.remove(interviewId);
+                    removeIfCurrent(interviewId, emitter);
                 });
 
-        emitters.put(interviewId, emitter);
+        SseEmitter previous = emitters.put(interviewId, emitter);
+        if (previous != null) {
+            previous.complete();
+        }
         return emitter;
     }
 
@@ -64,7 +67,7 @@ public class InterviewSseEmitterManager {
             emitter.send(SseEmitter.event().name(eventName).data(data));
         } catch (IOException e) {
             log.error("Failed to send SSE event for interview: {}", interviewId, e);
-            emitters.remove(interviewId);
+            removeIfCurrent(interviewId, emitter);
         }
     }
 
@@ -77,5 +80,9 @@ public class InterviewSseEmitterManager {
 
     public boolean exists(Long interviewId) {
         return emitters.containsKey(interviewId);
+    }
+
+    private void removeIfCurrent(Long interviewId, SseEmitter emitter) {
+        emitters.remove(interviewId, emitter);
     }
 }
