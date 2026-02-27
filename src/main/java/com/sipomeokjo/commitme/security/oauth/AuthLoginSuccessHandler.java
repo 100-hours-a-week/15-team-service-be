@@ -41,6 +41,11 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
 
         authCookieWriter.writeAuthCookies(response, accessToken, refreshToken);
         authCookieWriter.expireStateCookie(response);
+        log.info(
+                "[Auth][LoginSuccess] issue_cookies onboardingCompleted={} accessTokenFingerprint={} refreshTokenFingerprint={}",
+                onboardingCompleted,
+                fingerprint(accessToken),
+                fingerprint(refreshToken));
 
         response.sendRedirect(buildRedirectUrl("success", onboardingCompleted));
     }
@@ -53,5 +58,13 @@ public class AuthLoginSuccessHandler implements AuthenticationSuccessHandler {
             builder.queryParam("onboardingCompleted", onboardingCompleted);
         }
         return builder.toUriString();
+    }
+
+    private String fingerprint(String value) {
+        if (value == null || value.isBlank()) {
+            return "empty";
+        }
+        int visible = Math.min(6, value.length());
+        return "***" + value.substring(value.length() - visible);
     }
 }
