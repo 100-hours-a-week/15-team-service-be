@@ -7,13 +7,9 @@ import com.sipomeokjo.commitme.domain.auth.dto.LoginUrlResponse;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCommandService;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
-import com.sipomeokjo.commitme.security.CookieProperties;
 import jakarta.servlet.http.HttpServletResponse;
-import java.time.Duration;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,21 +26,11 @@ public class AuthController {
     private final AuthQueryService authQueryService;
     private final AuthCommandService authCommandService;
     private final AuthCookieWriter authCookieWriter;
-    private final CookieProperties cookieProperties;
 
     @GetMapping("/github/loginUrl")
     public ResponseEntity<APIResponse<LoginUrlResponse>> getLoginUrl(HttpServletResponse response) {
         String state = authQueryService.generateState();
-
-        ResponseCookie cookie =
-                ResponseCookie.from("state", state)
-                        .httpOnly(true)
-                        .secure(cookieProperties.isSecure())
-                        .sameSite("Lax")
-                        .path("/auth/github")
-                        .maxAge(Duration.ofMinutes(10))
-                        .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        authCookieWriter.writeStateCookie(response, state);
 
         String loginUrl = authQueryService.getLoginUrl(state);
         LoginUrlResponse data = new LoginUrlResponse(loginUrl);
