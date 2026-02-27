@@ -59,4 +59,9 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
                     + "AND rv.status IN :statuses")
     List<ResumeVersion> findEntitiesByUserIdAndStatusIn(
             @Param("userId") Long userId, @Param("statuses") List<ResumeVersionStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT rv FROM ResumeVersion rv WHERE rv.status IN :statuses")
+    List<ResumeVersion> findEntitiesByStatusIn(
+            @Param("statuses") List<ResumeVersionStatus> statuses);
 }
