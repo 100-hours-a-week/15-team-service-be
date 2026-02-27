@@ -22,10 +22,11 @@ public class AuthQueryService {
 
     public String getLoginUrl(String state) {
         log.info(
-                "[Auth][LoginUrl] 로그인 URL 생성: 사유=설정값 기반, clientId={}, redirectUri={}, scope={}",
+                "[Auth][LoginUrl] 로그인 URL 생성: 사유=설정값 기반, clientId={}, redirectUri={}, scope={}, stateFingerprint={}",
                 githubProperties.getClientId(),
                 githubProperties.getRedirectUri(),
-                githubProperties.getScope());
+                githubProperties.getScope(),
+                fingerprint(state));
         return UriComponentsBuilder.fromUriString(GITHUB_AUTHORIZE_URL)
                 .queryParam("client_id", githubProperties.getClientId())
                 .queryParam("redirect_uri", githubProperties.getRedirectUri())
@@ -40,5 +41,13 @@ public class AuthQueryService {
         byte[] bytes = new byte[32];
         SECURE_RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private String fingerprint(String value) {
+        if (value == null || value.isBlank()) {
+            return "empty";
+        }
+        int visible = Math.min(6, value.length());
+        return "***" + value.substring(value.length() - visible);
     }
 }

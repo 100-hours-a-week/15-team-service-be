@@ -34,6 +34,7 @@ public class AuthController {
     public ResponseEntity<APIResponse<LoginUrlResponse>> getLoginUrl(HttpServletResponse response) {
         String state = authQueryService.generateState();
         authCookieWriter.writeStateCookie(response, state);
+        log.info("[Auth][LoginUrl] state_cookie_issued fingerprint={}", fingerprint(state));
 
         String loginUrl = authQueryService.getLoginUrl(state);
         LoginUrlResponse data = new LoginUrlResponse(loginUrl);
@@ -44,10 +45,18 @@ public class AuthController {
     public ResponseEntity<APIResponse<Void>> reissueToken(
             HttpServletRequest request, HttpServletResponse response) {
         List<String> refreshTokenCandidates = extractRefreshTokenCandidates(request);
+        log.info(
+                "[Auth][TokenReissue] request_cookie_candidates count={} fingerprints={}",
+                refreshTokenCandidates.size(),
+                refreshTokenCandidates.stream().map(this::fingerprint).toList());
         AuthTokenReissueResult tokenResult =
                 authCommandService.reissueAccessToken(refreshTokenCandidates);
         authCookieWriter.writeAuthCookies(
                 response, tokenResult.accessToken(), tokenResult.refreshToken());
+        log.info(
+                "[Auth][TokenReissue] issued_new_tokens accessTokenFingerprint={} refreshTokenFingerprint={}",
+                fingerprint(tokenResult.accessToken()),
+                fingerprint(tokenResult.refreshToken()));
 
         return APIResponse.onSuccess(SuccessCode.ACCESS_TOKEN_REISSUED);
     }
@@ -63,5 +72,13 @@ public class AuthController {
                 .filter(value -> value != null && !value.isBlank())
                 .distinct()
                 .toList();
+    }
+
+    private String fingerprint(String value) {
+        if (value == null || value.isBlank()) {
+            return "empty";
+        }
+        int visible = Math.min(6, value.length());
+        return "***" + value.substring(value.length() - visible);
     }
 }

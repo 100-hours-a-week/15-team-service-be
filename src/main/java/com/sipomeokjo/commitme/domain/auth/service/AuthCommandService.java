@@ -56,6 +56,7 @@ public class AuthCommandService {
     private static final Pattern SCOPE_WHITESPACE = Pattern.compile("\\s+");
 
     public AuthLoginResult loginWithGithub(String code) {
+        log.info("[Auth][GithubLogin] start codeFingerprint={}", fingerprint(code));
         GithubAccessTokenResponse tokenResponse = exchangeToken(code);
         if (tokenResponse.accessToken() == null) {
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
@@ -98,6 +99,12 @@ public class AuthCommandService {
 
         AuthTokenReissueResult tokenResult =
                 authSessionIssueService.issueTokens(user.getId(), user.getStatus());
+        log.info(
+                "[Auth][GithubLogin] success userId={} status={} accessTokenFingerprint={} refreshTokenFingerprint={}",
+                user.getId(),
+                user.getStatus(),
+                fingerprint(tokenResult.accessToken()),
+                fingerprint(tokenResult.refreshToken()));
 
         return new AuthLoginResult(
                 tokenResult.accessToken(),
@@ -114,21 +121,37 @@ public class AuthCommandService {
 
     public AuthTokenReissueResult reissueAccessToken(List<String> refreshTokenCandidates) {
         if (refreshTokenCandidates == null || refreshTokenCandidates.isEmpty()) {
+            log.warn("[Auth][TokenReissue] empty_refresh_token_candidates");
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
+        log.info(
+                "[Auth][TokenReissue] candidate_scan_start count={} fingerprints={}",
+                refreshTokenCandidates.size(),
+                refreshTokenCandidates.stream().map(this::fingerprint).toList());
         for (String candidate : refreshTokenCandidates) {
             if (candidate == null || candidate.isBlank()) {
                 continue;
             }
             try {
+                log.info(
+                        "[Auth][TokenReissue] candidate_try fingerprint={}",
+                        fingerprint(candidate));
                 return reissueAccessTokenInternal(candidate);
             } catch (BusinessException ex) {
                 if (ex.getErrorCode() != ErrorCode.REFRESH_TOKEN_INVALID) {
+                    log.warn(
+                            "[Auth][TokenReissue] candidate_non_refresh_error fingerprint={} code={}",
+                            fingerprint(candidate),
+                            ex.getErrorCode().name());
                     throw ex;
                 }
+                log.warn(
+                        "[Auth][TokenReissue] candidate_invalid fingerprint={}",
+                        fingerprint(candidate));
             }
         }
+        log.warn("[Auth][TokenReissue] all_candidates_invalid");
         throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
     }
 
@@ -143,9 +166,16 @@ public class AuthCommandService {
         if (cached != null) {
             boolean revoked = authSessionIssueService.revokeRefreshToken(refreshToken);
             if (!revoked) {
+                log.warn(
+                        "[Auth][TokenReissue] cached_token_revoke_failed tokenHashFingerprint={}",
+                        fingerprint(tokenHash));
                 throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
             }
             UserStatus status = resolveCurrentUserStatus(cached.getUserId());
+            log.info(
+                    "[Auth][TokenReissue] cache_hit userId={} status={}",
+                    cached.getUserId(),
+                    status);
             return authSessionIssueService.issueTokens(cached.getUserId(), status);
         }
 
@@ -169,6 +199,7 @@ public class AuthCommandService {
         }
 
         refreshTokenEntity.revoke(now);
+        log.info("[Auth][TokenReissue] db_hit userId={} status={}", user.getId(), user.getStatus());
         return authSessionIssueService.issueTokens(user.getId(), user.getStatus());
     }
 
@@ -223,5 +254,13 @@ public class AuthCommandService {
             return null;
         }
         return SCOPE_WHITESPACE.matcher(scope.trim()).replaceAll(" ");
+    }
+
+    private String fingerprint(String value) {
+        if (value == null || value.isBlank()) {
+            return "empty";
+        }
+        int visible = Math.min(6, value.length());
+        return "***" + value.substring(value.length() - visible);
     }
 }
