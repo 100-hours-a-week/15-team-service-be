@@ -60,11 +60,12 @@ public class AuthCookieWriter {
     }
 
     public void writeStateCookie(HttpServletResponse response, String state) {
+        expireCookieWithDomainVariants(response, STATE_COOKIE_NAME, STATE_COOKIE_PATH, true);
         addCookie(response, STATE_COOKIE_NAME, state, STATE_COOKIE_PATH, STATE_COOKIE_MAX_AGE);
     }
 
     public void expireStateCookie(HttpServletResponse response) {
-        addCookie(response, STATE_COOKIE_NAME, "", STATE_COOKIE_PATH, Duration.ZERO);
+        expireCookieWithDomainVariants(response, STATE_COOKIE_NAME, STATE_COOKIE_PATH, true);
     }
 
     private void addCookie(
