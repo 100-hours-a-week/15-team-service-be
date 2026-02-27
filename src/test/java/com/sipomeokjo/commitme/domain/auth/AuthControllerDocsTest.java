@@ -27,6 +27,7 @@ import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCommandService;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
 import com.sipomeokjo.commitme.domain.auth.service.AuthQueryService;
+import com.sipomeokjo.commitme.domain.auth.service.AuthSessionIssueService;
 import com.sipomeokjo.commitme.security.CookieDomainPolicy;
 import com.sipomeokjo.commitme.security.CookieProperties;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
@@ -78,6 +79,7 @@ class AuthControllerDocsTest {
 
     @MockitoBean private AuthQueryService authQueryService;
     @MockitoBean private AuthCommandService authCommandService;
+    @MockitoBean private AuthSessionIssueService authSessionIssueService;
     @MockitoBean private AccessTokenProvider accessTokenProvider;
     @MockitoBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
