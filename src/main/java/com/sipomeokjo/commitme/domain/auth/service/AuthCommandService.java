@@ -121,7 +121,7 @@ public class AuthCommandService {
             if (!revoked) {
                 throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
             }
-            UserStatus status = UserStatus.valueOf(cached.getUserStatus());
+            UserStatus status = resolveCurrentUserStatus(cached.getUserId());
             return authSessionIssueService.issueTokens(cached.getUserId(), status);
         }
 
@@ -185,6 +185,13 @@ public class AuthCommandService {
             log.warn("[Auth][FetchUser] 사용자 조회 실패: 사유=응답 없음 또는 id 누락, response={}", response);
         }
         return response;
+    }
+
+    private UserStatus resolveCurrentUserStatus(Long userId) {
+        return userRepository
+                .findById(userId)
+                .map(User::getStatus)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
     }
 
     private String normalizeScopes(String scope) {
