@@ -11,10 +11,15 @@ import com.sipomeokjo.commitme.api.sse.distributed.SseInstanceIdProvider;
 import com.sipomeokjo.commitme.api.sse.distributed.SseLocalDeliveryHandler;
 import com.sipomeokjo.commitme.api.sse.distributed.SseRouteKey;
 import com.sipomeokjo.commitme.api.sse.distributed.SseRouteRepository;
+import com.sipomeokjo.commitme.api.sse.dto.UserSseEventName;
+import com.sipomeokjo.commitme.api.sse.dto.UserSseEventPayload;
+import com.sipomeokjo.commitme.api.sse.dto.UserSseEventType;
 import com.sipomeokjo.commitme.domain.notification.dto.NotificationSsePayload;
 import com.sipomeokjo.commitme.domain.notification.entity.Notification;
 import com.sipomeokjo.commitme.domain.notification.repository.NotificationRepository;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeRefreshRequiredSsePayload;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,8 +30,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @RequiredArgsConstructor
 @Slf4j
 public class NotificationSseService implements SseLocalDeliveryHandler {
-    private static final String STREAM_TYPE_NOTIFICATION = "notification";
-    private static final String EVENT_NOTIFICATION = "notification";
+    private static final String STREAM_TYPE_USER_EVENT = "user-event";
     private static final Duration ROUTE_TTL = Duration.ofMinutes(2);
 
     private final NotificationRepository notificationRepository;
@@ -38,6 +42,10 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
     private final SseInstanceIdProvider sseInstanceIdProvider;
 
     public SseEmitter subscribe(Long userId, String lastEventId) {
+        log.debug(
+                "[NOTIFICATION_SSE] subscribe_start userId={} hasLastEventId={}",
+                userId,
+                lastEventId != null && !lastEventId.isBlank());
         SseStreamKey streamKey = streamKey(userId);
         SseEmitter emitter = sseEmitterRegistry.register(streamKey);
         refreshRouteTtl(streamKey);
@@ -45,8 +53,13 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         try {
             emitter.send(
                     SseEmitter.event()
-                            .name("connected")
-                            .data(notificationBadgeService.getBadge(userId)));
+                            .name(UserSseEventName.CONNECTED.value())
+                            .data(
+                                    new UserSseEventPayload(
+                                            UserSseEventType.CONNECTED,
+                                            Instant.now(),
+                                            objectMapper.valueToTree(
+                                                    notificationBadgeService.getBadge(userId)))));
         } catch (Exception ex) {
             if (SseExceptionUtils.isClientDisconnected(ex)) {
                 log.debug(
@@ -60,6 +73,8 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
 
         Long lastId = parseLastEventId(lastEventId);
         if (lastId != null) {
+            log.debug(
+                    "[NOTIFICATION_SSE] replay_requested userId={} lastEventId={}", userId, lastId);
             replay(userId, lastId, emitter);
         }
 
@@ -76,13 +91,46 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         }
 
         NotificationSsePayload payload = toPayload(notification);
+        log.debug(
+                "[NOTIFICATION_SSE] send_notification userId={} notificationId={} type={}",
+                userId,
+                notification.getId(),
+                notification.getType());
         sendDistributed(
-                userId, String.valueOf(notification.getId()), payload, notification.getId());
+                userId,
+                UserSseEventName.NOTIFICATION.value(),
+                String.valueOf(notification.getId()),
+                new UserSseEventPayload(
+                        UserSseEventType.NOTIFICATION_CREATED,
+                        notification.getCreatedAt(),
+                        objectMapper.valueToTree(payload)),
+                notification.getId());
+    }
+
+    public void sendResumeRefreshRequired(Long userId, ResumeRefreshRequiredSsePayload payload) {
+        if (userId == null || payload == null) {
+            return;
+        }
+        log.debug(
+                "[NOTIFICATION_SSE] send_resume_refresh_required userId={} resumeId={} versionNo={} status={}",
+                userId,
+                payload.resumeId(),
+                payload.versionNo(),
+                payload.status());
+        sendDistributed(
+                userId,
+                UserSseEventName.RESUME_REFRESH_REQUIRED.value(),
+                null,
+                new UserSseEventPayload(
+                        UserSseEventType.RESUME_REFRESH_REQUIRED,
+                        Instant.now(),
+                        objectMapper.valueToTree(payload)),
+                null);
     }
 
     @Override
     public String streamType() {
-        return STREAM_TYPE_NOTIFICATION;
+        return STREAM_TYPE_USER_EVENT;
     }
 
     @Override
@@ -90,21 +138,17 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         if (envelope == null) {
             return;
         }
-        if (!EVENT_NOTIFICATION.equals(envelope.eventName())) {
-            return;
-        }
-
         Long userId = parseUserId(envelope.streamKey());
         if (userId == null) {
             return;
         }
 
-        NotificationSsePayload payload;
+        UserSseEventPayload payload;
         try {
             if (envelope.data() == null) {
                 return;
             }
-            payload = objectMapper.treeToValue(envelope.data(), NotificationSsePayload.class);
+            payload = objectMapper.treeToValue(envelope.data(), UserSseEventPayload.class);
         } catch (Exception ex) {
             log.warn(
                     "[NOTIFICATION_SSE] remote_payload_parse_failed streamKey={} eventName={}",
@@ -114,11 +158,15 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
             return;
         }
 
-        sendLocalOnly(userId, envelope.eventName(), envelope.eventId(), payload, payload.id());
+        sendLocalOnly(userId, envelope.eventName(), envelope.eventId(), payload, null);
     }
 
     private void sendDistributed(
-            Long userId, String eventId, NotificationSsePayload payload, Long notificationId) {
+            Long userId,
+            String eventName,
+            String eventId,
+            UserSseEventPayload payload,
+            Long notificationId) {
         SseStreamKey localStreamKey = streamKey(userId);
         SseRouteKey routeKey = routeKey(userId);
         String localInstanceId = sseInstanceIdProvider.getInstanceId();
@@ -128,22 +176,16 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
             instanceIds = sseRouteRepository.findInstanceIds(routeKey);
         } catch (Exception ex) {
             log.warn("[NOTIFICATION_SSE] route_lookup_failed userId={}", userId, ex);
-            sendLocalOnly(
-                    userId,
-                    NotificationSseService.EVENT_NOTIFICATION,
-                    eventId,
-                    payload,
-                    notificationId);
+            sendLocalOnly(userId, eventName, eventId, payload, notificationId);
             return;
         }
 
         if (instanceIds.isEmpty()) {
-            sendLocalOnly(
+            log.debug(
+                    "[NOTIFICATION_SSE] route_instances_empty userId={} eventName={}",
                     userId,
-                    NotificationSseService.EVENT_NOTIFICATION,
-                    eventId,
-                    payload,
-                    notificationId);
+                    eventName);
+            sendLocalOnly(userId, eventName, eventId, payload, notificationId);
             return;
         }
 
@@ -151,12 +193,7 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         boolean localDelivered = false;
         for (String instanceId : instanceIds) {
             if (localInstanceId.equals(instanceId)) {
-                sendLocalOnly(
-                        userId,
-                        NotificationSseService.EVENT_NOTIFICATION,
-                        eventId,
-                        payload,
-                        notificationId);
+                sendLocalOnly(userId, eventName, eventId, payload, notificationId);
                 localDelivered = true;
                 continue;
             }
@@ -166,9 +203,9 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
                         new SseDeliveryEnvelope(
                                 localInstanceId,
                                 instanceId,
-                                STREAM_TYPE_NOTIFICATION,
+                                STREAM_TYPE_USER_EVENT,
                                 String.valueOf(userId),
-                                NotificationSseService.EVENT_NOTIFICATION,
+                                eventName,
                                 eventId,
                                 payloadNode,
                                 null));
@@ -183,12 +220,7 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         }
 
         if (!localDelivered && sseEmitterRegistry.count(localStreamKey) > 0) {
-            sendLocalOnly(
-                    userId,
-                    NotificationSseService.EVENT_NOTIFICATION,
-                    eventId,
-                    payload,
-                    notificationId);
+            sendLocalOnly(userId, eventName, eventId, payload, notificationId);
         }
     }
 
@@ -196,7 +228,7 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
             Long userId,
             String eventName,
             String eventId,
-            NotificationSsePayload payload,
+            UserSseEventPayload payload,
             Long notificationId) {
         SseStreamKey streamKey = streamKey(userId);
         List<SseEmitter> emitters = sseEmitterRegistry.getEmitters(streamKey);
@@ -236,15 +268,29 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
                 notificationRepository.findByUser_IdAndIdGreaterThanOrderByIdAsc(
                         userId, lastEventId);
         if (notifications.isEmpty()) {
+            log.debug(
+                    "[NOTIFICATION_SSE] replay_empty userId={} lastEventId={}",
+                    userId,
+                    lastEventId);
             return;
         }
+        log.debug(
+                "[NOTIFICATION_SSE] replay_start userId={} lastEventId={} replayCount={}",
+                userId,
+                lastEventId,
+                notifications.size());
         for (Notification notification : notifications) {
             try {
                 emitter.send(
                         SseEmitter.event()
                                 .id(String.valueOf(notification.getId()))
-                                .name("notification")
-                                .data(toPayload(notification)));
+                                .name(UserSseEventName.NOTIFICATION.value())
+                                .data(
+                                        new UserSseEventPayload(
+                                                UserSseEventType.NOTIFICATION_CREATED,
+                                                notification.getCreatedAt(),
+                                                objectMapper.valueToTree(
+                                                        toPayload(notification)))));
             } catch (Exception ex) {
                 if (SseExceptionUtils.isClientDisconnected(ex)) {
                     log.debug(
@@ -265,11 +311,11 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
     }
 
     private SseStreamKey streamKey(Long userId) {
-        return SseStreamKey.of(STREAM_TYPE_NOTIFICATION, userId);
+        return SseStreamKey.of(STREAM_TYPE_USER_EVENT, userId);
     }
 
     private SseRouteKey routeKey(Long userId) {
-        return SseRouteKey.of(STREAM_TYPE_NOTIFICATION, userId);
+        return SseRouteKey.of(STREAM_TYPE_USER_EVENT, userId);
     }
 
     private void refreshRouteTtl(SseStreamKey streamKey) {

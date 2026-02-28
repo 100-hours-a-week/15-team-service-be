@@ -109,6 +109,7 @@ public class ResumeAiCallbackService {
 
     private ResumeAiCallbackResult toResult(ResumeVersion version, boolean updated) {
         return new ResumeAiCallbackResult(
+                version.getResume().getUser().getId(),
                 version.getResume().getId(),
                 version.getVersionNo(),
                 version.getAiTaskId(),
@@ -122,16 +123,13 @@ public class ResumeAiCallbackService {
             return;
         }
         if (result.status() == ResumeVersionStatus.SUCCEEDED) {
-            if (req == null || req.content() == null) {
-                return;
-            }
             eventPublisher.publishEvent(
                     new ResumeEditCompletedEvent(
+                            result.userId(),
                             result.resumeId(),
                             result.versionNo(),
                             result.taskId(),
-                            result.updatedAt(),
-                            req.content()));
+                            result.updatedAt()));
             return;
         }
         if (result.status() == ResumeVersionStatus.FAILED) {
@@ -148,6 +146,7 @@ public class ResumeAiCallbackService {
                             : req.error().message();
             eventPublisher.publishEvent(
                     new ResumeEditFailedEvent(
+                            result.userId(),
                             result.resumeId(),
                             result.versionNo(),
                             result.taskId(),

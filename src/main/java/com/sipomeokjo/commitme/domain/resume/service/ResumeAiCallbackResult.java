@@ -4,6 +4,7 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import java.time.Instant;
 
 public record ResumeAiCallbackResult(
+        Long userId,
         Long resumeId,
         Integer versionNo,
         String taskId,
