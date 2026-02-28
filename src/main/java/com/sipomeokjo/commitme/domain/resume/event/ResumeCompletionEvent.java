@@ -1,13 +1,15 @@
-package com.sipomeokjo.commitme.domain.resume.service;
+package com.sipomeokjo.commitme.domain.resume.event;
 
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import java.time.Instant;
 
-public record ResumeAiCallbackResult(
+public record ResumeCompletionEvent(
         Long userId,
         Long resumeId,
         Integer versionNo,
         String taskId,
-        ResumeVersionStatus status,
         Instant updatedAt,
-        boolean updated) {}
+        ResumeVersionStatus status,
+        ResumeCallbackSource source,
+        String errorCode,
+        String errorMessage) {}

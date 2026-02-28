@@ -31,6 +31,11 @@ public class NotificationEventPublisher {
             return;
         }
 
+        log.debug(
+                "[NOTIFICATION] publish_event userId={} type={} payloadLength={}",
+                userId,
+                type,
+                payloadJson.length());
         eventPublisher.publishEvent(new NotificationCreateEvent(userId, type, payloadJson));
     }
 }

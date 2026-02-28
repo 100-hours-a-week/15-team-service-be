@@ -5,6 +5,7 @@ import java.time.Instant;
 public record ResumeDetailDto(
         Long resumeId,
         String name,
+        boolean isEditing,
         Long positionId,
         String positionName,
         Long companyId,
