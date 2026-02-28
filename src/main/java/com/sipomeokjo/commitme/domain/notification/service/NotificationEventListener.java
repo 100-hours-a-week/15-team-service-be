@@ -7,12 +7,11 @@ import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 @Service
 @RequiredArgsConstructor
@@ -24,11 +23,20 @@ public class NotificationEventListener {
 
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void handleCreate(NotificationCreateEvent event) {
         if (event == null || event.userId() == null || event.type() == null) {
+            log.debug(
+                    "[NOTIFICATION] create_event_skipped_invalid_input hasEvent={} hasUserId={} hasType={}",
+                    event != null,
+                    event != null && event.userId() != null,
+                    event != null && event.type() != null);
             return;
         }
+        log.debug(
+                "[NOTIFICATION] create_event_received userId={} type={}",
+                event.userId(),
+                event.type());
 
         User user = userRepository.findById(event.userId()).orElse(null);
         if (user == null) {
@@ -39,6 +47,11 @@ public class NotificationEventListener {
         Notification saved =
                 notificationRepository.save(
                         Notification.create(user, event.type(), event.payload()));
+        log.debug(
+                "[NOTIFICATION] created notificationId={} userId={} type={}",
+                saved.getId(),
+                event.userId(),
+                event.type());
         notificationSseService.send(saved);
     }
 }

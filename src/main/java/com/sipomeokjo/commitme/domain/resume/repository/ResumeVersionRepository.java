@@ -25,6 +25,14 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
     Optional<ResumeVersion> findTopByResume_IdAndStatusOrderByVersionNoDesc(
             Long resumeId, ResumeVersionStatus status);
 
+    boolean existsByResume_IdAndStatusIn(Long resumeId, List<ResumeVersionStatus> statuses);
+
+    boolean existsByResume_User_IdAndStatusIn(Long userId, List<ResumeVersionStatus> statuses);
+
+    default boolean existsByUserIdAndStatusIn(Long userId, List<ResumeVersionStatus> statuses) {
+        return existsByResume_User_IdAndStatusIn(userId, statuses);
+    }
+
     @Query(
             value =
                     "SELECT rv.version_no AS versionNo "
@@ -43,22 +51,6 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
     List<Long> findByResumeIdAndStatusInWithLock(
             @Param("resumeId") Long resumeId,
             @Param("statuses") List<ResumeVersionStatus> statuses);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query(
-            "SELECT rv.id FROM ResumeVersion rv "
-                    + "WHERE rv.resume.user.id = :userId "
-                    + "AND rv.status IN :statuses")
-    List<Long> findByUserIdAndStatusIn(
-            @Param("userId") Long userId, @Param("statuses") List<ResumeVersionStatus> statuses);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query(
-            "SELECT rv FROM ResumeVersion rv "
-                    + "WHERE rv.resume.user.id = :userId "
-                    + "AND rv.status IN :statuses")
-    List<ResumeVersion> findEntitiesByUserIdAndStatusIn(
-            @Param("userId") Long userId, @Param("statuses") List<ResumeVersionStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT rv FROM ResumeVersion rv WHERE rv.status IN :statuses")
