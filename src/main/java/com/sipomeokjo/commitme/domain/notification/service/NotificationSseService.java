@@ -138,6 +138,11 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         if (envelope == null) {
             return;
         }
+        log.debug(
+                "[NOTIFICATION_SSE] remote_delivery_received streamKey={} eventName={} eventId={}",
+                envelope.streamKey(),
+                envelope.eventName(),
+                envelope.eventId());
         Long userId = parseUserId(envelope.streamKey());
         if (userId == null) {
             return;
@@ -235,6 +240,12 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         if (emitters == null || emitters.isEmpty()) {
             return;
         }
+        log.debug(
+                "[NOTIFICATION_SSE] local_delivery_start userId={} eventName={} notificationId={} emitterCount={}",
+                userId,
+                eventName,
+                notificationId,
+                emitters.size());
 
         for (SseEmitter emitter : emitters) {
             try {
