@@ -171,6 +171,10 @@ public class ResumeService {
                 resumeRepository
                         .findByIdAndUserIdWithLock(resumeId, userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        boolean isEditing =
+                resumeVersionRepository.existsByResume_IdAndStatusIn(
+                        resume.getId(),
+                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
 
         ResumeVersion previewVersion =
                 resumeVersionRepository
@@ -181,7 +185,7 @@ public class ResumeService {
 
         if (previewVersion != null) {
             previewVersion.markPreviewShownNow();
-            return resumeMapper.toDetailDto(resume, previewVersion);
+            return resumeMapper.toDetailDto(resume, previewVersion, isEditing);
         }
 
         ResumeVersion version =
@@ -194,7 +198,7 @@ public class ResumeService {
             throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
         }
 
-        return resumeMapper.toDetailDto(resume, version);
+        return resumeMapper.toDetailDto(resume, version, isEditing);
     }
 
     @Transactional(readOnly = true)

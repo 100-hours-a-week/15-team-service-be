@@ -27,7 +27,7 @@ public class ResumeMapper {
                 resume.getUpdatedAt());
     }
 
-    public ResumeDetailDto toDetailDto(Resume resume, ResumeVersion version) {
+    public ResumeDetailDto toDetailDto(Resume resume, ResumeVersion version, boolean isEditing) {
         if (resume == null || version == null) {
             return null;
         }
@@ -37,6 +37,7 @@ public class ResumeMapper {
         return new ResumeDetailDto(
                 resume.getId(),
                 resume.getName(),
+                isEditing,
                 info.positionId(),
                 info.positionName(),
                 info.companyId(),
