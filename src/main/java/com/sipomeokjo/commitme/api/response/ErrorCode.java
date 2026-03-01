@@ -92,7 +92,7 @@ public enum ErrorCode implements ResponseCode {
     // OAUTH
     OAUTH_ACCESS_DENIED(HttpStatus.FORBIDDEN, "OAUTH_ACCESS_DENIED", "소셜 로그인 권한이 거부되었습니다."),
     OAUTH_ACCOUNT_WITHDRAWN(
-            HttpStatus.FORBIDDEN, "OAUTH_ACCOUNT_WITHDRAWN", "탈퇴한 계정입니다. 30일 후 재가입 가능합니다."),
+            HttpStatus.FORBIDDEN, "OAUTH_ACCOUNT_WITHDRAWN", "탈퇴한 계정입니다. 1일 후 재가입 가능합니다."),
 
     // 페이지네이션
     INVALID_CURSOR_VALUE(HttpStatus.BAD_REQUEST, "INVALID_CURSOR_VALUE", "커서 값이 유효하지 않거나 손상되었습니다."),

@@ -20,7 +20,6 @@ import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.mapper.UserMapper;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,10 +47,7 @@ public class UserCommandService {
                         .findById(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.BAD_REQUEST));
 
-        validateRejoin(user);
-        if (user.getStatus() == UserStatus.ACTIVE) {
-            throw new BusinessException(ErrorCode.USER_ALREADY_ONBOARDED);
-        }
+        validateOnboardingTarget(user);
 
         validateName(request.name());
         Position position = resolvePosition(request.positionId());
@@ -129,20 +125,13 @@ public class UserCommandService {
         }
     }
 
-    private void validateRejoin(User user) {
-        if (user == null || user.getStatus() != UserStatus.INACTIVE) {
-            return;
+    private void validateOnboardingTarget(User user) {
+        if (user.getStatus() == UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.USER_ALREADY_ONBOARDED);
         }
-        Instant deletedAt = user.getDeletedAt();
-        if (deletedAt == null) {
+        if (user.getStatus() == UserStatus.INACTIVE) {
             throw new BusinessException(ErrorCode.OAUTH_ACCOUNT_WITHDRAWN);
         }
-        Instant now = Instant.now(clock);
-        Instant rejoinAvailableAt = deletedAt.plus(Duration.ofDays(30));
-        if (now.isBefore(rejoinAvailableAt)) {
-            throw new BusinessException(ErrorCode.OAUTH_ACCOUNT_WITHDRAWN);
-        }
-        user.restoreForRejoin();
     }
 
     private Position resolvePosition(Long positionId) {

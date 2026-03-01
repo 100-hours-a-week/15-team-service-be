@@ -89,4 +89,8 @@ public class Auth extends BaseEntity {
         this.tokenScopes = null;
         this.tokenExpiresAt = null;
     }
+
+    public void rebindUser(User user) {
+        this.user = user;
+    }
 }
