@@ -21,6 +21,7 @@ import com.sipomeokjo.commitme.domain.userSetting.repository.UserSettingReposito
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import com.sipomeokjo.commitme.security.jwt.RefreshTokenProvider;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -69,7 +70,7 @@ public class AuthCommandService {
 
         Auth auth =
                 authRepository
-                        .findByProviderAndProviderUserId(
+                        .findByProviderAndProviderUserIdWithLock(
                                 AuthProvider.GITHUB, String.valueOf(githubUser.id()))
                         .orElse(null);
 
@@ -89,7 +90,7 @@ public class AuthCommandService {
                             .build();
             authRepository.save(newAuth);
         } else {
-            user = auth.getUser();
+            user = resolveLoginUser(auth);
             auth.updateTokenInfo(
                     githubUser.login(),
                     accessTokenCipher.encrypt(tokenResponse.accessToken()),
@@ -112,11 +113,30 @@ public class AuthCommandService {
                 user.getStatus() == UserStatus.ACTIVE);
     }
 
-    public AuthTokenReissueResult reissueAccessToken(String refreshToken) {
-        if (refreshToken == null || refreshToken.isBlank()) {
-            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+    private User resolveLoginUser(Auth auth) {
+        User user = auth.getUser();
+        if (user.getStatus() != UserStatus.INACTIVE) {
+            return user;
         }
-        return reissueAccessTokenInternal(refreshToken);
+
+        Instant now = Instant.now(clock);
+        Instant deletedAt = user.getDeletedAt();
+        if (deletedAt == null || now.isBefore(deletedAt.plus(Duration.ofDays(1)))) {
+            log.warn(
+                    "[Auth][GithubLogin] rejoin_blocked userId={} deletedAt={}",
+                    user.getId(),
+                    deletedAt);
+            throw new BusinessException(ErrorCode.OAUTH_ACCOUNT_WITHDRAWN);
+        }
+		
+		User newUser = userRepository.save(User.builder().status(UserStatus.PENDING).build());
+        userSettingRepository.save(UserSetting.defaultSetting(newUser));
+        auth.rebindUser(newUser);
+        log.info(
+                "[Auth][GithubLogin] rejoin_new_user_created oldUserId={} newUserId={}",
+                user.getId(),
+                newUser.getId());
+        return newUser;
     }
 
     public AuthTokenReissueResult reissueAccessToken(List<String> refreshTokenCandidates) {
