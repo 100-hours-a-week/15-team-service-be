@@ -38,6 +38,7 @@ public class SttController {
             throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
 
-        return APIResponse.onSuccess(SuccessCode.OK, new SttTranscribeResponse(aiResponse.text()));
+        return APIResponse.onSuccess(
+                SuccessCode.STT_TRANSCRIBED, new SttTranscribeResponse(aiResponse.text()));
     }
 }
