@@ -1,5 +1,6 @@
-package com.sipomeokjo.commitme.domain.loadtest.auth.controller;
+package com.sipomeokjo.commitme.domain.loadtest.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.sipomeokjo.commitme.api.response.APIResponse;
 import com.sipomeokjo.commitme.api.response.SuccessCode;
 import com.sipomeokjo.commitme.domain.auth.service.AuthCookieWriter;
@@ -13,7 +14,8 @@ import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetRequest
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetResponse;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupRequest;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupResponse;
-import com.sipomeokjo.commitme.domain.loadtest.auth.service.LoadtestAuthService;
+import com.sipomeokjo.commitme.domain.loadtest.service.LoadtestService;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeCreateRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,48 +25,54 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/internal/loadtest/auth")
+@RequestMapping("/internal/loadtest")
 @RequiredArgsConstructor
-public class LoadtestAuthController {
+public class LoadtestController {
 
-    private final LoadtestAuthService loadtestAuthService;
+    private final LoadtestService loadtestService;
     private final AuthCookieWriter authCookieWriter;
 
-    @PostMapping("/users/signup")
+    @PostMapping("/auth/users/signup")
     public ResponseEntity<APIResponse<LoadtestAuthSignupResponse>> signup(
             @RequestBody LoadtestAuthSignupRequest request) {
-        LoadtestAuthSignupResponse data = loadtestAuthService.signupPending(request);
-        return APIResponse.onSuccess(SuccessCode.CREATED, data);
+
+        return APIResponse.onSuccess(SuccessCode.CREATED, loadtestService.signupPending(request));
     }
 
-    @PostMapping("/users/bulk-create")
+    @PostMapping("/auth/users/bulk-create")
     public ResponseEntity<APIResponse<LoadtestAuthBulkCreateResponse>> bulkCreate(
             @RequestBody LoadtestAuthBulkCreateRequest request) {
-        LoadtestAuthBulkCreateResponse data = loadtestAuthService.bulkCreate(request);
-        return APIResponse.onSuccess(SuccessCode.CREATED, data);
+
+        return APIResponse.onSuccess(SuccessCode.CREATED, loadtestService.bulkCreate(request));
     }
 
-    @PostMapping("/login")
+    @PostMapping("/auth/login")
     public ResponseEntity<APIResponse<LoadtestAuthLoginResponse>> login(
             @RequestBody LoadtestAuthLoginRequest request, HttpServletResponse response) {
-        LoadtestAuthLoginResponse data = loadtestAuthService.login(request);
+        LoadtestAuthLoginResponse data = loadtestService.login(request);
         authCookieWriter.writeAuthCookies(
                 response, data.cookieAccessToken(), data.cookieRefreshToken());
         return APIResponse.onSuccess(SuccessCode.LOGIN_SUCCESS, data);
     }
 
-    @PostMapping("/logout")
+    @PostMapping("/auth/logout")
     public ResponseEntity<APIResponse<LoadtestAuthLogoutResponse>> logout(
             @RequestBody LoadtestAuthLogoutRequest request, HttpServletResponse response) {
-        LoadtestAuthLogoutResponse data = loadtestAuthService.logout(request);
+        LoadtestAuthLogoutResponse data = loadtestService.logout(request);
         authCookieWriter.expireAuthCookies(response);
         return APIResponse.onSuccess(SuccessCode.LOGOUT_SUCCESS, data);
     }
 
-    @PostMapping("/reset")
+    @PostMapping("/auth/reset")
     public ResponseEntity<APIResponse<LoadtestAuthResetResponse>> reset(
             @RequestBody LoadtestAuthResetRequest request) {
-        LoadtestAuthResetResponse data = loadtestAuthService.reset(request);
-        return APIResponse.onSuccess(SuccessCode.OK, data);
+
+        return APIResponse.onSuccess(SuccessCode.OK, loadtestService.reset(request));
+    }
+
+    @PostMapping("/resumes")
+    public ResponseEntity<APIResponse<JsonNode>> create(@RequestBody ResumeCreateRequest request) {
+        return APIResponse.onSuccess(
+                SuccessCode.OK, loadtestService.requestResumeGenerate(request));
     }
 }
