@@ -1,8 +1,9 @@
-package com.sipomeokjo.commitme.domain.loadtest.auth.service;
+package com.sipomeokjo.commitme.domain.loadtest.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
-import com.sipomeokjo.commitme.config.LoadtestMockAuthProperties;
+import com.sipomeokjo.commitme.config.LoadtestProperties;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.auth.entity.Auth;
 import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
@@ -26,6 +27,8 @@ import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
+import com.sipomeokjo.commitme.domain.resume.config.AiProperties;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeCreateRequest;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
@@ -39,12 +42,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Service
-@Transactional
 @RequiredArgsConstructor
-public class LoadtestAuthService {
+public class LoadtestService {
 
     private static final AuthProvider MOCK_PROVIDER = AuthProvider.GITHUB;
     private static final String MOCK_PREFIX = "lt";
@@ -62,9 +66,12 @@ public class LoadtestAuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final RefreshTokenCacheService refreshTokenCacheService;
     private final AuthSessionIssueService authSessionIssueService;
-    private final LoadtestMockAuthProperties loadtestMockAuthProperties;
+    private final LoadtestProperties loadtestProperties;
+    private final RestClient aiClient;
+    private final AiProperties aiProperties;
     private final Clock clock;
 
+    @Transactional
     public LoadtestAuthSignupResponse signupPending(LoadtestAuthSignupRequest request) {
         MockIdentity identity = buildIdentity(request.runId(), request.userKey());
         CreatedMockUser created = createMockUser(identity, UserStatus.PENDING);
@@ -75,6 +82,7 @@ public class LoadtestAuthService {
                 created.auth().getProviderUsername());
     }
 
+    @Transactional
     public LoadtestAuthBulkCreateResponse bulkCreate(LoadtestAuthBulkCreateRequest request) {
         String runId = normalizeRunId(request.runId());
         int count = normalizeBulkCount(request.count());
@@ -107,6 +115,7 @@ public class LoadtestAuthService {
                 runId, count, items.size(), status, returnToken, items);
     }
 
+    @Transactional
     public LoadtestAuthLoginResponse login(LoadtestAuthLoginRequest request) {
         String providerUserId = normalizeProviderUserId(request.providerUserId());
         boolean returnToken = Boolean.TRUE.equals(request.returnToken());
@@ -131,6 +140,7 @@ public class LoadtestAuthService {
                 tokens.refreshToken());
     }
 
+    @Transactional
     public LoadtestAuthLogoutResponse logout(LoadtestAuthLogoutRequest request) {
         Auth auth = resolveAuthForLogout(request);
         ensureMockAuth(auth);
@@ -139,6 +149,7 @@ public class LoadtestAuthService {
         return new LoadtestAuthLogoutResponse(user.getId(), auth.getProviderUserId(), revokedCount);
     }
 
+    @Transactional
     public LoadtestAuthResetResponse reset(LoadtestAuthResetRequest request) {
         String runId = normalizeRunId(request.runId());
         int limit = normalizeResetLimit(request.limit());
@@ -189,6 +200,29 @@ public class LoadtestAuthService {
                 revokedRefreshTokenCount);
     }
 
+    public JsonNode requestResumeGenerate(ResumeCreateRequest request) {
+        String resumeGeneratePath = loadtestProperties.resolveResumeGeneratePath();
+        if (!StringUtils.hasText(resumeGeneratePath)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
+        String url = aiProperties.getBaseUrl() + resumeGeneratePath;
+
+        try {
+            JsonNode response =
+                    aiClient.post().uri(url).body(request).retrieve().body(JsonNode.class);
+            if (response == null) {
+                throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+            }
+            return response;
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("[LoadtestResume] request failed url={} error={}", url, e.getMessage());
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+    }
+
     private CreatedMockUser createMockUser(MockIdentity identity, UserStatus status) {
         authRepository
                 .findByProviderAndProviderUserId(MOCK_PROVIDER, identity.providerUserId())
@@ -228,7 +262,7 @@ public class LoadtestAuthService {
     }
 
     private Position resolveDefaultPositionForActiveMock() {
-        Long defaultPositionId = loadtestMockAuthProperties.getDefaultPositionId();
+        Long defaultPositionId = loadtestProperties.getMockAuth().getDefaultPositionId();
         if (defaultPositionId == null || defaultPositionId <= 0) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
@@ -326,7 +360,7 @@ public class LoadtestAuthService {
     }
 
     private int normalizeBulkCount(Integer count) {
-        int maxBulkCount = Math.max(1, loadtestMockAuthProperties.getMaxBulkCount());
+        int maxBulkCount = Math.max(1, loadtestProperties.getMockAuth().getMaxBulkCount());
         if (count == null || count <= 0 || count > maxBulkCount) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
@@ -379,19 +413,19 @@ public class LoadtestAuthService {
     }
 
     private String normalizeRunId(String runId) {
-        return normalizeIdentifier(runId, 64);
+        return normalizeIdentifier(runId);
     }
 
     private String normalizeUserKey(String userKey) {
-        return normalizeIdentifier(userKey, 64);
+        return normalizeIdentifier(userKey);
     }
 
-    private String normalizeIdentifier(String value, int maxLength) {
+    private String normalizeIdentifier(String value) {
         if (value == null || value.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
         String trimmed = value.trim();
-        if (trimmed.length() > maxLength) {
+        if (trimmed.length() > 64) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
         for (int i = 0; i < trimmed.length(); i++) {
