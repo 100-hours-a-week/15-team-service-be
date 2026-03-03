@@ -42,6 +42,7 @@ S3_SECRET_KEY="$(get_ssm "${PARAM_BASE}/S3_SECRET_KEY")"
 
 AI_BASE_URL="$(get_ssm "${PARAM_BASE}/AI_BASE_URL")"
 AI_GENERATE_PATH="$(get_ssm "${PARAM_BASE}/AI_GENERATE_PATH")"
+AI_GENERATE_PATH_TEST="$(get_ssm "${PARAM_BASE}/AI_GENERATE_PATH_TEST")"
 AI_EDIT_PATH="$(get_ssm "${PARAM_BASE}/AI_EDIT_PATH")"
 AI_CALLBACK_PATH="$(get_ssm "${PARAM_BASE_STAGING}/AI_CALLBACK_PATH")"
 
@@ -135,6 +136,8 @@ app:
     mock-auth:
       enabled: false
       default-position-id: 0
+    mock-ai:
+      resume-generate-path: "${AI_GENERATE_PATH_TEST}"
 
 security:
   jwt:
