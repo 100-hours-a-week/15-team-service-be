@@ -6,9 +6,8 @@ import com.sipomeokjo.commitme.domain.resume.event.ResumeEditCompletedEvent;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeEditFailedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 @Service
 @RequiredArgsConstructor
@@ -19,7 +18,7 @@ public class ResumeSseService {
 
     private final NotificationSseService notificationSseService;
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void handleEditCompleted(ResumeEditCompletedEvent event) {
         if (event == null || event.userId() == null || event.resumeId() == null) {
             return;
@@ -36,7 +35,7 @@ public class ResumeSseService {
                         event.resumeId(), event.versionNo(), STATUS_SUCCEEDED));
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @EventListener
     public void handleEditFailed(ResumeEditFailedEvent event) {
         if (event == null || event.userId() == null || event.resumeId() == null) {
             return;
