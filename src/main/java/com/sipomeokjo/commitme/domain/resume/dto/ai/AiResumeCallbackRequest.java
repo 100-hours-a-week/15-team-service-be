@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.List;
 
 public record AiResumeCallbackRequest(
-        String jobId,
+        @JsonAlias("job_id") String jobId,
         String status,
         @JsonAlias("resume") ResumePayload content,
         ErrorPayload error) {
