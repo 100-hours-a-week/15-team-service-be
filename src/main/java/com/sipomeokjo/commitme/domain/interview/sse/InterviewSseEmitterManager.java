@@ -56,6 +56,10 @@ public class InterviewSseEmitterManager {
         remove(interviewId);
     }
 
+    public void sendAllQuestionsComplete(Long interviewId) {
+        send(interviewId, "allQuestionsComplete", Map.of("message", "모든 질문이 완료되었습니다."));
+    }
+
     public void send(Long interviewId, String eventName, Object data) {
         SseEmitter emitter = emitters.get(interviewId);
         if (emitter == null) {

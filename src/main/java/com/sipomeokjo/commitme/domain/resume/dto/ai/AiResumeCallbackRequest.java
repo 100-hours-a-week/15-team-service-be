@@ -8,7 +8,6 @@ public record AiResumeCallbackRequest(
         String status,
         @JsonAlias("resume") ResumePayload content,
         ErrorPayload error) {
-
     public record ResumePayload(List<String> techStack, List<ProjectPayload> projects) {}
 
     public record ProjectPayload(
