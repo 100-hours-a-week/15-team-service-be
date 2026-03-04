@@ -397,6 +397,7 @@ public class InterviewCommandService {
                                 interviewId)
                         .orElse(null);
         if (nextQuestion == null) {
+            sseEmitterManager.sendAllQuestionsComplete(interviewId);
             return;
         }
 
