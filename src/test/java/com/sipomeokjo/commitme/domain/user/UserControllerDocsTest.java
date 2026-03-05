@@ -168,22 +168,28 @@ class UserControllerDocsTest {
                                                 .requestFields(
                                                         fieldWithPath("profileImageUrl")
                                                                 .type(JsonFieldType.STRING)
-                                                                .description("프로필 이미지 URL"),
+                                                                .description("프로필 이미지 URL")
+                                                                .optional(),
                                                         fieldWithPath("name")
                                                                 .type(JsonFieldType.STRING)
-                                                                .description("이름"),
+                                                                .description("이름")
+                                                                .optional(),
                                                         fieldWithPath("positionId")
                                                                 .type(JsonFieldType.NUMBER)
-                                                                .description("포지션 ID"),
+                                                                .description("포지션 ID")
+                                                                .optional(),
                                                         fieldWithPath("phone")
                                                                 .type(JsonFieldType.STRING)
-                                                                .description("전화번호"),
+                                                                .description("전화번호")
+                                                                .optional(),
                                                         fieldWithPath("privacyAgreed")
                                                                 .type(JsonFieldType.BOOLEAN)
-                                                                .description("개인정보 동의"),
+                                                                .description("개인정보 동의")
+                                                                .optional(),
                                                         fieldWithPath("phonePolicyAgreed")
                                                                 .type(JsonFieldType.BOOLEAN)
-                                                                .description("전화번호 개인정보 동의"))
+                                                                .description("전화번호 개인정보 동의")
+                                                                .optional())
                                                 .responseFields(
                                                         fieldWithPath("code")
                                                                 .type(JsonFieldType.STRING)

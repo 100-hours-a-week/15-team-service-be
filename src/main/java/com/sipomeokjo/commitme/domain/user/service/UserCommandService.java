@@ -8,7 +8,7 @@ import com.sipomeokjo.commitme.domain.policy.entity.PolicyAgreement;
 import com.sipomeokjo.commitme.domain.policy.entity.PolicyType;
 import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
-import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
+import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
@@ -33,7 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserCommandService {
 
     private final UserRepository userRepository;
-    private final PositionRepository positionRepository;
+    private final UserFinder userFinder;
+    private final PositionFinder positionFinder;
     private final PolicyAgreementRepository policyAgreementRepository;
     private final UserMapper userMapper;
     private final S3UploadService s3UploadService;
@@ -68,33 +69,38 @@ public class UserCommandService {
     }
 
     public UserUpdateResponse updateProfile(Long userId, UserUpdateRequest request) {
-        User user =
-                userRepository
-                        .findById(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = userFinder.getByIdOrThrow(userId);
 
-        validateName(request.name());
-        Position position = resolvePosition(request.positionId());
-        validatePrivacyAgreement(request.privacyAgreed());
-        validatePhonePolicy(request.phone(), request.phonePolicyAgreed());
-        validatePhone(request.phone());
+        Position nextPosition = user.getPosition();
+        String nextName = user.getName();
+        String nextPhone = user.getPhone();
+        String nextProfileImageUrl = user.getProfileImageUrl();
 
-        String nextPhone = request.phone();
-        String nextProfileImageUrl = s3UploadService.toS3Key(request.profileImageUrl());
+        if (request.positionId() != null) {
+            nextPosition = resolvePosition(request.positionId());
+        }
+        if (request.name() != null) {
+            validateName(request.name());
+            nextName = request.name().trim();
+        }
+        if (request.phone() != null) {
+            validatePhone(request.phone());
+            nextPhone = request.phone();
+        }
+        if (request.profileImageUrl() != null) {
+            nextProfileImageUrl = s3UploadService.toS3Key(request.profileImageUrl());
+        }
 
-        user.updateProfile(position, request.name().trim(), nextPhone, nextProfileImageUrl);
+        user.updateProfile(nextPosition, nextName, nextPhone, nextProfileImageUrl);
 
-        savePrivacyAgreements(user, nextPhone);
+        updatePolicyAgreements(user, request.privacyAgreed(), request.phonePolicyAgreed());
 
         String profileImageUrl = s3UploadService.toCdnUrl(user.getProfileImageUrl());
         return userMapper.toUpdateResponse(user, profileImageUrl);
     }
 
     public void deactivate(Long userId) {
-        User user =
-                userRepository
-                        .findById(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = userFinder.getByIdOrThrow(userId);
         user.deactivate(Instant.now(clock));
         refreshTokenRepository.revokeAllByUserId(userId, Instant.now(clock));
 
@@ -141,9 +147,7 @@ public class UserCommandService {
         if (positionId <= 0) {
             throw new BusinessException(ErrorCode.USER_POSITION_INVALID);
         }
-        return positionRepository
-                .findById(positionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+        return positionFinder.getByIdOrThrow(positionId);
     }
 
     private void validatePrivacyAgreement(Boolean privacyAgreed) {
@@ -178,6 +182,25 @@ public class UserCommandService {
         }
 
         policyAgreementRepository.save(buildPolicyAgreement(user, PolicyType.PHONE_PRIVACY));
+    }
+
+    private void updatePolicyAgreements(
+            User user, Boolean privacyAgreed, Boolean phonePolicyAgreed) {
+        if (Boolean.TRUE.equals(privacyAgreed)) {
+            policyAgreementRepository.save(buildPolicyAgreement(user, PolicyType.PRIVACY));
+        }
+
+        if (phonePolicyAgreed == null) {
+            return;
+        }
+
+        if (phonePolicyAgreed) {
+            policyAgreementRepository.save(buildPolicyAgreement(user, PolicyType.PHONE_PRIVACY));
+            return;
+        }
+
+        policyAgreementRepository.deleteAllByUser_IdAndPolicyType(
+                user.getId(), PolicyType.PHONE_PRIVACY);
     }
 
     private PolicyAgreement buildPolicyAgreement(User user, PolicyType policyType) {
