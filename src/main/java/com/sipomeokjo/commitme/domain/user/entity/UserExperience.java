@@ -60,4 +60,54 @@ public class UserExperience extends BaseEntity {
 
     @Column(columnDefinition = "text")
     private String description;
+
+    public static UserExperience create(
+            User user,
+            String companyName,
+            String positionTitle,
+            String departmentName,
+            EmploymentType employmentType,
+            Short startYear,
+            Byte startMonth,
+            Short endYear,
+            Byte endMonth,
+            boolean isCurrent,
+            String description) {
+        UserExperience experience = new UserExperience();
+        experience.user = user;
+        experience.companyName = companyName;
+        experience.positionTitle = positionTitle;
+        experience.departmentName = departmentName;
+        experience.employmentType = employmentType;
+        experience.startYear = startYear;
+        experience.startMonth = startMonth;
+        experience.endYear = endYear;
+        experience.endMonth = endMonth;
+        experience.isCurrent = isCurrent;
+        experience.description = description;
+        return experience;
+    }
+
+    public void update(
+            String companyName,
+            String positionTitle,
+            String departmentName,
+            EmploymentType employmentType,
+            Short startYear,
+            Byte startMonth,
+            Short endYear,
+            Byte endMonth,
+            boolean isCurrent,
+            String description) {
+        this.companyName = companyName;
+        this.positionTitle = positionTitle;
+        this.departmentName = departmentName;
+        this.employmentType = employmentType;
+        this.startYear = startYear;
+        this.startMonth = startMonth;
+        this.endYear = endYear;
+        this.endMonth = endMonth;
+        this.isCurrent = isCurrent;
+        this.description = description;
+    }
 }

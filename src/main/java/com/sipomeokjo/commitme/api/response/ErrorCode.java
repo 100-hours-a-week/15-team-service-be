@@ -49,6 +49,13 @@ public enum ErrorCode implements ResponseCode {
     INVALID_RESUME_NAME(HttpStatus.BAD_REQUEST, "RESUME_NAME_400", "이력서 이름이 올바르지 않습니다."),
     RESUME_EDIT_IN_PROGRESS(HttpStatus.CONFLICT, "RESUME_EDIT_IN_PROGRESS", "이력서 수정 작업이 진행 중입니다."),
 
+    // 이력서 개인정보
+    RESUME_PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "RESUME_PROFILE_404", "이력서 프로필을 찾을 수 없습니다."),
+    RESUME_PROFILE_DUPLICATE_NAME(
+            HttpStatus.CONFLICT, "RESUME_PROFILE_DUPLICATE_NAME", "이미 사용 중인 이력서 이름입니다."),
+    INVALID_RESUME_PROFILE_INPUT(
+            HttpStatus.BAD_REQUEST, "INVALID_RESUME_PROFILE_INPUT", "이력서 프로필 입력이 올바르지 않습니다."),
+
     // 채팅
     CHATROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHATROOM_NOT_FOUND", "채팅방을 찾을 수 없습니다."),
     CHAT_MESSAGE_INVALID(HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_INVALID", "메시지 또는 첨부파일이 필요합니다."),

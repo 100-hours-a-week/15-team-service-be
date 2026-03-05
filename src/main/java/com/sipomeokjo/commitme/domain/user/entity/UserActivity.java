@@ -39,4 +39,22 @@ public class UserActivity extends BaseEntity {
 
     @Column(columnDefinition = "text")
     private String description;
+
+    public static UserActivity create(
+            User user, String title, String organization, Short year, String description) {
+        UserActivity activity = new UserActivity();
+        activity.user = user;
+        activity.activityName = title;
+        activity.organization = organization;
+        activity.activityYear = year;
+        activity.description = description;
+        return activity;
+    }
+
+    public void update(String title, String organization, Short year, String description) {
+        this.activityName = title;
+        this.organization = organization;
+        this.activityYear = year;
+        this.description = description;
+    }
 }

@@ -48,4 +48,38 @@ public class UserCertificate extends BaseEntity {
 
     @Column(name = "acquired_month", nullable = false)
     private Byte acquiredMonth;
+
+    public static UserCertificate create(
+            User user,
+            CertificateType type,
+            String title,
+            String gradeOrScore,
+            String issuer,
+            Short acquiredYear,
+            Byte acquiredMonth) {
+        UserCertificate certificate = new UserCertificate();
+        certificate.user = user;
+        certificate.type = type;
+        certificate.title = title;
+        certificate.gradeOrScore = gradeOrScore;
+        certificate.issuer = issuer;
+        certificate.acquiredYear = acquiredYear;
+        certificate.acquiredMonth = acquiredMonth;
+        return certificate;
+    }
+
+    public void update(
+            CertificateType type,
+            String title,
+            String gradeOrScore,
+            String issuer,
+            Short acquiredYear,
+            Byte acquiredMonth) {
+        this.type = type;
+        this.title = title;
+        this.gradeOrScore = gradeOrScore;
+        this.issuer = issuer;
+        this.acquiredYear = acquiredYear;
+        this.acquiredMonth = acquiredMonth;
+    }
 }

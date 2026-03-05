@@ -1,5 +1,6 @@
 package com.sipomeokjo.commitme.domain.user.entity;
 
+import com.sipomeokjo.commitme.global.BaseEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -16,7 +17,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "user_tech_stacks")
 @IdClass(UserTechStackId.class)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class UserTechStack {
+public class UserTechStack extends BaseEntity {
 
     @Id
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

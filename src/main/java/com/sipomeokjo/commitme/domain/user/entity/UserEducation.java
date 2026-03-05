@@ -55,4 +55,46 @@ public class UserEducation extends BaseEntity {
 
     @Column(name = "end_month")
     private Byte endMonth;
+
+    public static UserEducation create(
+            User user,
+            EducationType type,
+            String institution,
+            String majorField,
+            EducationStatus status,
+            Short startYear,
+            Byte startMonth,
+            Short endYear,
+            Byte endMonth) {
+        UserEducation education = new UserEducation();
+        education.user = user;
+        education.type = type;
+        education.institution = institution;
+        education.majorField = majorField;
+        education.status = status;
+        education.startYear = startYear;
+        education.startMonth = startMonth;
+        education.endYear = endYear;
+        education.endMonth = endMonth;
+        return education;
+    }
+
+    public void update(
+            EducationType type,
+            String institution,
+            String majorField,
+            EducationStatus status,
+            Short startYear,
+            Byte startMonth,
+            Short endYear,
+            Byte endMonth) {
+        this.type = type;
+        this.institution = institution;
+        this.majorField = majorField;
+        this.status = status;
+        this.startYear = startYear;
+        this.startMonth = startMonth;
+        this.endYear = endYear;
+        this.endMonth = endMonth;
+    }
 }
