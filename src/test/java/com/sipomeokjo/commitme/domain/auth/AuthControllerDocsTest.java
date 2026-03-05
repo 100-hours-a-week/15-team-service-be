@@ -115,7 +115,7 @@ class AuthControllerDocsTest {
         CorsProperties corsProperties() {
             return new CorsProperties(
                     List.of("http://localhost:5173"),
-                    List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"),
+                    List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"),
                     List.of("*"),
                     List.of(HttpHeaders.SET_COOKIE),
                     true,

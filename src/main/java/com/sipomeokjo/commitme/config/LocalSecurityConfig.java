@@ -53,6 +53,7 @@ public class LocalSecurityConfig {
                                         .denyAll()
                                         .anyRequest()
                                         .permitAll())
+                .cors(Customizer.withDefaults())
                 .httpBasic(Customizer.withDefaults())
                 .addFilterAfter(
                         new CsrfTokenResponseCookieFilter(csrfTokenRepository), CsrfFilter.class)

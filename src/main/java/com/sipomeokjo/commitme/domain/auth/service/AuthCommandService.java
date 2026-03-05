@@ -128,8 +128,8 @@ public class AuthCommandService {
                     deletedAt);
             throw new BusinessException(ErrorCode.OAUTH_ACCOUNT_WITHDRAWN);
         }
-		
-		User newUser = userRepository.save(User.builder().status(UserStatus.PENDING).build());
+
+        User newUser = userRepository.save(User.builder().status(UserStatus.PENDING).build());
         userSettingRepository.save(UserSetting.defaultSetting(newUser));
         auth.rebindUser(newUser);
         log.info(
