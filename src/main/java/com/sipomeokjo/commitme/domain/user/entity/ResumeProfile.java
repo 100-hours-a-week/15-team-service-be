@@ -37,18 +37,53 @@ public class ResumeProfile extends BaseEntity {
     @Column(columnDefinition = "text")
     private String summary;
 
-    public static ResumeProfile create(User user, String phoneCountryCode, String phoneNationalNumber, String summary) {
+    public static ResumeProfile create(
+            User user, String phoneCountryCode, String phoneNationalNumber, String summary) {
         ResumeProfile profile = new ResumeProfile();
         profile.user = user;
-        profile.phoneCountryCode = phoneCountryCode;
-        profile.phoneNationalNumber = phoneNationalNumber;
-        profile.summary = summary;
+        profile.update(phoneCountryCode, phoneNationalNumber, summary);
         return profile;
     }
 
     public void update(String phoneCountryCode, String phoneNationalNumber, String summary) {
-        this.phoneCountryCode = phoneCountryCode;
-        this.phoneNationalNumber = phoneNationalNumber;
-        this.summary = summary;
+        String normalizedCountryCode = normalizeNullable(phoneCountryCode);
+        String normalizedPhoneNumber = normalizeNullable(phoneNationalNumber);
+
+        validatePhone(normalizedCountryCode, normalizedPhoneNumber);
+
+        this.phoneCountryCode = normalizedCountryCode;
+        this.phoneNationalNumber = normalizedPhoneNumber;
+        this.summary = normalizeNullable(summary);
+    }
+
+    private void validatePhone(String countryCode, String number) {
+        if (countryCode == null && number == null) {
+            return;
+        }
+
+        if (countryCode == null) {
+            throw new ResumeProfileValidationException(
+                    ResumeProfileValidationException.Reason.PHONE_COUNTRY_CODE_REQUIRED);
+        }
+        if (number == null) {
+            throw new ResumeProfileValidationException(
+                    ResumeProfileValidationException.Reason.PHONE_NUMBER_REQUIRED);
+        }
+        if (!countryCode.matches("\\+\\d{1,3}")) {
+            throw new ResumeProfileValidationException(
+                    ResumeProfileValidationException.Reason.PHONE_COUNTRY_CODE_INVALID);
+        }
+        if (!number.matches("\\d{4,12}")) {
+            throw new ResumeProfileValidationException(
+                    ResumeProfileValidationException.Reason.PHONE_NUMBER_INVALID);
+        }
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

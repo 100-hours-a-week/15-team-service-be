@@ -16,6 +16,7 @@ import com.sipomeokjo.commitme.domain.user.dto.UserUpdateResponse;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.mapper.UserMapper;
+import com.sipomeokjo.commitme.domain.user.mapper.UserValidationExceptionMapper;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -34,6 +35,7 @@ class UserCommandServiceTest {
     @Mock private PositionFinder positionFinder;
     @Mock private PolicyAgreementRepository policyAgreementRepository;
     @Mock private UserMapper userMapper;
+    @Mock private UserValidationExceptionMapper userValidationExceptionMapper;
     @Mock private S3UploadService s3UploadService;
     @Mock private AuthRepository authRepository;
     @Mock private RefreshTokenRepository refreshTokenRepository;
@@ -45,15 +47,16 @@ class UserCommandServiceTest {
         Clock clock = Clock.fixed(Instant.parse("2026-03-01T00:00:00Z"), ZoneOffset.UTC);
         userCommandService =
                 new UserCommandService(
-                        userRepository,
-                        userFinder,
-                        positionFinder,
-                        policyAgreementRepository,
-                        userMapper,
-                        s3UploadService,
+                        clock,
                         authRepository,
                         refreshTokenRepository,
-                        clock);
+                        userRepository,
+                        policyAgreementRepository,
+                        s3UploadService,
+                        userFinder,
+                        positionFinder,
+                        userMapper,
+                        userValidationExceptionMapper);
     }
 
     @Test
