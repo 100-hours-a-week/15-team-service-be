@@ -49,6 +49,75 @@ public enum ErrorCode implements ResponseCode {
     INVALID_RESUME_NAME(HttpStatus.BAD_REQUEST, "RESUME_NAME_400", "이력서 이름이 올바르지 않습니다."),
     RESUME_EDIT_IN_PROGRESS(HttpStatus.CONFLICT, "RESUME_EDIT_IN_PROGRESS", "이력서 수정 작업이 진행 중입니다."),
 
+    // 이력서 개인정보
+    RESUME_PROFILE_NOT_FOUND(HttpStatus.NOT_FOUND, "RESUME_PROFILE_404", "이력서 프로필을 찾을 수 없습니다."),
+    RESUME_PROFILE_DUPLICATE_NAME(
+            HttpStatus.CONFLICT, "RESUME_PROFILE_DUPLICATE_NAME", "이미 사용 중인 이력서 이름입니다."),
+    INVALID_RESUME_PROFILE_INPUT(
+            HttpStatus.BAD_REQUEST, "INVALID_RESUME_PROFILE_INPUT", "이력서 프로필 입력이 올바르지 않습니다."),
+    RESUME_PROFILE_NAME_REQUIRED(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_NAME_REQUIRED", "이름은 필수 입력 값입니다."),
+    RESUME_PROFILE_NAME_LENGTH_OUT_OF_RANGE(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_NAME_LENGTH_OUT_OF_RANGE",
+            "이름은 최대 10자 이하여야 합니다."),
+    RESUME_PROFILE_PHONE_COUNTRY_CODE_REQUIRED(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_PHONE_COUNTRY_CODE_REQUIRED",
+            "국가번호와 전화번호는 함께 입력해야 합니다."),
+    RESUME_PROFILE_PHONE_NUMBER_REQUIRED(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_PHONE_NUMBER_REQUIRED",
+            "국가번호와 전화번호는 함께 입력해야 합니다."),
+    RESUME_PROFILE_PHONE_COUNTRY_CODE_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_PHONE_COUNTRY_CODE_INVALID",
+            "국가번호 형식이 올바르지 않습니다."),
+    RESUME_PROFILE_PHONE_NUMBER_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_PHONE_NUMBER_INVALID", "전화번호 형식이 올바르지 않습니다."),
+    RESUME_PROFILE_TECH_STACK_LIMIT_EXCEEDED(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_TECH_STACK_LIMIT_EXCEEDED",
+            "기술 스택은 최대 10개까지 입력할 수 있습니다."),
+    RESUME_PROFILE_EXPERIENCE_LIMIT_EXCEEDED(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_EXPERIENCE_LIMIT_EXCEEDED",
+            "경력은 최대 5개까지 입력할 수 있습니다."),
+    RESUME_PROFILE_EDUCATION_LIMIT_EXCEEDED(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_EDUCATION_LIMIT_EXCEEDED",
+            "학력은 최대 5개까지 입력할 수 있습니다."),
+    RESUME_PROFILE_ACTIVITY_LIMIT_EXCEEDED(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_ACTIVITY_LIMIT_EXCEEDED",
+            "대외활동은 최대 10개까지 입력할 수 있습니다."),
+    RESUME_PROFILE_CERTIFICATE_LIMIT_EXCEEDED(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_CERTIFICATE_LIMIT_EXCEEDED",
+            "자격증은 최대 10개까지 입력할 수 있습니다."),
+    RESUME_PROFILE_ITEM_ID_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_ITEM_ID_INVALID", "수정 대상 항목 ID가 올바르지 않습니다."),
+    RESUME_PROFILE_DATE_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_DATE_INVALID", "날짜 형식이 올바르지 않습니다."),
+    RESUME_PROFILE_EXPERIENCE_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_EXPERIENCE_INVALID", "경력 입력값이 올바르지 않습니다."),
+    RESUME_PROFILE_EDUCATION_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_EDUCATION_INVALID", "학력 입력값이 올바르지 않습니다."),
+    RESUME_PROFILE_ACTIVITY_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_ACTIVITY_INVALID", "대외활동 입력값이 올바르지 않습니다."),
+    RESUME_PROFILE_CERTIFICATE_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_CERTIFICATE_INVALID", "자격증 입력값이 올바르지 않습니다."),
+    RESUME_PROFILE_EMPLOYMENT_TYPE_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_EMPLOYMENT_TYPE_INVALID",
+            "고용 형태 값이 올바르지 않습니다."),
+    RESUME_PROFILE_EDUCATION_TYPE_INVALID(
+            HttpStatus.BAD_REQUEST, "RESUME_PROFILE_EDUCATION_TYPE_INVALID", "학력 구분 값이 올바르지 않습니다."),
+    RESUME_PROFILE_EDUCATION_STATUS_INVALID(
+            HttpStatus.BAD_REQUEST,
+            "RESUME_PROFILE_EDUCATION_STATUS_INVALID",
+            "학력 상태 값이 올바르지 않습니다."),
+
     // 채팅
     CHATROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHATROOM_NOT_FOUND", "채팅방을 찾을 수 없습니다."),
     CHAT_MESSAGE_INVALID(HttpStatus.BAD_REQUEST, "CHAT_MESSAGE_INVALID", "메시지 또는 첨부파일이 필요합니다."),

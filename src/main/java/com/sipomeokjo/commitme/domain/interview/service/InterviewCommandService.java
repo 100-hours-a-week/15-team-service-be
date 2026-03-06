@@ -25,12 +25,12 @@ import com.sipomeokjo.commitme.domain.interview.repository.InterviewMessageRepos
 import com.sipomeokjo.commitme.domain.interview.repository.InterviewRepository;
 import com.sipomeokjo.commitme.domain.interview.sse.InterviewSseEmitterManager;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
-import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
+import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
-import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
+import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,8 +47,8 @@ public class InterviewCommandService {
     private final InterviewRepository interviewRepository;
     private final InterviewMessageRepository interviewMessageRepository;
     private final InterviewMapper interviewMapper;
-    private final UserRepository userRepository;
-    private final PositionRepository positionRepository;
+    private final UserFinder userFinder;
+    private final PositionFinder positionFinder;
     private final CompanyRepository companyRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final InterviewAiService interviewAiService;
@@ -82,15 +82,9 @@ public class InterviewCommandService {
     }
 
     public InterviewStartResponse create(Long userId, InterviewCreateRequest request) {
-        User user =
-                userRepository
-                        .findById(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = userFinder.getByIdOrThrow(userId);
 
-        Position position =
-                positionRepository
-                        .findById(request.positionId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+        Position position = positionFinder.getByIdOrThrow(request.positionId());
 
         Company company = null;
         if (request.companyId() != null) {

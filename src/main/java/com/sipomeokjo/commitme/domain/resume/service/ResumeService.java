@@ -9,7 +9,7 @@ import com.sipomeokjo.commitme.api.validation.KeywordValidator;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
-import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
+import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.resume.dto.*;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
@@ -19,7 +19,7 @@ import com.sipomeokjo.commitme.domain.resume.mapper.ResumeMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
-import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
+import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,12 +36,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class ResumeService {
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
-    private final UserRepository userRepository;
+    private final UserFinder userFinder;
+    private final ResumeFinder resumeFinder;
+    private final PositionFinder positionFinder;
+    private final CompanyRepository companyRepository;
     private final CursorParser cursorParser;
     private final ResumeMapper resumeMapper;
-
-    private final PositionRepository positionRepository;
-    private final CompanyRepository companyRepository;
 
     private final ApplicationEventPublisher eventPublisher;
     private final ResumeAiRequestService resumeAiRequestService;
@@ -89,10 +89,7 @@ public class ResumeService {
 
     public Long create(Long userId, ResumeCreateRequest req) {
 
-        User user =
-                userRepository
-                        .findByIdWithLock(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = userFinder.getByIdWithLockOrThrow(userId);
 
         boolean hasPending =
                 resumeVersionRepository.existsByUserIdAndStatusIn(
@@ -108,10 +105,7 @@ public class ResumeService {
 
         if (req.getPositionId() == null)
             throw new BusinessException(ErrorCode.POSITION_SELECTION_REQUIRED);
-        Position position =
-                positionRepository
-                        .findById(req.getPositionId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+        Position position = positionFinder.getByIdOrThrow(req.getPositionId());
 
         String name = (req.getName() == null) ? "" : req.getName().trim();
         if (name.isEmpty()) {
@@ -152,10 +146,7 @@ public class ResumeService {
 
     public ResumeDetailDto get(Long userId, Long resumeId) {
 
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUserIdWithLock(resumeId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        Resume resume = resumeFinder.getByIdAndUserIdWithLockOrThrow(resumeId, userId);
         boolean isEditing =
                 resumeVersionRepository.existsByResume_IdAndStatusIn(
                         resume.getId(),
@@ -266,24 +257,26 @@ public class ResumeService {
                     updated.getAiTaskId(),
                     updated.getUpdatedAt());
         } catch (BusinessException e) {
-            resumeEditTransactionService.markEditFailed(prepared.resumeVersionId(), e.getMessage());
-            log.warn(
-                    "[RESUME_EDIT] ai_failed userId={} resumeId={} versionNo={} error={}",
-                    userId,
-                    resumeId,
-                    prepared.versionNo(),
-                    e.getMessage());
+            markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
             throw e;
         } catch (Exception e) {
-            resumeEditTransactionService.markEditFailed(prepared.resumeVersionId(), e.getMessage());
-            log.warn(
-                    "[RESUME_EDIT] ai_failed userId={} resumeId={} versionNo={} error={}",
-                    userId,
-                    resumeId,
-                    prepared.versionNo(),
-                    e.getMessage());
+            markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
+    }
+
+    private void markEditFailedAndLog(
+            Long userId,
+            Long resumeId,
+            ResumeEditTransactionService.EditPrepared prepared,
+            String errorMessage) {
+        resumeEditTransactionService.markEditFailed(prepared.resumeVersionId(), errorMessage);
+        log.warn(
+                "[RESUME_EDIT] ai_failed userId={} resumeId={} versionNo={} error={}",
+                userId,
+                resumeId,
+                prepared.versionNo(),
+                errorMessage);
     }
 
     public void saveVersion(Long userId, Long resumeId, int versionNo) {

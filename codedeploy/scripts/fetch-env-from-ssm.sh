@@ -126,6 +126,7 @@ app:
       - "GET"
       - "POST"
       - "PATCH"
+      - "PUT"
       - "DELETE"
       - "OPTIONS"
     allowed-headers:
