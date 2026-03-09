@@ -99,8 +99,10 @@ public class InterviewCommandService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
+        String companyNameForAi = resolveCompanyName(company, request.companyName());
+
         AiInterviewGenerateRequest generateRequest =
-                buildGenerateRequest(resumeVersion, request.interviewType(), position.getName());
+                buildGenerateRequest(resumeVersion, request.interviewType(), position.getName(), companyNameForAi);
 
         String interviewName = generateInterviewName(position.getName(), request.interviewType());
 
@@ -243,6 +245,16 @@ public class InterviewCommandService {
         };
     }
 
+    private String resolveCompanyName(Company company, String companyName) {
+        if (company != null) {
+            return company.getName();
+        }
+        if (companyName != null && !companyName.isBlank()) {
+            return companyName;
+        }
+        return null;
+    }
+
     private ResumeVersion resolveResumeVersion(InterviewCreateRequest request) {
         if (request.resumeVersionId() != null) {
             return resumeVersionRepository.findById(request.resumeVersionId()).orElse(null);
@@ -262,7 +274,7 @@ public class InterviewCommandService {
     }
 
     private AiInterviewGenerateRequest buildGenerateRequest(
-            ResumeVersion resumeVersion, InterviewType type, String position) {
+            ResumeVersion resumeVersion, InterviewType type, String position, String companyName) {
         JsonNode root = parseResumeContent(resumeVersion.getContent());
         JsonNode projectsNode = root == null ? null : root.get("projects");
         JsonNode techStackNode = root == null ? null : root.get("techStack");
@@ -286,7 +298,8 @@ public class InterviewCommandService {
                 resumeVersion.getResume().getId().intValue(),
                 new AiInterviewGenerateRequest.ResumeContent(projects),
                 type.name().toLowerCase(),
-                position);
+                position,
+                companyName);
     }
 
     private JsonNode parseResumeContent(String content) {
