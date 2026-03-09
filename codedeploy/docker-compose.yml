@@ -1,0 +1,22 @@
+services:
+  be-api:
+    container_name: be-api
+    image: ${BACKEND_IMAGE_URI}
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_ACTIVE_PROFILE}
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/config/
+    volumes:
+      - ${SPRING_CONFIG_FILE}:/config/${SPRING_CONFIG_BASENAME}:ro
+
+  alloy:
+    container_name: alloy
+    image: ${ALLOY_IMAGE_URI}
+    restart: always
+    command:
+      - run
+      - /etc/alloy/config.alloy
+    volumes:
+      - ${ALLOY_CONFIG_FILE}:/etc/alloy/config.alloy:ro
