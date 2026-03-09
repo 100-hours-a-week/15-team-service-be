@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public record AiInterviewGenerateRequest(
-        Integer resumeId, ResumeContent content, String type, String position) {
+        Integer resumeId, ResumeContent content, String type, String position, String company) {
 
     public record ResumeContent(List<ProjectPayload> projects) {}
 
