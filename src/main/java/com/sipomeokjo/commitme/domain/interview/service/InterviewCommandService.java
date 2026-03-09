@@ -102,7 +102,11 @@ public class InterviewCommandService {
         String companyNameForAi = resolveCompanyName(company, request.companyName());
 
         AiInterviewGenerateRequest generateRequest =
-                buildGenerateRequest(resumeVersion, request.interviewType(), position.getName(), companyNameForAi);
+                buildGenerateRequest(
+                        resumeVersion,
+                        request.interviewType(),
+                        position.getName(),
+                        companyNameForAi);
 
         String interviewName = generateInterviewName(position.getName(), request.interviewType());
 
