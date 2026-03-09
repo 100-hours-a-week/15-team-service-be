@@ -84,7 +84,7 @@ spring:
     
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     properties:
       hibernate:
         format_sql: false
