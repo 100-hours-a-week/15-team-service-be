@@ -18,5 +18,8 @@ services:
     command:
       - run
       - /etc/alloy/config.alloy
+    environment:
+      ALLOY_INSTANCE_ID: ${ALLOY_INSTANCE_ID}
     volumes:
       - ${ALLOY_CONFIG_FILE}:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock
