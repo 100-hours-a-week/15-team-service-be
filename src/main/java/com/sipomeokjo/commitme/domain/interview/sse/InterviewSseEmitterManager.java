@@ -8,6 +8,7 @@ import com.sipomeokjo.commitme.api.sse.distributed.SseInstanceIdProvider;
 import com.sipomeokjo.commitme.api.sse.distributed.SseLocalDeliveryHandler;
 import com.sipomeokjo.commitme.api.sse.distributed.SseRouteKey;
 import com.sipomeokjo.commitme.api.sse.distributed.SseRouteRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
@@ -32,25 +33,36 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
     private final SseDeliveryBus sseDeliveryBus;
     private final SseInstanceIdProvider sseInstanceIdProvider;
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     public SseEmitter create(Long interviewId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
+        meterRegistry.counter("interview_sse_subscribe_total").increment();
 
         emitter.onCompletion(
                 () -> {
                     log.info("SSE completed for interview: {}", interviewId);
+                    meterRegistry
+                            .counter("interview_sse_disconnect_total", "reason", "completion")
+                            .increment();
                     removeIfCurrent(interviewId, emitter);
                 });
 
         emitter.onTimeout(
                 () -> {
                     log.info("SSE timeout for interview: {}", interviewId);
+                    meterRegistry
+                            .counter("interview_sse_disconnect_total", "reason", "timeout")
+                            .increment();
                     removeIfCurrent(interviewId, emitter);
                 });
 
         emitter.onError(
                 e -> {
                     log.error("SSE error for interview: {}", interviewId, e);
+                    meterRegistry
+                            .counter("interview_sse_disconnect_total", "reason", "error")
+                            .increment();
                     removeIfCurrent(interviewId, emitter);
                 });
 
@@ -145,13 +157,22 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
         Set<String> instanceIds;
         try {
             instanceIds = sseRouteRepository.findInstanceIds(routeKey);
+            meterRegistry
+                    .counter("interview_sse_route_lookup_total", "result", "success")
+                    .increment();
         } catch (Exception ex) {
+            meterRegistry
+                    .counter("interview_sse_route_lookup_total", "result", "failed")
+                    .increment();
             log.warn("[INTERVIEW_SSE] route_lookup_failed interviewId={}", interviewId, ex);
             sendLocal(interviewId, eventName, data);
             return;
         }
 
         if (instanceIds.isEmpty()) {
+            meterRegistry
+                    .counter("interview_sse_route_lookup_total", "result", "empty")
+                    .increment();
             log.debug(
                     "[INTERVIEW_SSE] route_instances_empty interviewId={} eventName={}",
                     interviewId,
@@ -181,7 +202,13 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
                                 null,
                                 payloadNode,
                                 null));
+                meterRegistry
+                        .counter("interview_sse_remote_publish_total", "result", "success")
+                        .increment();
             } catch (Exception ex) {
+                meterRegistry
+                        .counter("interview_sse_remote_publish_total", "result", "failed")
+                        .increment();
                 log.warn(
                         "[INTERVIEW_SSE] remote_publish_failed interviewId={} targetInstanceId={}",
                         interviewId,
@@ -200,12 +227,21 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
         SseEmitter emitter = emitters.get(interviewId);
         if (emitter == null) {
             log.warn("No SSE emitter found for interview: {}", interviewId);
+            meterRegistry
+                    .counter("interview_sse_local_delivery_total", "result", "no_emitter")
+                    .increment();
             return;
         }
 
         try {
             emitter.send(SseEmitter.event().name(eventName).data(data));
+            meterRegistry
+                    .counter("interview_sse_local_delivery_total", "result", "success")
+                    .increment();
         } catch (IOException e) {
+            meterRegistry
+                    .counter("interview_sse_local_delivery_total", "result", "failed")
+                    .increment();
             log.error("Failed to send SSE event for interview: {}", interviewId, e);
             removeIfCurrent(interviewId, emitter);
         }
@@ -218,7 +254,13 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
         Set<String> instanceIds;
         try {
             instanceIds = sseRouteRepository.findInstanceIds(routeKey);
+            meterRegistry
+                    .counter("interview_sse_route_lookup_total", "result", "success")
+                    .increment();
         } catch (Exception ex) {
+            meterRegistry
+                    .counter("interview_sse_route_lookup_total", "result", "failed")
+                    .increment();
             log.warn(
                     "[INTERVIEW_SSE] route_lookup_failed on remove interviewId={}",
                     interviewId,
@@ -244,7 +286,13 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
                                 null,
                                 null,
                                 null));
+                meterRegistry
+                        .counter("interview_sse_remote_publish_total", "result", "success")
+                        .increment();
             } catch (Exception ex) {
+                meterRegistry
+                        .counter("interview_sse_remote_publish_total", "result", "failed")
+                        .increment();
                 log.warn(
                         "[INTERVIEW_SSE] remote_remove_publish_failed interviewId={} targetInstanceId={}",
                         interviewId,
@@ -256,7 +304,13 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
         // 라우팅 정보 삭제
         try {
             sseRouteRepository.removeRoute(routeKey, localInstanceId);
+            meterRegistry
+                    .counter("interview_sse_route_remove_total", "result", "success")
+                    .increment();
         } catch (Exception ex) {
+            meterRegistry
+                    .counter("interview_sse_route_remove_total", "result", "failed")
+                    .increment();
             log.warn("[INTERVIEW_SSE] route_remove_failed interviewId={}", interviewId, ex);
         }
     }
@@ -275,7 +329,13 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
             try {
                 sseRouteRepository.removeRoute(
                         routeKey(interviewId), sseInstanceIdProvider.getInstanceId());
+                meterRegistry
+                        .counter("interview_sse_route_remove_total", "result", "success")
+                        .increment();
             } catch (Exception ex) {
+                meterRegistry
+                        .counter("interview_sse_route_remove_total", "result", "failed")
+                        .increment();
                 log.warn(
                         "[INTERVIEW_SSE] route_remove_failed on cleanup interviewId={}",
                         interviewId,
@@ -288,7 +348,13 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
         try {
             sseRouteRepository.upsertRoute(
                     routeKey(interviewId), sseInstanceIdProvider.getInstanceId(), ROUTE_TTL);
+            meterRegistry
+                    .counter("interview_sse_route_ttl_refresh_total", "result", "success")
+                    .increment();
         } catch (Exception ex) {
+            meterRegistry
+                    .counter("interview_sse_route_ttl_refresh_total", "result", "failed")
+                    .increment();
             log.warn("[INTERVIEW_SSE] route_ttl_refresh_failed interviewId={}", interviewId, ex);
         }
     }

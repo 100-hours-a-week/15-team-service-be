@@ -20,6 +20,7 @@ import com.sipomeokjo.commitme.domain.userSetting.entity.UserSetting;
 import com.sipomeokjo.commitme.domain.userSetting.repository.UserSettingRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import com.sipomeokjo.commitme.security.jwt.RefreshTokenProvider;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -51,6 +52,7 @@ public class AuthCommandService {
     private final RefreshTokenProvider refreshTokenProvider;
     private final GithubProperties githubProperties;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
     private final RestClient githubOAuthClient;
     private final RestClient githubApiClient;
 
@@ -178,25 +180,36 @@ public class AuthCommandService {
     private AuthTokenReissueResult reissueAccessTokenInternal(String refreshToken) {
         String tokenHash = refreshTokenProvider.hash(refreshToken);
         Instant now = Instant.now(clock);
-        var cached =
-                refreshTokenCacheService
-                        .get(tokenHash)
-                        .filter(value -> value.getExpiresAt().isAfter(now))
-                        .orElse(null);
-        if (cached != null) {
-            boolean revoked = authSessionIssueService.revokeRefreshToken(refreshToken);
-            if (!revoked) {
-                log.warn(
-                        "[Auth][TokenReissue] cached_token_revoke_failed tokenHashFingerprint={}",
-                        fingerprint(tokenHash));
-                throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        var cachedOptional = refreshTokenCacheService.get(tokenHash);
+        if (cachedOptional.isPresent()) {
+            var cached = cachedOptional.get();
+            if (!cached.getExpiresAt().isAfter(now)) {
+                meterRegistry
+                        .counter("auth_token_reissue_cache_lookup_total", "result", "expired")
+                        .increment();
+                refreshTokenCacheService.evict(tokenHash);
+            } else {
+                meterRegistry
+                        .counter("auth_token_reissue_cache_lookup_total", "result", "hit")
+                        .increment();
+                boolean revoked = authSessionIssueService.revokeRefreshToken(refreshToken);
+                if (!revoked) {
+                    log.warn(
+                            "[Auth][TokenReissue] cached_token_revoke_failed tokenHashFingerprint={}",
+                            fingerprint(tokenHash));
+                    throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+                }
+                UserStatus status = resolveCurrentUserStatus(cached.getUserId());
+                log.info(
+                        "[Auth][TokenReissue] cache_hit userId={} status={}",
+                        cached.getUserId(),
+                        status);
+                return authSessionIssueService.issueTokens(cached.getUserId(), status);
             }
-            UserStatus status = resolveCurrentUserStatus(cached.getUserId());
-            log.info(
-                    "[Auth][TokenReissue] cache_hit userId={} status={}",
-                    cached.getUserId(),
-                    status);
-            return authSessionIssueService.issueTokens(cached.getUserId(), status);
+        } else {
+            meterRegistry
+                    .counter("auth_token_reissue_cache_lookup_total", "result", "miss")
+                    .increment();
         }
 
         refreshTokenCacheService.evict(tokenHash);
