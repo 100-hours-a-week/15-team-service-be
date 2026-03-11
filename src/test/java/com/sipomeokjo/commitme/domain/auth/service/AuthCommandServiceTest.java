@@ -28,6 +28,7 @@ import com.sipomeokjo.commitme.domain.userSetting.entity.UserSetting;
 import com.sipomeokjo.commitme.domain.userSetting.repository.UserSettingRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import com.sipomeokjo.commitme.security.jwt.RefreshTokenProvider;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -43,6 +44,11 @@ import org.mockito.quality.Strictness;
 import org.springframework.http.MediaType;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClient.RequestBodySpec;
+import org.springframework.web.client.RestClient.RequestBodyUriSpec;
+import org.springframework.web.client.RestClient.RequestHeadersSpec;
+import org.springframework.web.client.RestClient.RequestHeadersUriSpec;
+import org.springframework.web.client.RestClient.ResponseSpec;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -57,14 +63,15 @@ class AuthCommandServiceTest {
     @Mock private AccessTokenCipher accessTokenCipher;
     @Mock private RefreshTokenProvider refreshTokenProvider;
     @Mock private GithubProperties githubProperties;
+    @Mock private MeterRegistry meterRegistry;
     @Mock private RestClient githubOAuthClient;
     @Mock private RestClient githubApiClient;
-    @Mock private RestClient.RequestBodyUriSpec oauthPostSpec;
-    @Mock private RestClient.RequestBodySpec oauthBodySpec;
-    @Mock private RestClient.RequestHeadersUriSpec apiGetSpec;
-    @Mock private RestClient.RequestHeadersSpec apiHeadersSpec;
-    @Mock private RestClient.ResponseSpec oauthResponseSpec;
-    @Mock private RestClient.ResponseSpec apiResponseSpec;
+    @Mock private RequestBodyUriSpec oauthPostSpec;
+    @Mock private RequestBodySpec oauthBodySpec;
+    @Mock private RequestHeadersUriSpec apiGetSpec;
+    @Mock private RequestHeadersSpec apiHeadersSpec;
+    @Mock private ResponseSpec oauthResponseSpec;
+    @Mock private ResponseSpec apiResponseSpec;
 
     private Clock clock;
     private AuthCommandService authCommandService;
@@ -84,6 +91,7 @@ class AuthCommandServiceTest {
                         refreshTokenProvider,
                         githubProperties,
                         clock,
+                        meterRegistry,
                         githubOAuthClient,
                         githubApiClient);
 
