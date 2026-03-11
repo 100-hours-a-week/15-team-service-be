@@ -3,6 +3,7 @@ package com.sipomeokjo.commitme.api.sse;
 import com.sipomeokjo.commitme.api.sse.distributed.SseInstanceIdProvider;
 import com.sipomeokjo.commitme.api.sse.distributed.SseRouteKey;
 import com.sipomeokjo.commitme.api.sse.distributed.SseRouteRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -24,9 +25,11 @@ public class SseHeartbeatScheduler {
     private final SseEmitterRegistry sseEmitterRegistry;
     private final SseRouteRepository sseRouteRepository;
     private final SseInstanceIdProvider sseInstanceIdProvider;
+    private final MeterRegistry meterRegistry;
 
     @Scheduled(fixedDelay = HEARTBEAT_INTERVAL_MS)
     public void sendHeartbeat() {
+        meterRegistry.counter("sse_heartbeat_ticks_total").increment();
         Set<SseStreamKey> refreshedKeys = new HashSet<>();
         String instanceId = sseInstanceIdProvider.getInstanceId();
         sseEmitterRegistry.forEachEmitter(
@@ -36,13 +39,25 @@ public class SseHeartbeatScheduler {
                     }
                     try {
                         emitter.send(SseEmitter.event().name(HEARTBEAT_EVENT).data(HEARTBEAT_DATA));
+                        meterRegistry
+                                .counter("sse_heartbeat_send_total", "result", "success")
+                                .increment();
                     } catch (Exception ex) {
                         if (SseExceptionUtils.isClientDisconnected(ex)) {
+                            meterRegistry
+                                    .counter(
+                                            "sse_heartbeat_send_total",
+                                            "result",
+                                            "client_disconnected")
+                                    .increment();
                             log.debug(
                                     "[SSE_HEARTBEAT] client_disconnected streamType={} streamKey={}",
                                     key.streamType(),
                                     key.streamKey());
                         } else {
+                            meterRegistry
+                                    .counter("sse_heartbeat_send_total", "result", "failed")
+                                    .increment();
                             log.warn(
                                     "[SSE_HEARTBEAT] send_failed streamType={} streamKey={}",
                                     key.streamType(),
@@ -58,7 +73,13 @@ public class SseHeartbeatScheduler {
         try {
             sseRouteRepository.upsertRoute(
                     SseRouteKey.of(key.streamType(), key.streamKey()), instanceId, ROUTE_TTL);
+            meterRegistry
+                    .counter("sse_heartbeat_route_ttl_refresh_total", "result", "success")
+                    .increment();
         } catch (Exception ex) {
+            meterRegistry
+                    .counter("sse_heartbeat_route_ttl_refresh_total", "result", "failed")
+                    .increment();
             log.debug(
                     "[SSE_HEARTBEAT] route_ttl_refresh_failed streamType={} streamKey={} instanceId={}",
                     key.streamType(),
