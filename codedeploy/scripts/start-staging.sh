@@ -1,17 +1,12 @@
 #!/bin/bash
-# start.sh
 set -euo pipefail
 
 APP_DIR="/home/ubuntu/deploy/be"
-IMAGE_URI="$(cat "${APP_DIR}/image-uri.txt")"
-CONFIG_FILE="${APP_DIR}/application-staging.yml"
+export BACKEND_IMAGE_URI="$(cat "${APP_DIR}/image-uri.txt")"
+export ALLOY_IMAGE_URI="$(cat "${APP_DIR}/alloy-image-uri.txt")"
+export SPRING_ACTIVE_PROFILE="staging"
+export SPRING_CONFIG_FILE="${APP_DIR}/application-staging.yml"
+export SPRING_CONFIG_BASENAME="application-staging.yml"
+export ALLOY_CONFIG_FILE="${APP_DIR}/alloy/alloy.config"
 
-# 예시 포트 8080, env는 EC2에 이미 존재(또는 SSM/Secrets)한다고 가정
-docker run -d \
-	--name be-api \
-	--restart=always \
-	-p 8080:8080 \
-	-e SPRING_PROFILES_ACTIVE=staging \
-    -e SPRING_CONFIG_ADDITIONAL_LOCATION="file:/config/" \
-  -v "${CONFIG_FILE}:/config/application-staging.yml:ro" \
-  "${IMAGE_URI}"
+docker compose -f "${APP_DIR}/docker-compose.yml" up -d --remove-orphans
