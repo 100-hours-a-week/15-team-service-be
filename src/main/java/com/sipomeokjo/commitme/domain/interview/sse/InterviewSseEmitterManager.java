@@ -26,6 +26,7 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
 
     private static final Long SSE_TIMEOUT = 30 * 60 * 1000L; // 30분
     private static final String STREAM_TYPE = "interview";
+    private static final String METRIC_STREAM_TYPE = "interview";
     private static final Duration ROUTE_TTL = Duration.ofMinutes(35); // SSE_TIMEOUT보다 조금 길게
 
     private final Map<Long, SseEmitter> emitters = new ConcurrentHashMap<>();
@@ -38,6 +39,7 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
     public SseEmitter create(Long interviewId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
         meterRegistry.counter("interview_sse_subscribe_total").increment();
+        meterRegistry.counter("sse_subscribe_total", "stream_type", METRIC_STREAM_TYPE).increment();
 
         emitter.onCompletion(
                 () -> {
@@ -160,9 +162,25 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
             meterRegistry
                     .counter("interview_sse_route_lookup_total", "result", "success")
                     .increment();
+            meterRegistry
+                    .counter(
+                            "sse_route_lookup_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "success")
+                    .increment();
         } catch (Exception ex) {
             meterRegistry
                     .counter("interview_sse_route_lookup_total", "result", "failed")
+                    .increment();
+            meterRegistry
+                    .counter(
+                            "sse_route_lookup_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "failed")
                     .increment();
             log.warn("[INTERVIEW_SSE] route_lookup_failed interviewId={}", interviewId, ex);
             sendLocal(interviewId, eventName, data);
@@ -172,6 +190,14 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
         if (instanceIds.isEmpty()) {
             meterRegistry
                     .counter("interview_sse_route_lookup_total", "result", "empty")
+                    .increment();
+            meterRegistry
+                    .counter(
+                            "sse_route_lookup_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "empty")
                     .increment();
             log.debug(
                     "[INTERVIEW_SSE] route_instances_empty interviewId={} eventName={}",
@@ -230,6 +256,14 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
             meterRegistry
                     .counter("interview_sse_local_delivery_total", "result", "no_emitter")
                     .increment();
+            meterRegistry
+                    .counter(
+                            "sse_local_delivery_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "no_emitter")
+                    .increment();
             return;
         }
 
@@ -238,9 +272,25 @@ public class InterviewSseEmitterManager implements SseLocalDeliveryHandler {
             meterRegistry
                     .counter("interview_sse_local_delivery_total", "result", "success")
                     .increment();
+            meterRegistry
+                    .counter(
+                            "sse_local_delivery_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "success")
+                    .increment();
         } catch (IOException e) {
             meterRegistry
                     .counter("interview_sse_local_delivery_total", "result", "failed")
+                    .increment();
+            meterRegistry
+                    .counter(
+                            "sse_local_delivery_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "failed")
                     .increment();
             log.error("Failed to send SSE event for interview: {}", interviewId, e);
             removeIfCurrent(interviewId, emitter);
