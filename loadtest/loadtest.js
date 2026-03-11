@@ -1,0 +1,222 @@
+import http from "k6/http";
+import ws from "k6/ws";
+import { check, sleep } from "k6";
+import { SharedArray } from "k6/data";
+
+
+const BASE_URL = "https://3.39.214.196:8080";
+const WS_BASE_URL = "wss://3.39.214.196:8080";
+
+const ACCESS_TOKEN = __ENV.ACCESS_TOKEN || "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3IiwiZXhwIjoxNzcxNTY4OTU3LCJpYXQiOjE3NzE1NjUzNTcsInN0YXR1cyI6IkFDVElWRSJ9.o-avefvR3Z8pGXBFnyeyDT-zDOcrugYLjqTPdiqdyfc";
+const ACCESS_TOKEN_2 = __ENV.ACCESS_TOKEN_2 || "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3IiwiZXhwIjoxNzcxNTY4OTU3LCJpYXQiOjE3NzE1NjUzNTcsInN0YXR1cyI6IkFDVElWRSJ9.o-avefvR3Z8pGXBFnyeyDT-zDOcrugYLjqTPdiqdyfc"; // 다자간 채팅용 두번째 토큰
+const TOKENS_FILE = __ENV.TOKENS_FILE || ""; // 나중에 토큰 풀로 확장 가능성
+const CHAT_WS_PATH = __ENV.CHAT_WS_PATH || "/ws"; // STOMP 엔드포인트
+const CHAT_ROOM_ID = __ENV.CHAT_ROOM_ID || "8"; // 다자간 채팅 룸 ID
+const CHAT_MESSAGE_COUNT = Number(__ENV.CHAT_MESSAGE_COUNT || 90);
+const CHAT_MESSAGE_INTERVAL_SEC = Number(__ENV.CHAT_MESSAGE_INTERVAL_SEC || 0.5);
+const CHAT_STOMP_HOST = __ENV.CHAT_STOMP_HOST || "api.commit-me.com";
+
+
+// --------------------
+//  토큰 선택 로직
+//    - 기본: ACCESS_TOKEN 1개 공유
+//    - 확장: TOKENS_FILE이 있으면 VU별로 다른 토큰 배정
+// --------------------
+const tokenPool = TOKENS_FILE
+  ? new SharedArray("tokens", () => JSON.parse(open(TOKENS_FILE)))
+  : null;
+
+function pickToken() {
+  if (tokenPool && tokenPool.length > 0) {
+    // VU별 고정 배정 (동일 VU는 항상 같은 토큰)
+    return tokenPool[(__VU - 1) % tokenPool.length];
+  }
+  return ACCESS_TOKEN; // token Pool 아직 없으면 기본 토큰 1개로 돌려쓰기
+}
+
+function authHeaders() {
+  const t = pickToken();
+  return { Cookie: `access_token=${t}` };
+}
+
+// 다자간 채팅용: VU 2명에 대해 토큰을 번갈아 배정
+function pickTokenForMultiChat() {
+  if (tokenPool && tokenPool.length >= 2) {
+    return tokenPool[(__VU - 1) % 2];
+  }
+  return (__VU - 1) % 2 === 0 ? ACCESS_TOKEN : ACCESS_TOKEN_2;
+}
+
+function authHeadersForMultiChat() {
+  const t = pickTokenForMultiChat();
+  return { Cookie: `access_token=${t}` };
+}
+
+// --------------------
+//  시나리오 옵션 (우선은 load test 기준)
+// --------------------
+export const options = {
+  // 태그(name)별 하위 메트릭이 요약에 반드시 보이도록
+  // thresholds를 각 태그에 걸어둔다. (값은 넉넉하게 잡아 실패를 방지)
+  summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)"],
+  summaryTimeUnit: "ms",
+  thresholds: {
+    "http_req_duration{name:GET resumes list}": ["p(95)<5000"],
+    "http_req_duration{name:GET resumes list (cache for detail)}": ["p(95)<5000"],
+    "http_req_duration{name:GET resume detail}": ["p(95)<5000"],
+    "ws_connecting{name:WS chat connect}": ["p(95)<5000"],
+  },
+  scenarios: {
+
+    // (A) 이력서 목록 조회: RPS 기반으로 부하를 걸기 좋음
+    resume_list: {
+        executor: "constant-vus", // ➜ Load Test의 대표적 executor
+        vus: 1,                  // ➜ 지속적으로 유지할 VU 수
+        duration: "3m",           // ➜ 3분 동안 동일 부하 유지
+        exec: "resumeList",       // ➜ 실행할 함수
+    },
+
+    // (A-2) 이력서 상세 조회
+    resume_detail: {
+        executor: "constant-vus",
+        vus: 1,
+        duration: "3m",
+        exec: "resumeDetail",
+    },
+
+    // (B) 다자간 채팅: VU 2명 고정
+    multi_chat: {
+        executor: "constant-vus",
+        vus: 1,
+        duration: "10m",
+        exec: "multiChat",
+    },
+  },
+
+};
+
+
+// --------------------
+// 테스트 함수들
+// --------------------
+export function resumeList() {
+  const res = http.get(`${BASE_URL}/resumes?page=0&size=10`, {
+    headers: authHeaders(),
+    tags: { name: "GET resumes list" },
+  });
+
+  check(res, {
+    "resume list 200": (r) => r.status === 200,
+  });
+
+  sleep(0.2);
+}
+
+// VU(=사용자)별로 resumeId 목록을 1회만 받아 캐싱하기 위한 변수
+let cachedResumeIds = null;
+
+export function resumeDetail() {
+  // 1) VU 최초 1회만 목록 호출해서 resumeId 배열 캐싱
+  if (!cachedResumeIds) {
+    const listRes = http.get(`${BASE_URL}/resumes?page=0&size=10`, {
+      headers: authHeaders(),
+      tags: { name: "GET resumes list (cache for detail)" },
+    });
+
+    const ok = check(listRes, { "resume list(cache) 200": (r) => r.status === 200 });
+    if (!ok) {
+      sleep(0.2);
+      return;
+    }
+
+    try {
+      const body = listRes.json();
+      const items = body?.data?.items;
+
+      if (Array.isArray(items) && items.length > 0) {
+        cachedResumeIds = items
+          .map((it) => it?.resumeId)
+          .filter((id) => id !== null && id !== undefined);
+      } else {
+        cachedResumeIds = [];
+      }
+    } catch (e) {
+      cachedResumeIds = [];
+    }
+  }
+
+  // 2) 캐시가 비었으면 스킵
+  if (!Array.isArray(cachedResumeIds) || cachedResumeIds.length === 0) {
+    sleep(0.2);
+    return;
+  }
+
+  // 3) 캐시된 resumeId 중 하나 선택 (반복마다 분산)
+  const idx = (__ITER + __VU) % cachedResumeIds.length;
+  const resumeId = String(cachedResumeIds[idx]);
+
+  // 4) 상세 조회 호출
+  const path = "/resumes/{id}".replace("{id}", encodeURIComponent(resumeId));
+  const detailRes = http.get(`${BASE_URL}${path}`, {
+    headers: authHeaders(),
+    tags: { name: "GET resume detail" },
+  });
+
+  check(detailRes, { "resume detail 200": (r) => r.status === 200 });
+
+  sleep(0.2);
+}
+
+// --------------------
+// 다자간 채팅 부하 테스트 (VU 2명, 토큰 2개 사용)
+// --------------------
+export function multiChat() {
+  if (!CHAT_ROOM_ID) {
+    // 룸 ID 없으면 스킵
+    sleep(0.2);
+    return;
+  }
+
+  const headers = authHeadersForMultiChat();
+  const url = `${WS_BASE_URL}${CHAT_WS_PATH}`;
+
+  const res = ws.connect(url, { headers, tags: { name: "WS chat connect" } }, (socket) => {
+    socket.on("open", () => {
+      // STOMP CONNECT
+      const connectFrame =
+        `CONNECT\naccept-version:1.2\nheart-beat:10000,10000\nhost:${CHAT_STOMP_HOST}\n\n\0`;
+      socket.send(connectFrame);
+    });
+
+    socket.on("message", (msg) => {
+      const data = String(msg);
+      if (data.startsWith("CONNECTED")) {
+        // SUBSCRIBE to topic
+        const subscribeFrame =
+          `SUBSCRIBE\nid:sub-${__VU}\ndestination:/topic/chats/${CHAT_ROOM_ID}\n\n\0`;
+        socket.send(subscribeFrame);
+
+        // SEND messages
+        for (let i = 0; i < CHAT_MESSAGE_COUNT; i += 1) {
+          const body = JSON.stringify({
+            message: `loadtest-msg-${__VU}-${__ITER}-${i}`,
+            attachmentUploadIds: [],
+            mentionUserId: null,
+          });
+          const sendFrame =
+            `SEND\ndestination:/app/chats/${CHAT_ROOM_ID}\ncontent-type:application/json\ncontent-length:${body.length}\n\n${body}\0`;
+          socket.send(sendFrame);
+          sleep(CHAT_MESSAGE_INTERVAL_SEC);
+        }
+        socket.close();
+      }
+    });
+
+    socket.on("error", (e) => {
+      // 에러가 있어도 VU 진행은 유지
+    });
+  });
+
+  check(res, { "ws connected": (r) => r && r.status === 101 });
+  sleep(0.2);
+}
