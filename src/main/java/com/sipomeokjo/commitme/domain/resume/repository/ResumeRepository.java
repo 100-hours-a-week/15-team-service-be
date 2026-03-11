@@ -16,6 +16,8 @@ public interface ResumeRepository extends JpaRepository<Resume, Long> {
 
     Optional<Resume> findByIdAndUser_Id(Long resumeId, Long userId);
 
+    Optional<Resume> findTopByUser_IdOrderByUpdatedAtDescIdDesc(Long userId);
+
     boolean existsByIdAndUser_Id(Long resumeId, Long userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

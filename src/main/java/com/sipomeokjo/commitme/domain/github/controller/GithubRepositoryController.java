@@ -23,6 +23,6 @@ public class GithubRepositoryController {
     public ResponseEntity<APIResponse<List<RepoSummaryDto>>> list() {
         Long userId = SecurityUtil.currentUserId();
         List<RepoSummaryDto> data = githubRepositoryService.listMyRepos(userId);
-        return APIResponse.onSuccess(SuccessCode.OK, data);
+        return APIResponse.onSuccess(SuccessCode.GITHUB_REPOS_FETCHED, data);
     }
 }

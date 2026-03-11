@@ -86,7 +86,7 @@ spring:
     
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     properties:
       hibernate:
         format_sql: false
@@ -126,6 +126,7 @@ app:
       - "GET"
       - "POST"
       - "PATCH"
+      - "PUT"
       - "DELETE"
       - "OPTIONS"
     allowed-headers:
@@ -143,8 +144,8 @@ app:
     presign-duration-minutes: 30
   loadtest:
     mock-auth:
-      enabled: false
-      default-position-id: 0
+      enabled: true
+      default-position-id: 1
     mock-ai:
       resume-generate-path: "${AI_GENERATE_PATH_TEST}"
 

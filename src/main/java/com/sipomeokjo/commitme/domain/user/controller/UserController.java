@@ -67,6 +67,6 @@ public class UserController {
             @CurrentUserId Long userId, HttpServletResponse httpResponse) {
         userCommandService.deactivate(userId);
         authCookieWriter.expireAuthCookies(httpResponse);
-        return APIResponse.onSuccess(SuccessCode.OK);
+        return APIResponse.onSuccess(SuccessCode.USER_DEACTIVATED);
     }
 }

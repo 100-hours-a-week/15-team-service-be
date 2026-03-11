@@ -5,7 +5,6 @@ import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -17,15 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Slf4j
 public class ResumeEditTransactionService {
-    private final ResumeRepository resumeRepository;
+    private final ResumeFinder resumeFinder;
     private final ResumeVersionRepository resumeVersionRepository;
 
     @Transactional
     public EditPrepared prepareEdit(Long userId, Long resumeId) {
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUserIdWithLock(resumeId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        Resume resume = resumeFinder.getByIdAndUserIdWithLockOrThrow(resumeId, userId);
 
         List<Long> pendingVersions =
                 resumeVersionRepository.findByResumeIdAndStatusInWithLock(

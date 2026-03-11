@@ -31,26 +31,28 @@ public class NotificationController {
     public ResponseEntity<APIResponse<NotificationListResponse>> list(
             @CurrentUserId Long userId, CursorRequest request) {
         return APIResponse.onSuccess(
-                SuccessCode.OK, notificationQueryService.list(userId, request));
+                SuccessCode.NOTIFICATION_LIST_FETCHED,
+                notificationQueryService.list(userId, request));
     }
 
     @GetMapping("/badge")
     public ResponseEntity<APIResponse<NotificationBadgeResponse>> badge(
             @CurrentUserId Long userId) {
-        return APIResponse.onSuccess(SuccessCode.OK, notificationQueryService.badge(userId));
+        return APIResponse.onSuccess(
+                SuccessCode.NOTIFICATION_BADGE_FETCHED, notificationQueryService.badge(userId));
     }
 
     @PatchMapping("/seen")
     public ResponseEntity<APIResponse<Void>> markSeen(
             @CurrentUserId Long userId, @RequestBody NotificationSeenRequest request) {
         notificationSeenCommandService.markSeenUpTo(userId, request.upToId());
-        return APIResponse.onSuccess(SuccessCode.OK);
+        return APIResponse.onSuccess(SuccessCode.NOTIFICATION_MARKED_AS_SEEN);
     }
 
     @PatchMapping("/{id}/read")
     public ResponseEntity<APIResponse<Void>> markRead(
             @CurrentUserId Long userId, @PathVariable Long id) {
         notificationCommandService.markRead(userId, id);
-        return APIResponse.onSuccess(SuccessCode.OK);
+        return APIResponse.onSuccess(SuccessCode.NOTIFICATION_MARKED_AS_READ);
     }
 }

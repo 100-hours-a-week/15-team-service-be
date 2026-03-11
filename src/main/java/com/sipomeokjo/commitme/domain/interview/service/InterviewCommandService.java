@@ -25,12 +25,12 @@ import com.sipomeokjo.commitme.domain.interview.repository.InterviewMessageRepos
 import com.sipomeokjo.commitme.domain.interview.repository.InterviewRepository;
 import com.sipomeokjo.commitme.domain.interview.sse.InterviewSseEmitterManager;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
-import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
+import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
-import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
+import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,8 +47,8 @@ public class InterviewCommandService {
     private final InterviewRepository interviewRepository;
     private final InterviewMessageRepository interviewMessageRepository;
     private final InterviewMapper interviewMapper;
-    private final UserRepository userRepository;
-    private final PositionRepository positionRepository;
+    private final UserFinder userFinder;
+    private final PositionFinder positionFinder;
     private final CompanyRepository companyRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final InterviewAiService interviewAiService;
@@ -82,15 +82,9 @@ public class InterviewCommandService {
     }
 
     public InterviewStartResponse create(Long userId, InterviewCreateRequest request) {
-        User user =
-                userRepository
-                        .findById(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        User user = userFinder.getByIdOrThrow(userId);
 
-        Position position =
-                positionRepository
-                        .findById(request.positionId())
-                        .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
+        Position position = positionFinder.getByIdOrThrow(request.positionId());
 
         Company company = null;
         if (request.companyId() != null) {
@@ -105,8 +99,14 @@ public class InterviewCommandService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
+        String companyNameForAi = resolveCompanyName(company, request.companyName());
+
         AiInterviewGenerateRequest generateRequest =
-                buildGenerateRequest(resumeVersion, request.interviewType(), position.getName());
+                buildGenerateRequest(
+                        resumeVersion,
+                        request.interviewType(),
+                        position.getName(),
+                        companyNameForAi);
 
         String interviewName = generateInterviewName(position.getName(), request.interviewType());
 
@@ -249,6 +249,16 @@ public class InterviewCommandService {
         };
     }
 
+    private String resolveCompanyName(Company company, String companyName) {
+        if (company != null) {
+            return company.getName();
+        }
+        if (companyName != null && !companyName.isBlank()) {
+            return companyName;
+        }
+        return null;
+    }
+
     private ResumeVersion resolveResumeVersion(InterviewCreateRequest request) {
         if (request.resumeVersionId() != null) {
             return resumeVersionRepository.findById(request.resumeVersionId()).orElse(null);
@@ -268,7 +278,7 @@ public class InterviewCommandService {
     }
 
     private AiInterviewGenerateRequest buildGenerateRequest(
-            ResumeVersion resumeVersion, InterviewType type, String position) {
+            ResumeVersion resumeVersion, InterviewType type, String position, String companyName) {
         JsonNode root = parseResumeContent(resumeVersion.getContent());
         JsonNode projectsNode = root == null ? null : root.get("projects");
         JsonNode techStackNode = root == null ? null : root.get("techStack");
@@ -292,7 +302,8 @@ public class InterviewCommandService {
                 resumeVersion.getResume().getId().intValue(),
                 new AiInterviewGenerateRequest.ResumeContent(projects),
                 type.name().toLowerCase(),
-                position);
+                position,
+                companyName);
     }
 
     private JsonNode parseResumeContent(String content) {

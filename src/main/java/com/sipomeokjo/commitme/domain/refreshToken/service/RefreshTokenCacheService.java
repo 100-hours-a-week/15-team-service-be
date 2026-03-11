@@ -1,6 +1,8 @@
 package com.sipomeokjo.commitme.domain.refreshToken.service;
 
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,30 +23,95 @@ public class RefreshTokenCacheService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
 
     public Optional<RefreshTokenCacheValue> get(String tokenHash) {
-        Object value = redisTemplate.opsForValue().get(key(tokenHash));
-        if (value instanceof RefreshTokenCacheValue cached) {
-            return Optional.of(cached);
+        long startedAtNanos = System.nanoTime();
+        try {
+            Object value = redisTemplate.opsForValue().get(key(tokenHash));
+            if (value instanceof RefreshTokenCacheValue cached) {
+                meterRegistry
+                        .counter("refresh_token_cache_requests_total", "result", "hit")
+                        .increment();
+                recordDuration("refresh_token_cache_get_duration", startedAtNanos, "success");
+                return Optional.of(cached);
+            }
+            if (value == null) {
+                meterRegistry
+                        .counter("refresh_token_cache_requests_total", "result", "miss")
+                        .increment();
+            } else {
+                meterRegistry
+                        .counter("refresh_token_cache_requests_total", "result", "type_mismatch")
+                        .increment();
+            }
+            recordDuration("refresh_token_cache_get_duration", startedAtNanos, "success");
+            return Optional.empty();
+        } catch (RuntimeException ex) {
+            meterRegistry
+                    .counter("refresh_token_cache_requests_total", "result", "error")
+                    .increment();
+            recordDuration("refresh_token_cache_get_duration", startedAtNanos, "failed");
+            throw ex;
         }
-        return Optional.empty();
     }
 
     public void cache(String tokenHash, Long userId, UserStatus status, Instant expiresAt) {
         Duration ttl = Duration.between(Instant.now(clock), expiresAt);
 
         if (ttl.isZero() || ttl.isNegative()) {
+            meterRegistry
+                    .counter("refresh_token_cache_write_total", "result", "skipped_expired")
+                    .increment();
             return;
         }
         RefreshTokenCacheValue value = new RefreshTokenCacheValue(userId, status.name(), expiresAt);
-        redisTemplate.opsForValue().set(key(tokenHash), value, ttl);
+        long startedAtNanos = System.nanoTime();
+        try {
+            redisTemplate.opsForValue().set(key(tokenHash), value, ttl);
+            meterRegistry
+                    .counter("refresh_token_cache_write_total", "result", "success")
+                    .increment();
+            recordDuration("refresh_token_cache_set_duration", startedAtNanos, "success");
+        } catch (RuntimeException ex) {
+            meterRegistry
+                    .counter("refresh_token_cache_write_total", "result", "failed")
+                    .increment();
+            recordDuration("refresh_token_cache_set_duration", startedAtNanos, "failed");
+            throw ex;
+        }
     }
 
     public void evict(String tokenHash) {
-        redisTemplate.delete(key(tokenHash));
+        long startedAtNanos = System.nanoTime();
+        try {
+            Boolean deleted = redisTemplate.delete(key(tokenHash));
+            if (Boolean.TRUE.equals(deleted)) {
+                meterRegistry
+                        .counter("refresh_token_cache_evict_total", "result", "success")
+                        .increment();
+            } else {
+                meterRegistry
+                        .counter("refresh_token_cache_evict_total", "result", "not_found")
+                        .increment();
+            }
+            recordDuration("refresh_token_cache_evict_duration", startedAtNanos, "success");
+        } catch (RuntimeException ex) {
+            meterRegistry
+                    .counter("refresh_token_cache_evict_total", "result", "failed")
+                    .increment();
+            recordDuration("refresh_token_cache_evict_duration", startedAtNanos, "failed");
+            throw ex;
+        }
     }
 
     public void evictAll(Collection<String> tokenHashes) {
+        if (tokenHashes == null || tokenHashes.isEmpty()) {
+            return;
+        }
+        meterRegistry
+                .counter("refresh_token_cache_evict_batch_total")
+                .increment(tokenHashes.size());
         for (String tokenHash : tokenHashes) {
             evict(tokenHash);
         }
@@ -52,6 +119,15 @@ public class RefreshTokenCacheService {
 
     private String key(String tokenHash) {
         return KEY_PREFIX + tokenHash;
+    }
+
+    private void recordDuration(String metricName, long startedAtNanos, String result) {
+        Timer.builder(metricName)
+                .tag("result", result)
+                .register(meterRegistry)
+                .record(
+                        System.nanoTime() - startedAtNanos,
+                        java.util.concurrent.TimeUnit.NANOSECONDS);
     }
 
     @Getter
