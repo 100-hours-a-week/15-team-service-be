@@ -46,8 +46,8 @@ import com.sipomeokjo.commitme.domain.policy.entity.PolicyAgreement;
 import com.sipomeokjo.commitme.domain.policy.entity.PolicyType;
 import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
+import com.sipomeokjo.commitme.domain.position.repository.PositionCacheRepository;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
-import com.sipomeokjo.commitme.domain.position.service.PositionQueryService;
 import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
@@ -112,7 +112,7 @@ public class LoadtestService {
     private final ResumeAiCallbackService resumeAiCallbackService;
     private final NotificationRepository notificationRepository;
     private final LoadtestProperties loadtestProperties;
-    private final PositionQueryService positionQueryService;
+    private final PositionCacheRepository positionCacheRepository;
     private final RestClient aiClient;
     private final ObjectMapper objectMapper;
     private final AiProperties aiProperties;
@@ -431,7 +431,7 @@ public class LoadtestService {
         String cacheName = normalizeCacheName(request.cacheName());
         String key = normalizeCacheKey(request.key());
 
-        boolean existedBeforeEvict = positionQueryService.evictAllCachedPositions();
+        boolean existedBeforeEvict = positionCacheRepository.evictAll();
 
         log.info(
                 "[LoadtestCacheEvict] cacheName={} key={} existedBeforeEvict={}",

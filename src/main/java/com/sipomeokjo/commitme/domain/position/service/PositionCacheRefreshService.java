@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PositionCacheAdminService {
+public class PositionCacheRefreshService {
     private final PositionCacheRefreshPublisher positionCacheRefreshPublisher;
     private final PositionCacheWarmupService positionCacheWarmupService;
 

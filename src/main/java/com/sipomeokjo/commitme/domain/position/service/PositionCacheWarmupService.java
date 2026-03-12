@@ -37,7 +37,7 @@ public class PositionCacheWarmupService {
         try {
             boolean existedBeforeEvict = false;
             if (evictFirst) {
-                existedBeforeEvict = positionQueryService.evictAllCachedPositions();
+                existedBeforeEvict = positionQueryService.evictCachedPositions();
             }
 
             int loadedCount = positionQueryService.warmUpCache();
