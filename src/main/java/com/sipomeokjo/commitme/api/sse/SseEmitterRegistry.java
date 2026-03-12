@@ -10,7 +10,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Component
 public class SseEmitterRegistry {
-    private static final long DEFAULT_TIMEOUT_MS = 30 * 60 * 1000L;
+    private static final long DEFAULT_TIMEOUT_MS = 3 * 60 * 1000L;
     private final Map<SseStreamKey, List<SseEmitter>> emittersByKey = new ConcurrentHashMap<>();
 
     public SseEmitter register(SseStreamKey key) {

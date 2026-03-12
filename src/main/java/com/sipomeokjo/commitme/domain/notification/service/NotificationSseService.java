@@ -18,9 +18,11 @@ import com.sipomeokjo.commitme.domain.notification.dto.NotificationSsePayload;
 import com.sipomeokjo.commitme.domain.notification.entity.Notification;
 import com.sipomeokjo.commitme.domain.notification.repository.NotificationRepository;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeRefreshRequiredSsePayload;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Slf4j
 public class NotificationSseService implements SseLocalDeliveryHandler {
     private static final String STREAM_TYPE_USER_EVENT = "user-event";
+    private static final String METRIC_STREAM_TYPE = "notification";
     private static final Duration ROUTE_TTL = Duration.ofMinutes(2);
 
     private final NotificationRepository notificationRepository;
@@ -40,6 +43,7 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
     private final SseRouteRepository sseRouteRepository;
     private final SseDeliveryBus sseDeliveryBus;
     private final SseInstanceIdProvider sseInstanceIdProvider;
+    private final MeterRegistry meterRegistry;
 
     public SseEmitter subscribe(Long userId, String lastEventId) {
         log.debug(
@@ -48,6 +52,9 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
                 lastEventId != null && !lastEventId.isBlank());
         SseStreamKey streamKey = streamKey(userId);
         SseEmitter emitter = sseEmitterRegistry.register(streamKey);
+        meterRegistry.counter("notification_sse_connections_open_total").increment();
+        meterRegistry.counter("sse_subscribe_total", "stream_type", METRIC_STREAM_TYPE).increment();
+        registerDisconnectMetrics(emitter);
         refreshRouteTtl(streamKey);
 
         try {
@@ -179,13 +186,46 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
         java.util.Set<String> instanceIds;
         try {
             instanceIds = sseRouteRepository.findInstanceIds(routeKey);
+            meterRegistry
+                    .counter("notification_sse_route_lookup_total", "result", "success")
+                    .increment();
+            meterRegistry
+                    .counter(
+                            "sse_route_lookup_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "success")
+                    .increment();
         } catch (Exception ex) {
+            meterRegistry
+                    .counter("notification_sse_route_lookup_total", "result", "failed")
+                    .increment();
+            meterRegistry
+                    .counter(
+                            "sse_route_lookup_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "failed")
+                    .increment();
             log.warn("[NOTIFICATION_SSE] route_lookup_failed userId={}", userId, ex);
             sendLocalOnly(userId, eventName, eventId, payload, notificationId);
             return;
         }
 
         if (instanceIds.isEmpty()) {
+            meterRegistry
+                    .counter("notification_sse_route_lookup_total", "result", "empty")
+                    .increment();
+            meterRegistry
+                    .counter(
+                            "sse_route_lookup_total",
+                            "stream_type",
+                            METRIC_STREAM_TYPE,
+                            "result",
+                            "empty")
+                    .increment();
             log.debug(
                     "[NOTIFICATION_SSE] route_instances_empty userId={} eventName={}",
                     userId,
@@ -200,6 +240,12 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
             if (localInstanceId.equals(instanceId)) {
                 sendLocalOnly(userId, eventName, eventId, payload, notificationId);
                 localDelivered = true;
+                meterRegistry
+                        .counter(
+                                "notification_sse_distributed_fanout_total",
+                                "result",
+                                "local_direct")
+                        .increment();
                 continue;
             }
 
@@ -214,7 +260,19 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
                                 eventId,
                                 payloadNode,
                                 null));
+                meterRegistry
+                        .counter(
+                                "notification_sse_distributed_fanout_total",
+                                "result",
+                                "remote_publish_success")
+                        .increment();
             } catch (Exception ex) {
+                meterRegistry
+                        .counter(
+                                "notification_sse_distributed_fanout_total",
+                                "result",
+                                "remote_publish_failed")
+                        .increment();
                 log.warn(
                         "[NOTIFICATION_SSE] remote_publish_failed userId={} notificationId={} targetInstanceId={}",
                         userId,
@@ -226,6 +284,10 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
 
         if (!localDelivered && sseEmitterRegistry.count(localStreamKey) > 0) {
             sendLocalOnly(userId, eventName, eventId, payload, notificationId);
+            meterRegistry
+                    .counter(
+                            "notification_sse_distributed_fanout_total", "result", "local_fallback")
+                    .increment();
         }
     }
 
@@ -255,13 +317,49 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
                     eventBuilder.id(eventId);
                 }
                 emitter.send(eventBuilder);
+                meterRegistry
+                        .counter("notification_sse_local_delivery_total", "result", "success")
+                        .increment();
+                meterRegistry
+                        .counter(
+                                "sse_local_delivery_total",
+                                "stream_type",
+                                METRIC_STREAM_TYPE,
+                                "result",
+                                "success")
+                        .increment();
             } catch (Exception ex) {
                 if (SseExceptionUtils.isClientDisconnected(ex)) {
+                    meterRegistry
+                            .counter(
+                                    "notification_sse_local_delivery_total",
+                                    "result",
+                                    "client_disconnected")
+                            .increment();
+                    meterRegistry
+                            .counter(
+                                    "sse_local_delivery_total",
+                                    "stream_type",
+                                    METRIC_STREAM_TYPE,
+                                    "result",
+                                    "client_disconnected")
+                            .increment();
                     log.debug(
                             "[NOTIFICATION_SSE] client_disconnected userId={} notificationId={}",
                             userId,
                             notificationId);
                 } else {
+                    meterRegistry
+                            .counter("notification_sse_local_delivery_total", "result", "failed")
+                            .increment();
+                    meterRegistry
+                            .counter(
+                                    "sse_local_delivery_total",
+                                    "stream_type",
+                                    METRIC_STREAM_TYPE,
+                                    "result",
+                                    "failed")
+                            .increment();
                     log.warn(
                             "[NOTIFICATION_SSE] send_failed userId={} notificationId={}",
                             userId,
@@ -380,5 +478,46 @@ public class NotificationSseService implements SseLocalDeliveryHandler {
             log.warn("[NOTIFICATION_SSE] last_event_id_invalid value={}", lastEventId);
             return null;
         }
+    }
+
+    private void registerDisconnectMetrics(SseEmitter emitter) {
+        AtomicBoolean closed = new AtomicBoolean(false);
+        emitter.onCompletion(
+                () -> {
+                    if (closed.compareAndSet(false, true)) {
+                        meterRegistry
+                                .counter(
+                                        "notification_sse_connections_closed_total",
+                                        "reason",
+                                        "completion")
+                                .increment();
+                    }
+                });
+        emitter.onTimeout(
+                () -> {
+                    if (closed.compareAndSet(false, true)) {
+                        meterRegistry
+                                .counter(
+                                        "notification_sse_connections_closed_total",
+                                        "reason",
+                                        "timeout")
+                                .increment();
+                    }
+                });
+        emitter.onError(
+                ex -> {
+                    if (closed.compareAndSet(false, true)) {
+                        String reason =
+                                SseExceptionUtils.isClientDisconnected(ex)
+                                        ? "client_disconnected"
+                                        : "error";
+                        meterRegistry
+                                .counter(
+                                        "notification_sse_connections_closed_total",
+                                        "reason",
+                                        reason)
+                                .increment();
+                    }
+                });
     }
 }
