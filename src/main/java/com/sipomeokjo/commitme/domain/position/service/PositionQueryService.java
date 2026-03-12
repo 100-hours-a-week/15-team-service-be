@@ -7,8 +7,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,59 +15,61 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class PositionQueryService {
-    private static final String CACHE_NAME = "positions";
-    private static final String CACHE_KEY = "all";
-
     private final PositionRepository positionRepository;
     private final PositionMapper positionMapper;
-    private final CacheManager cacheManager;
+    private final PositionLocalCache positionLocalCache;
     private final MeterRegistry meterRegistry;
+    private final Object cacheLoadMonitor = new Object();
 
-    @SuppressWarnings("unchecked")
     public List<PositionResponse> getPositions() {
-        Cache cache = cacheManager.getCache(CACHE_NAME);
-        if (cache != null) {
-            Cache.ValueWrapper valueWrapper = cache.get(CACHE_KEY);
-            if (valueWrapper != null) {
-                Object cachedValue = valueWrapper.get();
-                if (cachedValue instanceof List<?>) {
-                    meterRegistry
-                            .counter("positions_cache_requests_total", "result", "hit")
-                            .increment();
-                    return (List<PositionResponse>) cachedValue;
-                }
-                meterRegistry
-                        .counter("positions_cache_requests_total", "result", "type_mismatch")
-                        .increment();
-            } else {
-                meterRegistry
-                        .counter("positions_cache_requests_total", "result", "miss")
-                        .increment();
-            }
-        } else {
-            meterRegistry
-                    .counter("positions_cache_requests_total", "result", "no_cache")
-                    .increment();
+        List<PositionResponse> cachedPositions = positionLocalCache.getAll();
+        if (cachedPositions != null) {
+            meterRegistry.counter("positions_cache_requests_total", "result", "hit").increment();
+            return cachedPositions;
         }
 
-        long startedAtNanos = System.nanoTime();
-        try {
-            List<PositionResponse> positions =
-                    positionRepository.findAll(Sort.by(Sort.Direction.ASC, "id")).stream()
-                            .map(positionMapper::toResponse)
-                            .toList();
-            if (cache != null) {
-                cache.put(CACHE_KEY, positions);
+        meterRegistry.counter("positions_cache_requests_total", "result", "miss").increment();
+        return loadAndCachePositions();
+    }
+
+    public int warmUpCache() {
+        return getPositions().size();
+    }
+
+    public boolean hasCachedPositions() {
+        return positionLocalCache.containsAll();
+    }
+
+    public boolean evictAllCachedPositions() {
+        return positionLocalCache.evictAll();
+    }
+
+    private List<PositionResponse> loadAndCachePositions() {
+        synchronized (cacheLoadMonitor) {
+            List<PositionResponse> cachedPositions = positionLocalCache.getAll();
+            if (cachedPositions != null) {
+                return cachedPositions;
+            }
+
+            long startedAtNanos = System.nanoTime();
+            try {
+                List<PositionResponse> positions =
+                        positionRepository.findAll(Sort.by(Sort.Direction.ASC, "id")).stream()
+                                .map(positionMapper::toResponse)
+                                .toList();
+                positionLocalCache.putAll(positions);
                 meterRegistry
                         .counter("positions_cache_write_total", "result", "success")
                         .increment();
+                recordLoadDuration(startedAtNanos, "success");
+                return positions;
+            } catch (RuntimeException ex) {
+                meterRegistry
+                        .counter("positions_cache_write_total", "result", "failed")
+                        .increment();
+                recordLoadDuration(startedAtNanos, "failed");
+                throw ex;
             }
-            recordLoadDuration(startedAtNanos, "success");
-            return positions;
-        } catch (RuntimeException ex) {
-            meterRegistry.counter("positions_cache_write_total", "result", "failed").increment();
-            recordLoadDuration(startedAtNanos, "failed");
-            throw ex;
         }
     }
 
