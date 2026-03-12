@@ -6,9 +6,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.sipomeokjo.commitme.config.PositionCacheConfig;
 import com.sipomeokjo.commitme.domain.position.dto.PositionResponse;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.mapper.PositionMapper;
+import com.sipomeokjo.commitme.domain.position.repository.PositionCacheRepository;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.util.List;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Sort;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,11 +32,14 @@ class PositionQueryServiceTest {
 
     @BeforeEach
     void setUp() {
+        CacheManager localCacheManager = new PositionCacheConfig().localCacheManager();
+        PositionCacheRepository positionCacheRepository =
+                new PositionCacheRepository(localCacheManager);
         positionQueryService =
                 new PositionQueryService(
                         positionRepository,
                         positionMapper,
-                        new PositionLocalCache(),
+                        positionCacheRepository,
                         new SimpleMeterRegistry());
     }
 

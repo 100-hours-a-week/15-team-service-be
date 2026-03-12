@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.domain.position.service;
 
 import com.sipomeokjo.commitme.domain.position.dto.PositionResponse;
 import com.sipomeokjo.commitme.domain.position.mapper.PositionMapper;
+import com.sipomeokjo.commitme.domain.position.repository.PositionCacheRepository;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -17,19 +18,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class PositionQueryService {
     private final PositionRepository positionRepository;
     private final PositionMapper positionMapper;
-    private final PositionLocalCache positionLocalCache;
+    private final PositionCacheRepository positionCacheRepository;
     private final MeterRegistry meterRegistry;
     private final Object cacheLoadMonitor = new Object();
 
     public List<PositionResponse> getPositions() {
-        List<PositionResponse> cachedPositions = positionLocalCache.getAll();
-        if (cachedPositions != null) {
-            meterRegistry.counter("positions_cache_requests_total", "result", "hit").increment();
-            return cachedPositions;
-        }
-
-        meterRegistry.counter("positions_cache_requests_total", "result", "miss").increment();
-        return loadAndCachePositions();
+        return positionCacheRepository
+                .findAll()
+                .map(
+                        positions -> {
+                            meterRegistry
+                                    .counter("positions_cache_requests_total", "result", "hit")
+                                    .increment();
+                            return positions;
+                        })
+                .orElseGet(this::loadAndCachePositions);
     }
 
     public int warmUpCache() {
@@ -37,39 +40,49 @@ public class PositionQueryService {
     }
 
     public boolean hasCachedPositions() {
-        return positionLocalCache.containsAll();
+        return positionCacheRepository.existsAll();
     }
 
-    public boolean evictAllCachedPositions() {
-        return positionLocalCache.evictAll();
+    public boolean evictCachedPositions() {
+        return positionCacheRepository.evictAll();
     }
 
     private List<PositionResponse> loadAndCachePositions() {
-        synchronized (cacheLoadMonitor) {
-            List<PositionResponse> cachedPositions = positionLocalCache.getAll();
-            if (cachedPositions != null) {
-                return cachedPositions;
-            }
+        meterRegistry.counter("positions_cache_requests_total", "result", "miss").increment();
 
-            long startedAtNanos = System.nanoTime();
-            try {
-                List<PositionResponse> positions =
-                        positionRepository.findAll(Sort.by(Sort.Direction.ASC, "id")).stream()
-                                .map(positionMapper::toResponse)
-                                .toList();
-                positionLocalCache.putAll(positions);
-                meterRegistry
-                        .counter("positions_cache_write_total", "result", "success")
-                        .increment();
-                recordLoadDuration(startedAtNanos, "success");
-                return positions;
-            } catch (RuntimeException ex) {
-                meterRegistry
-                        .counter("positions_cache_write_total", "result", "failed")
-                        .increment();
-                recordLoadDuration(startedAtNanos, "failed");
-                throw ex;
-            }
+        synchronized (cacheLoadMonitor) {
+            return positionCacheRepository
+                    .findAll()
+                    .orElseGet(
+                            () -> {
+                                long startedAtNanos = System.nanoTime();
+                                try {
+                                    List<PositionResponse> positions =
+                                            positionRepository
+                                                    .findAll(Sort.by(Sort.Direction.ASC, "id"))
+                                                    .stream()
+                                                    .map(positionMapper::toResponse)
+                                                    .toList();
+                                    positionCacheRepository.saveAll(positions);
+                                    meterRegistry
+                                            .counter(
+                                                    "positions_cache_write_total",
+                                                    "result",
+                                                    "success")
+                                            .increment();
+                                    recordLoadDuration(startedAtNanos, "success");
+                                    return positions;
+                                } catch (RuntimeException ex) {
+                                    meterRegistry
+                                            .counter(
+                                                    "positions_cache_write_total",
+                                                    "result",
+                                                    "failed")
+                                            .increment();
+                                    recordLoadDuration(startedAtNanos, "failed");
+                                    throw ex;
+                                }
+                            });
         }
     }
 

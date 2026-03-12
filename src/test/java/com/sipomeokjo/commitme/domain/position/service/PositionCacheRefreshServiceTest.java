@@ -13,17 +13,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class PositionCacheAdminServiceTest {
+class PositionCacheRefreshServiceTest {
 
     @Mock private PositionCacheRefreshPublisher positionCacheRefreshPublisher;
     @Mock private PositionCacheWarmupService positionCacheWarmupService;
 
-    private PositionCacheAdminService positionCacheAdminService;
+    private PositionCacheRefreshService positionCacheRefreshService;
 
     @BeforeEach
     void setUp() {
-        positionCacheAdminService =
-                new PositionCacheAdminService(
+        positionCacheRefreshService =
+                new PositionCacheRefreshService(
                         positionCacheRefreshPublisher, positionCacheWarmupService);
     }
 
@@ -31,7 +31,7 @@ class PositionCacheAdminServiceTest {
     void refreshAllInstances_publishSuccessWithoutFallback_returnsSubscriberCount() {
         given(positionCacheRefreshPublisher.publishRefresh("manual_refresh")).willReturn(2L);
 
-        PositionCacheRefreshResponse response = positionCacheAdminService.refreshAllInstances();
+        PositionCacheRefreshResponse response = positionCacheRefreshService.refreshAllInstances();
 
         assertThat(response.notifiedSubscriberCount()).isEqualTo(2L);
         assertThat(response.localFallbackTriggered()).isFalse();
@@ -43,7 +43,7 @@ class PositionCacheAdminServiceTest {
         given(positionCacheRefreshPublisher.publishRefresh("manual_refresh"))
                 .willThrow(new IllegalStateException("redis down"));
 
-        PositionCacheRefreshResponse response = positionCacheAdminService.refreshAllInstances();
+        PositionCacheRefreshResponse response = positionCacheRefreshService.refreshAllInstances();
 
         assertThat(response.notifiedSubscriberCount()).isZero();
         assertThat(response.localFallbackTriggered()).isTrue();
