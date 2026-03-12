@@ -6,6 +6,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sipomeokjo.commitme.api.sse.distributed.RedisSseDeliverySubscriber;
 import com.sipomeokjo.commitme.api.sse.distributed.SseInstanceIdProvider;
 import com.sipomeokjo.commitme.api.sse.distributed.SseRedisChannelNames;
+import com.sipomeokjo.commitme.domain.position.service.PositionCacheChannels;
+import com.sipomeokjo.commitme.domain.position.service.PositionCacheRefreshSubscriber;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
@@ -74,6 +76,7 @@ public class RedisConfig {
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             RedisSseDeliverySubscriber redisSseDeliverySubscriber,
+            PositionCacheRefreshSubscriber positionCacheRefreshSubscriber,
             SseInstanceIdProvider sseInstanceIdProvider) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
@@ -82,6 +85,9 @@ public class RedisConfig {
                 new ChannelTopic(
                         SseRedisChannelNames.deliveryChannelForInstance(
                                 sseInstanceIdProvider.getInstanceId())));
+        container.addMessageListener(
+                positionCacheRefreshSubscriber,
+                new ChannelTopic(PositionCacheChannels.REFRESH_CHANNEL));
         return container;
     }
 

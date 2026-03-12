@@ -41,6 +41,7 @@ import com.sipomeokjo.commitme.domain.policy.entity.PolicyType;
 import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
+import com.sipomeokjo.commitme.domain.position.service.PositionQueryService;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.resume.config.AiProperties;
@@ -65,8 +66,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -106,7 +105,7 @@ public class LoadtestService {
     private final ResumeAiCallbackService resumeAiCallbackService;
     private final NotificationRepository notificationRepository;
     private final LoadtestProperties loadtestProperties;
-    private final CacheManager cacheManager;
+    private final PositionQueryService positionQueryService;
     private final RestClient aiClient;
     private final ObjectMapper objectMapper;
     private final AiProperties aiProperties;
@@ -324,13 +323,7 @@ public class LoadtestService {
         String cacheName = normalizeCacheName(request.cacheName());
         String key = normalizeCacheKey(request.key());
 
-        Cache cache = cacheManager.getCache(cacheName);
-        if (cache == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
-        }
-
-        boolean existedBeforeEvict = cache.get(key) != null;
-        cache.evict(key);
+        boolean existedBeforeEvict = positionQueryService.evictAllCachedPositions();
 
         log.info(
                 "[LoadtestCacheEvict] cacheName={} key={} existedBeforeEvict={}",
@@ -624,8 +617,7 @@ public class LoadtestService {
     }
 
     private String buildResumeSeedName(int userSequence, int resumeIndex) {
-        String candidate = "lt-rs-" + userSequence + "-" + resumeIndex;
-        return candidate.length() <= 30 ? candidate : candidate.substring(0, 30);
+        return "lt-rs-" + userSequence + "-" + resumeIndex;
     }
 
     private String buildSeedAiTaskId(String runId, int sequence, int resumeIndex, int versionNo) {
