@@ -23,6 +23,14 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
             """)
     List<String> findActiveTokenHashesByUserId(@Param("userId") Long userId);
 
+    @Query(
+            """
+            select token.tokenHash
+              from RefreshToken token
+             where token.user.id in :userIds
+            """)
+    List<String> findTokenHashesByUserIds(@Param("userIds") List<Long> userIds);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
             """
@@ -43,4 +51,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
             """)
     int revokeByTokenHash(
             @Param("tokenHash") String tokenHash, @Param("revokedAt") Instant revokedAt);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from RefreshToken token where token.user.id in :userIds")
+    int deleteAllByUserIds(@Param("userIds") List<Long> userIds);
 }

@@ -4,6 +4,9 @@ import com.sipomeokjo.commitme.domain.policy.entity.PolicyAgreement;
 import com.sipomeokjo.commitme.domain.policy.entity.PolicyType;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -11,4 +14,8 @@ public interface PolicyAgreementRepository extends JpaRepository<PolicyAgreement
     List<PolicyAgreement> findAllByUser_Id(Long userId);
 
     void deleteAllByUser_IdAndPolicyType(Long userId, PolicyType policyType);
+
+    @Modifying
+    @Query("delete from PolicyAgreement pa where pa.user.id in :userIds")
+    int deleteAllByUserIds(@Param("userIds") List<Long> userIds);
 }

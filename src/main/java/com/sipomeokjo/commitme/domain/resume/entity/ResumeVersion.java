@@ -106,6 +106,13 @@ public class ResumeVersion extends BaseEntity {
         this.errorLog = null;
     }
 
+    public void overrideProcessingStartedAt(Instant startedAt) {
+        if (this.status != ResumeVersionStatus.PROCESSING) {
+            return;
+        }
+        this.startedAt = startedAt;
+    }
+
     public void succeed(String contentJson) {
         this.status = ResumeVersionStatus.SUCCEEDED;
         this.finishedAt = Instant.now();

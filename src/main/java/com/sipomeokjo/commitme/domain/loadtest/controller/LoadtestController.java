@@ -14,6 +14,16 @@ import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetRequest
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetResponse;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupRequest;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupResponse;
+import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCacheEvictRequest;
+import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCacheEvictResponse;
+import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCleanupRequest;
+import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCleanupResponse;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeBulkSeedRequest;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeBulkSeedResponse;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackReplayRequest;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackReplayResponse;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetRequest;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetResponse;
 import com.sipomeokjo.commitme.domain.loadtest.service.LoadtestService;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeCreateRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -70,9 +80,45 @@ public class LoadtestController {
         return APIResponse.onSuccess(SuccessCode.OK, loadtestService.reset(request));
     }
 
+    @PostMapping("/cleanup")
+    public ResponseEntity<APIResponse<LoadtestCleanupResponse>> cleanup(
+            @RequestBody LoadtestCleanupRequest request) {
+
+        return APIResponse.onSuccess(SuccessCode.OK, loadtestService.cleanup(request));
+    }
+
+    @PostMapping("/cache/evict")
+    public ResponseEntity<APIResponse<LoadtestCacheEvictResponse>> evictCache(
+            @RequestBody LoadtestCacheEvictRequest request) {
+
+        return APIResponse.onSuccess(SuccessCode.OK, loadtestService.evictCache(request));
+    }
+
     @PostMapping("/resumes")
     public ResponseEntity<APIResponse<JsonNode>> create(@RequestBody ResumeCreateRequest request) {
         return APIResponse.onSuccess(
                 SuccessCode.OK, loadtestService.requestResumeGenerate(request));
+    }
+
+    @PostMapping("/resumes/bulk-seed")
+    public ResponseEntity<APIResponse<LoadtestResumeBulkSeedResponse>> bulkSeedResumes(
+            @RequestBody LoadtestResumeBulkSeedRequest request) {
+
+        return APIResponse.onSuccess(SuccessCode.CREATED, loadtestService.bulkSeedResumes(request));
+    }
+
+    @PostMapping("/resumes/callback-replay")
+    public ResponseEntity<APIResponse<LoadtestResumeCallbackReplayResponse>> replayResumeCallbacks(
+            @RequestBody LoadtestResumeCallbackReplayRequest request) {
+
+        return APIResponse.onSuccess(
+                SuccessCode.OK, loadtestService.replayResumeCallbacks(request));
+    }
+
+    @PostMapping("/resumes/reset")
+    public ResponseEntity<APIResponse<LoadtestResumeResetResponse>> resetResumes(
+            @RequestBody LoadtestResumeResetRequest request) {
+
+        return APIResponse.onSuccess(SuccessCode.OK, loadtestService.resetResumes(request));
     }
 }

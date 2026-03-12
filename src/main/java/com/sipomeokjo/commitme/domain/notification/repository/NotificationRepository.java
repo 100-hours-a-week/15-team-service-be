@@ -31,4 +31,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("id") Long id,
             @Param("userId") Long userId,
             @Param("readAt") java.time.Instant readAt);
+
+    @Modifying
+    @Query("delete from Notification n where n.user.id in :userIds")
+    int deleteAllByUserIds(@Param("userIds") List<Long> userIds);
 }

@@ -5,6 +5,7 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -16,7 +17,14 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
 
     void deleteByResume_Id(Long resumeId);
 
+    void deleteByResume_IdIn(List<Long> resumeIds);
+
+    List<ResumeVersion> findAllByResume_IdIn(List<Long> resumeIds);
+
     Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
+
+    List<ResumeVersion> findByResume_User_IdInAndStatusOrderByIdAsc(
+            List<Long> userIds, ResumeVersionStatus status, Pageable pageable);
 
     Optional<ResumeVersion>
             findTopByResume_IdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
