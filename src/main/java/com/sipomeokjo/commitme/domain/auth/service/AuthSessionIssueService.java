@@ -1,9 +1,12 @@
 package com.sipomeokjo.commitme.domain.auth.service;
 
+import com.sipomeokjo.commitme.api.exception.BusinessException;
+import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.auth.dto.AuthTokenReissueResult;
 import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
-import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
+import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheAfterCommitService;
+import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
@@ -17,30 +20,74 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional
 @RequiredArgsConstructor
 public class AuthSessionIssueService {
 
     private final RefreshTokenRepository refreshTokenRepository;
-    private final RefreshTokenCacheService refreshTokenCacheService;
+    private final RefreshTokenCacheAfterCommitService refreshTokenCacheAfterCommitService;
     private final UserRepository userRepository;
     private final AccessTokenProvider accessTokenProvider;
     private final RefreshTokenProvider refreshTokenProvider;
     private final JwtProperties jwtProperties;
     private final Clock clock;
 
+    @Transactional
     public AuthTokenReissueResult rotateTokens(Long userId, UserStatus status) {
         Instant now = Instant.now(clock);
         List<String> activeTokenHashes =
                 refreshTokenRepository.findActiveTokenHashesByUserId(userId);
         if (!activeTokenHashes.isEmpty()) {
             refreshTokenRepository.revokeAllByUserId(userId, now);
-            refreshTokenCacheService.evictAll(activeTokenHashes);
+            refreshTokenCacheAfterCommitService.evictAll(activeTokenHashes);
         }
-        return issueTokens(userId, status);
+        return issueTokensInternal(userId, status);
     }
 
+    @Transactional
     public AuthTokenReissueResult issueTokens(Long userId, UserStatus status) {
+        return issueTokensInternal(userId, status);
+    }
+
+    @Transactional
+    public AuthTokenReissueResult reissueTokens(String tokenHash, Long userId) {
+        int revoked = refreshTokenRepository.revokeByTokenHash(tokenHash, Instant.now(clock));
+        if (revoked <= 0) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        refreshTokenCacheAfterCommitService.evict(tokenHash);
+        UserStatus status =
+                userRepository
+                        .findById(userId)
+                        .map(User::getStatus)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
+        return issueTokensInternal(userId, status);
+    }
+
+    @Transactional
+    public AuthTokenReissueResult reissueTokens(String tokenHash) {
+        Instant now = Instant.now(clock);
+        RefreshToken refreshTokenEntity =
+                refreshTokenRepository
+                        .findByTokenHash(tokenHash)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
+
+        if (refreshTokenEntity.getRevokedAt() != null
+                || !refreshTokenEntity.getExpiresAt().isAfter(now)) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        var user = refreshTokenEntity.getUser();
+        if (user == null) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        refreshTokenEntity.revoke(now);
+        refreshTokenCacheAfterCommitService.evict(tokenHash);
+        return issueTokensInternal(user.getId(), user.getStatus());
+    }
+
+    private AuthTokenReissueResult issueTokensInternal(Long userId, UserStatus status) {
         String accessToken = accessTokenProvider.createAccessToken(userId, status);
         String refreshToken = refreshTokenProvider.generateRawToken();
         String refreshTokenHash = refreshTokenProvider.hash(refreshToken);
@@ -54,19 +101,22 @@ public class AuthSessionIssueService {
                         .revokedAt(null)
                         .build();
         refreshTokenRepository.save(refreshTokenEntity);
-        refreshTokenCacheService.cache(refreshTokenHash, userId, status, refreshExpiresAt);
+        refreshTokenCacheAfterCommitService.cache(
+                refreshTokenHash, userId, status, refreshExpiresAt);
 
         return new AuthTokenReissueResult(accessToken, refreshToken);
     }
 
-    public boolean revokeRefreshToken(String rawRefreshToken) {
+    @Transactional
+    public void revokeRefreshToken(String rawRefreshToken) {
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
-            return false;
+            return;
         }
 
         String tokenHash = refreshTokenProvider.hash(rawRefreshToken);
         int revoked = refreshTokenRepository.revokeByTokenHash(tokenHash, Instant.now(clock));
-        refreshTokenCacheService.evict(tokenHash);
-        return revoked > 0;
+        if (revoked > 0) {
+            refreshTokenCacheAfterCommitService.evict(tokenHash);
+        }
     }
 }
