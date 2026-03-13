@@ -19,7 +19,6 @@ import com.sipomeokjo.commitme.domain.auth.dto.GithubUserResponse;
 import com.sipomeokjo.commitme.domain.auth.entity.Auth;
 import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.auth.repository.AuthRepository;
-import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
@@ -42,6 +41,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClient.RequestBodySpec;
@@ -57,8 +57,8 @@ class AuthCommandServiceTest {
     @Mock private AuthRepository authRepository;
     @Mock private UserRepository userRepository;
     @Mock private UserSettingRepository userSettingRepository;
-    @Mock private RefreshTokenRepository refreshTokenRepository;
     @Mock private RefreshTokenCacheService refreshTokenCacheService;
+    @Mock private TransactionOperations transactionOperations;
     @Mock private AuthSessionIssueService authSessionIssueService;
     @Mock private AccessTokenCipher accessTokenCipher;
     @Mock private RefreshTokenProvider refreshTokenProvider;
@@ -73,19 +73,18 @@ class AuthCommandServiceTest {
     @Mock private ResponseSpec oauthResponseSpec;
     @Mock private ResponseSpec apiResponseSpec;
 
-    private Clock clock;
     private AuthCommandService authCommandService;
 
     @BeforeEach
     void setUp() {
-        clock = Clock.fixed(Instant.parse("2026-03-01T00:00:00Z"), ZoneOffset.UTC);
+        Clock clock = Clock.fixed(Instant.parse("2026-03-01T00:00:00Z"), ZoneOffset.UTC);
         authCommandService =
                 new AuthCommandService(
                         authRepository,
                         userRepository,
                         userSettingRepository,
-                        refreshTokenRepository,
                         refreshTokenCacheService,
+                        transactionOperations,
                         authSessionIssueService,
                         accessTokenCipher,
                         refreshTokenProvider,
@@ -99,6 +98,16 @@ class AuthCommandServiceTest {
         given(githubProperties.getClientSecret()).willReturn("client-secret");
         given(githubProperties.getRedirectUri()).willReturn("https://example.com/callback");
         given(accessTokenCipher.encrypt(anyString())).willReturn("enc-token");
+
+        given(transactionOperations.execute(any()))
+                .willAnswer(
+                        invocation ->
+                                invocation
+                                        .<org.springframework.transaction.support
+                                                                .TransactionCallback<
+                                                        AuthLoginResult>>
+                                                getArgument(0)
+                                        .doInTransaction(null));
     }
 
     @Test
@@ -117,7 +126,7 @@ class AuthCommandServiceTest {
                         .user(inactiveUser)
                         .build();
 
-        stubGithubExchangeAndFetch("oauth-access-token", 100L, "octocat");
+        stubGithubExchangeAndFetch(100L, "octocat");
         given(authRepository.findByProviderAndProviderUserIdWithLock(AuthProvider.GITHUB, "100"))
                 .willReturn(Optional.of(auth));
 
@@ -144,7 +153,7 @@ class AuthCommandServiceTest {
                         .user(oldUser)
                         .build();
 
-        stubGithubExchangeAndFetch("oauth-access-token", 200L, "new-name");
+        stubGithubExchangeAndFetch(200L, "new-name");
         given(authRepository.findByProviderAndProviderUserIdWithLock(AuthProvider.GITHUB, "200"))
                 .willReturn(Optional.of(auth));
 
@@ -178,7 +187,7 @@ class AuthCommandServiceTest {
         verify(authSessionIssueService).issueTokens(1001L, UserStatus.PENDING);
     }
 
-    private void stubGithubExchangeAndFetch(String accessToken, Long githubUserId, String login) {
+    private void stubGithubExchangeAndFetch(Long githubUserId, String login) {
         given(githubOAuthClient.post()).willReturn(oauthPostSpec);
         given(oauthPostSpec.uri("/login/oauth/access_token")).willReturn(oauthBodySpec);
         given(oauthBodySpec.contentType(MediaType.APPLICATION_FORM_URLENCODED))
@@ -187,11 +196,12 @@ class AuthCommandServiceTest {
         doReturn(oauthBodySpec).when(oauthBodySpec).body(any(MultiValueMap.class));
         given(oauthBodySpec.retrieve()).willReturn(oauthResponseSpec);
         given(oauthResponseSpec.body(GithubAccessTokenResponse.class))
-                .willReturn(new GithubAccessTokenResponse(accessToken, "bearer", "repo user"));
+                .willReturn(
+                        new GithubAccessTokenResponse("oauth-access-token", "bearer", "repo user"));
 
         given(githubApiClient.get()).willReturn(apiGetSpec);
         given(apiGetSpec.uri("/user")).willReturn(apiHeadersSpec);
-        given(apiHeadersSpec.header("Authorization", "Bearer " + accessToken))
+        given(apiHeadersSpec.header("Authorization", "Bearer " + "oauth-access-token"))
                 .willReturn(apiHeadersSpec);
         given(apiHeadersSpec.retrieve()).willReturn(apiResponseSpec);
         given(apiResponseSpec.body(GithubUserResponse.class))

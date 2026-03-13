@@ -10,7 +10,7 @@ import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepositor
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
-import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
+import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheAfterCommitService;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
@@ -39,7 +39,7 @@ public class UserCommandService {
     private final Clock clock;
     private final AuthRepository authRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final RefreshTokenCacheService refreshTokenCacheService;
+    private final RefreshTokenCacheAfterCommitService refreshTokenCacheAfterCommitService;
     private final UserRepository userRepository;
     private final PolicyAgreementRepository policyAgreementRepository;
     private final S3UploadService s3UploadService;
@@ -103,7 +103,7 @@ public class UserCommandService {
         user.deactivate(Instant.now(clock));
         refreshTokenRepository.revokeAllByUserId(userId, Instant.now(clock));
         if (!activeTokenHashes.isEmpty()) {
-            refreshTokenCacheService.evictAll(activeTokenHashes);
+            refreshTokenCacheAfterCommitService.evictAll(activeTokenHashes);
         }
 
         for (Auth auth : authRepository.findAllByUser_Id(userId)) {

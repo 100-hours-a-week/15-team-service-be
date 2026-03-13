@@ -10,8 +10,6 @@ import com.sipomeokjo.commitme.domain.auth.dto.GithubUserResponse;
 import com.sipomeokjo.commitme.domain.auth.entity.Auth;
 import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.auth.repository.AuthRepository;
-import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
-import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
@@ -31,22 +29,21 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 @Slf4j
 @Service
-@Transactional
 @RequiredArgsConstructor
 public class AuthCommandService {
 
     private final AuthRepository authRepository;
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final RefreshTokenCacheService refreshTokenCacheService;
+    private final TransactionOperations transactionOperations;
     private final AuthSessionIssueService authSessionIssueService;
     private final AccessTokenCipher accessTokenCipher;
     private final RefreshTokenProvider refreshTokenProvider;
@@ -70,6 +67,17 @@ public class AuthCommandService {
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
 
+        AuthLoginResult result =
+                transactionOperations.execute(
+                        status -> loginWithGithubInternal(tokenResponse, githubUser));
+        if (result == null) {
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+        return result;
+    }
+
+    private AuthLoginResult loginWithGithubInternal(
+            GithubAccessTokenResponse tokenResponse, GithubUserResponse githubUser) {
         Auth auth =
                 authRepository
                         .findByProviderAndProviderUserIdWithLock(
@@ -187,24 +195,12 @@ public class AuthCommandService {
                 meterRegistry
                         .counter("auth_token_reissue_cache_lookup_total", "result", "expired")
                         .increment();
-                refreshTokenCacheService.evict(tokenHash);
             } else {
                 meterRegistry
                         .counter("auth_token_reissue_cache_lookup_total", "result", "hit")
                         .increment();
-                boolean revoked = authSessionIssueService.revokeRefreshToken(refreshToken);
-                if (!revoked) {
-                    log.warn(
-                            "[Auth][TokenReissue] cached_token_revoke_failed tokenHashFingerprint={}",
-                            fingerprint(tokenHash));
-                    throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
-                }
-                UserStatus status = resolveCurrentUserStatus(cached.getUserId());
-                log.info(
-                        "[Auth][TokenReissue] cache_hit userId={} status={}",
-                        cached.getUserId(),
-                        status);
-                return authSessionIssueService.issueTokens(cached.getUserId(), status);
+                log.info("[Auth][TokenReissue] cache_hit userId={}", cached.getUserId());
+                return authSessionIssueService.reissueTokens(tokenHash, cached.getUserId());
             }
         } else {
             meterRegistry
@@ -215,28 +211,9 @@ public class AuthCommandService {
                     .increment();
         }
 
-        refreshTokenCacheService.evict(tokenHash);
-        RefreshToken refreshTokenEntity =
-                refreshTokenRepository
-                        .findByTokenHash(tokenHash)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
-
-        if (refreshTokenEntity.getRevokedAt() != null) {
-            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
-        if (!refreshTokenEntity.getExpiresAt().isAfter(now)) {
-            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
-        User user = refreshTokenEntity.getUser();
-        if (user == null) {
-            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
-        refreshTokenEntity.revoke(now);
-        log.info("[Auth][TokenReissue] db_hit userId={} status={}", user.getId(), user.getStatus());
-        return authSessionIssueService.issueTokens(user.getId(), user.getStatus());
+        AuthTokenReissueResult result = authSessionIssueService.reissueTokens(tokenHash);
+        log.info("[Auth][TokenReissue] db_hit tokenHashFingerprint={}", fingerprint(tokenHash));
+        return result;
     }
 
     private GithubAccessTokenResponse exchangeToken(String code) {
@@ -276,13 +253,6 @@ public class AuthCommandService {
             log.warn("[Auth][FetchUser] 사용자 조회 실패: 사유=응답 없음 또는 id 누락, response={}", response);
         }
         return response;
-    }
-
-    private UserStatus resolveCurrentUserStatus(Long userId) {
-        return userRepository
-                .findById(userId)
-                .map(User::getStatus)
-                .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
     }
 
     private String normalizeScopes(String scope) {
