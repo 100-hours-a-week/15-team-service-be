@@ -11,5 +11,5 @@ public class LoadtestMockAuthProperties {
 
     private boolean enabled = false;
     private int maxBulkCount = 500;
-    private Long defaultPositionId;
+    private Long defaultPositionId = 1L;
 }
