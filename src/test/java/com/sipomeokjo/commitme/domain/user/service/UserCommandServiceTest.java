@@ -10,6 +10,7 @@ import com.sipomeokjo.commitme.domain.policy.entity.PolicyType;
 import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepository;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
+import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.dto.UserUpdateRequest;
 import com.sipomeokjo.commitme.domain.user.dto.UserUpdateResponse;
@@ -39,6 +40,7 @@ class UserCommandServiceTest {
     @Mock private S3UploadService s3UploadService;
     @Mock private AuthRepository authRepository;
     @Mock private RefreshTokenRepository refreshTokenRepository;
+    @Mock private RefreshTokenCacheService refreshTokenCacheService;
 
     private UserCommandService userCommandService;
 
@@ -50,6 +52,7 @@ class UserCommandServiceTest {
                         clock,
                         authRepository,
                         refreshTokenRepository,
+                        refreshTokenCacheService,
                         userRepository,
                         policyAgreementRepository,
                         s3UploadService,

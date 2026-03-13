@@ -10,6 +10,7 @@ import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepositor
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
+import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingRequest;
 import com.sipomeokjo.commitme.domain.user.dto.OnboardingResponse;
@@ -23,6 +24,7 @@ import com.sipomeokjo.commitme.domain.user.mapper.UserValidationExceptionMapper;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,7 @@ public class UserCommandService {
     private final Clock clock;
     private final AuthRepository authRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenCacheService refreshTokenCacheService;
     private final UserRepository userRepository;
     private final PolicyAgreementRepository policyAgreementRepository;
     private final S3UploadService s3UploadService;
@@ -94,8 +97,14 @@ public class UserCommandService {
 
     public void deactivate(Long userId) {
         User user = userFinder.getByIdOrThrow(userId);
+        List<String> activeTokenHashes =
+                refreshTokenRepository.findActiveTokenHashesByUserId(userId);
+
         user.deactivate(Instant.now(clock));
         refreshTokenRepository.revokeAllByUserId(userId, Instant.now(clock));
+        if (!activeTokenHashes.isEmpty()) {
+            refreshTokenCacheService.evictAll(activeTokenHashes);
+        }
 
         for (Auth auth : authRepository.findAllByUser_Id(userId)) {
             auth.clearSensitiveInfo();
