@@ -31,6 +31,16 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
             """)
     List<String> findTokenHashesByUserIds(@Param("userIds") List<Long> userIds);
 
+    @Query(
+            """
+            select token
+              from RefreshToken token
+              join fetch token.user user
+             where user.id in :userIds
+               and token.revokedAt is null
+            """)
+    List<RefreshToken> findActiveTokensByUserIds(@Param("userIds") List<Long> userIds);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
             """

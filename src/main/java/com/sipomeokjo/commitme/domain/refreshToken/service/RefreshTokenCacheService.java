@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,13 +20,27 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class RefreshTokenCacheService {
 
+    public enum AccessMode {
+        ENABLED,
+        BYPASS
+    }
+
     private static final String KEY_PREFIX = "refresh:hash:";
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final Clock clock;
     private final MeterRegistry meterRegistry;
+    private final AtomicReference<AccessMode> accessMode =
+            new AtomicReference<>(AccessMode.ENABLED);
 
     public Optional<RefreshTokenCacheValue> get(String tokenHash) {
+        if (isBypassEnabled()) {
+            meterRegistry
+                    .counter("refresh_token_cache_requests_total", "result", "bypass")
+                    .increment();
+            return Optional.empty();
+        }
+
         long startedAtNanos = System.nanoTime();
         try {
             Object value = redisTemplate.opsForValue().get(key(tokenHash));
@@ -57,6 +72,17 @@ public class RefreshTokenCacheService {
     }
 
     public void cache(String tokenHash, Long userId, UserStatus status, Instant expiresAt) {
+        if (isBypassEnabled()) {
+            meterRegistry
+                    .counter("refresh_token_cache_write_total", "result", "bypass")
+                    .increment();
+            return;
+        }
+
+        cacheDirect(tokenHash, userId, status, expiresAt);
+    }
+
+    public void cacheDirect(String tokenHash, Long userId, UserStatus status, Instant expiresAt) {
         Duration ttl = Duration.between(Instant.now(clock), expiresAt);
 
         if (ttl.isZero() || ttl.isNegative()) {
@@ -83,6 +109,17 @@ public class RefreshTokenCacheService {
     }
 
     public void evict(String tokenHash) {
+        if (isBypassEnabled()) {
+            meterRegistry
+                    .counter("refresh_token_cache_evict_total", "result", "bypass")
+                    .increment();
+            return;
+        }
+
+        evictDirect(tokenHash);
+    }
+
+    public boolean evictDirect(String tokenHash) {
         long startedAtNanos = System.nanoTime();
         try {
             Boolean deleted = redisTemplate.delete(key(tokenHash));
@@ -96,6 +133,7 @@ public class RefreshTokenCacheService {
                         .increment();
             }
             recordDuration("refresh_token_cache_evict_duration", startedAtNanos, "success");
+            return Boolean.TRUE.equals(deleted);
         } catch (RuntimeException ex) {
             meterRegistry
                     .counter("refresh_token_cache_evict_total", "result", "failed")
@@ -103,6 +141,25 @@ public class RefreshTokenCacheService {
             recordDuration("refresh_token_cache_evict_duration", startedAtNanos, "failed");
             throw ex;
         }
+    }
+
+    public boolean existsDirect(String tokenHash) {
+        Boolean exists = redisTemplate.hasKey(key(tokenHash));
+        return Boolean.TRUE.equals(exists);
+    }
+
+    public AccessMode getAccessMode() {
+        return accessMode.get();
+    }
+
+    public AccessMode setAccessMode(AccessMode mode) {
+        AccessMode normalized = mode == null ? AccessMode.ENABLED : mode;
+        accessMode.set(normalized);
+        return normalized;
+    }
+
+    public boolean isBypassEnabled() {
+        return getAccessMode() == AccessMode.BYPASS;
     }
 
     public void evictAll(Collection<String> tokenHashes) {

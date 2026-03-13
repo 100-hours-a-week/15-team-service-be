@@ -14,6 +14,12 @@ import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetRequest
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetResponse;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupRequest;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheEvictResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheModeRequest;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheModeResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheScopeRequest;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheStateResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheWarmResponse;
 import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCacheEvictRequest;
 import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCacheEvictResponse;
 import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCleanupRequest;
@@ -78,6 +84,39 @@ public class LoadtestController {
             @RequestBody LoadtestAuthResetRequest request) {
 
         return APIResponse.onSuccess(SuccessCode.OK, loadtestService.reset(request));
+    }
+
+    @PostMapping("/auth/refresh-token-cache/mode")
+    public ResponseEntity<APIResponse<LoadtestRefreshTokenCacheModeResponse>>
+            configureRefreshTokenCacheMode(
+                    @RequestBody LoadtestRefreshTokenCacheModeRequest request) {
+
+        return APIResponse.onSuccess(
+                SuccessCode.OK, loadtestService.configureRefreshTokenCacheMode(request));
+    }
+
+    @PostMapping("/auth/refresh-token-cache/warm")
+    public ResponseEntity<APIResponse<LoadtestRefreshTokenCacheWarmResponse>> warmRefreshTokenCache(
+            @RequestBody LoadtestRefreshTokenCacheScopeRequest request) {
+
+        return APIResponse.onSuccess(
+                SuccessCode.OK, loadtestService.warmRefreshTokenCache(request));
+    }
+
+    @PostMapping("/auth/refresh-token-cache/evict")
+    public ResponseEntity<APIResponse<LoadtestRefreshTokenCacheEvictResponse>>
+            evictRefreshTokenCache(@RequestBody LoadtestRefreshTokenCacheScopeRequest request) {
+
+        return APIResponse.onSuccess(
+                SuccessCode.OK, loadtestService.evictRefreshTokenCache(request));
+    }
+
+    @PostMapping("/auth/refresh-token-cache/state")
+    public ResponseEntity<APIResponse<LoadtestRefreshTokenCacheStateResponse>>
+            getRefreshTokenCacheState(@RequestBody LoadtestRefreshTokenCacheScopeRequest request) {
+
+        return APIResponse.onSuccess(
+                SuccessCode.OK, loadtestService.getRefreshTokenCacheState(request));
     }
 
     @PostMapping("/cleanup")

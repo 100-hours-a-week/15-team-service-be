@@ -21,6 +21,12 @@ import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetRequest
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthResetResponse;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupRequest;
 import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestAuthSignupResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheEvictResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheModeRequest;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheModeResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheScopeRequest;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheStateResponse;
+import com.sipomeokjo.commitme.domain.loadtest.auth.dto.LoadtestRefreshTokenCacheWarmResponse;
 import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCacheEvictRequest;
 import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCacheEvictResponse;
 import com.sipomeokjo.commitme.domain.loadtest.dto.LoadtestCleanupRequest;
@@ -41,6 +47,7 @@ import com.sipomeokjo.commitme.domain.policy.entity.PolicyType;
 import com.sipomeokjo.commitme.domain.policy.repository.PolicyAgreementRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.repository.PositionRepository;
+import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.resume.config.AiProperties;
@@ -239,6 +246,107 @@ public class LoadtestService {
                 processedCount,
                 deactivatedUserCount,
                 revokedRefreshTokenCount);
+    }
+
+    public LoadtestRefreshTokenCacheModeResponse configureRefreshTokenCacheMode(
+            LoadtestRefreshTokenCacheModeRequest request) {
+        if (request == null || request.mode() == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
+        RefreshTokenCacheService.AccessMode mode =
+                refreshTokenCacheService.setAccessMode(request.mode());
+        log.info("[LoadtestRefreshTokenCache] mode_set mode={}", mode);
+        return new LoadtestRefreshTokenCacheModeResponse(mode);
+    }
+
+    public LoadtestRefreshTokenCacheWarmResponse warmRefreshTokenCache(
+            LoadtestRefreshTokenCacheScopeRequest request) {
+        RefreshTokenCacheTarget target = resolveRefreshTokenCacheTarget(request);
+        int warmedCacheEntryCount = 0;
+
+        for (RefreshToken token : target.activeTokens()) {
+            refreshTokenCacheService.cacheDirect(
+                    token.getTokenHash(),
+                    token.getUser().getId(),
+                    token.getUser().getStatus(),
+                    token.getExpiresAt());
+            warmedCacheEntryCount++;
+        }
+
+        log.info(
+                "[LoadtestRefreshTokenCache] warm runId={} mode={} targetUserCount={} activeRefreshTokenCount={} warmedCacheEntryCount={}",
+                target.runId(),
+                refreshTokenCacheService.getAccessMode(),
+                target.targetUserCount(),
+                target.activeTokens().size(),
+                warmedCacheEntryCount);
+
+        return new LoadtestRefreshTokenCacheWarmResponse(
+                target.runId(),
+                refreshTokenCacheService.getAccessMode(),
+                target.targetUserCount(),
+                target.activeTokens().size(),
+                warmedCacheEntryCount);
+    }
+
+    public LoadtestRefreshTokenCacheEvictResponse evictRefreshTokenCache(
+            LoadtestRefreshTokenCacheScopeRequest request) {
+        RefreshTokenCacheTarget target = resolveRefreshTokenCacheTarget(request);
+        int evictedCacheEntryCount = 0;
+
+        for (RefreshToken token : target.activeTokens()) {
+            if (refreshTokenCacheService.evictDirect(token.getTokenHash())) {
+                evictedCacheEntryCount++;
+            }
+        }
+
+        log.info(
+                "[LoadtestRefreshTokenCache] evict runId={} mode={} targetUserCount={} activeRefreshTokenCount={} evictedCacheEntryCount={}",
+                target.runId(),
+                refreshTokenCacheService.getAccessMode(),
+                target.targetUserCount(),
+                target.activeTokens().size(),
+                evictedCacheEntryCount);
+
+        return new LoadtestRefreshTokenCacheEvictResponse(
+                target.runId(),
+                refreshTokenCacheService.getAccessMode(),
+                target.targetUserCount(),
+                target.activeTokens().size(),
+                evictedCacheEntryCount);
+    }
+
+    public LoadtestRefreshTokenCacheStateResponse getRefreshTokenCacheState(
+            LoadtestRefreshTokenCacheScopeRequest request) {
+        RefreshTokenCacheTarget target = resolveRefreshTokenCacheTarget(request);
+        int cachedCacheEntryCount = 0;
+
+        for (RefreshToken token : target.activeTokens()) {
+            if (refreshTokenCacheService.existsDirect(token.getTokenHash())) {
+                cachedCacheEntryCount++;
+            }
+        }
+
+        int activeRefreshTokenCount = target.activeTokens().size();
+        int uncachedCacheEntryCount = activeRefreshTokenCount - cachedCacheEntryCount;
+
+        log.info(
+                "[LoadtestRefreshTokenCache] state runId={} mode={} targetUserCount={} activeRefreshTokenCount={} cachedCacheEntryCount={} uncachedCacheEntryCount={}",
+                target.runId(),
+                refreshTokenCacheService.getAccessMode(),
+                target.targetUserCount(),
+                activeRefreshTokenCount,
+                cachedCacheEntryCount,
+                uncachedCacheEntryCount);
+
+        return new LoadtestRefreshTokenCacheStateResponse(
+                target.runId(),
+                refreshTokenCacheService.getAccessMode(),
+                target.targetUserCount(),
+                activeRefreshTokenCount,
+                cachedCacheEntryCount,
+                uncachedCacheEntryCount);
     }
 
     @Transactional
@@ -603,6 +711,27 @@ public class LoadtestService {
                 .map(auth -> auth.getUser().getId())
                 .distinct()
                 .toList();
+    }
+
+    private RefreshTokenCacheTarget resolveRefreshTokenCacheTarget(
+            LoadtestRefreshTokenCacheScopeRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+
+        String runId = normalizeRunId(request.runId());
+        int limit = normalizeResetLimit(request.limit());
+        List<Long> userIds = resolveMockUserIdsByRunId(runId);
+        if (userIds.isEmpty()) {
+            return new RefreshTokenCacheTarget(runId, 0, List.of());
+        }
+
+        int targetUserCount = Math.min(userIds.size(), limit);
+        List<Long> limitedUserIds = userIds.subList(0, targetUserCount);
+        List<RefreshToken> activeTokens =
+                refreshTokenRepository.findActiveTokensByUserIds(limitedUserIds);
+
+        return new RefreshTokenCacheTarget(runId, targetUserCount, activeTokens);
     }
 
     private Position resolveSeedPosition(Long positionId) {
@@ -1037,4 +1166,7 @@ public class LoadtestService {
     private record CreatedMockUser(User user, Auth auth) {}
 
     private record SessionTokens(String accessToken, String refreshToken) {}
+
+    private record RefreshTokenCacheTarget(
+            String runId, int targetUserCount, List<RefreshToken> activeTokens) {}
 }

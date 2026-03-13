@@ -208,7 +208,10 @@ public class AuthCommandService {
             }
         } else {
             meterRegistry
-                    .counter("auth_token_reissue_cache_lookup_total", "result", "miss")
+                    .counter(
+                            "auth_token_reissue_cache_lookup_total",
+                            "result",
+                            refreshTokenCacheService.isBypassEnabled() ? "bypass" : "miss")
                     .increment();
         }
 
