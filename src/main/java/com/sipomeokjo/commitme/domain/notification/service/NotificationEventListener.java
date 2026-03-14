@@ -21,7 +21,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class NotificationEventListener {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
-    private final NotificationSseService notificationSseService;
+    private final NotificationSseDispatchService notificationSseDispatchService;
 
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -58,7 +58,7 @@ public class NotificationEventListener {
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        notificationSseService.send(saved);
+                        notificationSseDispatchService.dispatchAsync(saved.getId());
                     }
                 });
     }
