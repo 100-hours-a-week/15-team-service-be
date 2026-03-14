@@ -199,8 +199,13 @@ public class AuthCommandService {
                 meterRegistry
                         .counter("auth_token_reissue_cache_lookup_total", "result", "hit")
                         .increment();
-                log.info("[Auth][TokenReissue] cache_hit userId={}", cached.getUserId());
-                return authSessionIssueService.reissueTokens(tokenHash, cached.getUserId());
+                UserStatus cachedStatus = parseCachedUserStatus(cached.getUserStatus());
+                log.info(
+                        "[Auth][TokenReissue] cache_hit userId={} status={}",
+                        cached.getUserId(),
+                        cachedStatus);
+                return authSessionIssueService.reissueTokens(
+                        tokenHash, cached.getUserId(), cachedStatus);
             }
         } else {
             meterRegistry
@@ -253,6 +258,18 @@ public class AuthCommandService {
             log.warn("[Auth][FetchUser] 사용자 조회 실패: 사유=응답 없음 또는 id 누락, response={}", response);
         }
         return response;
+    }
+
+    private UserStatus parseCachedUserStatus(String cachedUserStatus) {
+        if (cachedUserStatus == null || cachedUserStatus.isBlank()) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+        try {
+            return UserStatus.valueOf(cachedUserStatus);
+        } catch (IllegalArgumentException ex) {
+            log.warn("[Auth][TokenReissue] invalid_cached_user_status status={}", cachedUserStatus);
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
     }
 
     private String normalizeScopes(String scope) {
