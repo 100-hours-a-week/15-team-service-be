@@ -15,6 +15,8 @@ public class AiProperties {
     private String resumeEditPath;
     private String resumeCallbackUrl;
     private String callbackSecret;
+    private int connectTimeoutMs = 3000;
+    private int readTimeoutMs = 10000;
 
     // Interview
     private String interviewStartPath;

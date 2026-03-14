@@ -17,8 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +32,7 @@ public class OutboxEventPublishProcessor {
     private final RabbitProperties rabbitProperties;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final TransactionTemplate transactionTemplate;
 
     @Transactional
     public List<Long> claimReadyEventIds(int batchSize) {
@@ -49,10 +50,9 @@ public class OutboxEventPublishProcessor {
         return events.stream().map(OutboxEvent::getId).toList();
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publishClaimedEvent(Long outboxEventId) {
-        OutboxEvent outboxEvent = outboxEventRepository.findById(outboxEventId).orElse(null);
-        if (outboxEvent == null) {
+        PublishSnapshot snapshot = loadPublishSnapshot(outboxEventId);
+        if (snapshot == null) {
             meterRegistry
                     .counter("outbox_publish_attempt_total", "result", "not_found")
                     .increment();
@@ -60,15 +60,15 @@ public class OutboxEventPublishProcessor {
         }
 
         Timer.Sample sample = Timer.start(meterRegistry);
-        String eventType = outboxEvent.getEventType();
+        String eventType = snapshot.eventType();
         try {
             OutboxEventEnvelope envelope =
-                    objectMapper.readValue(outboxEvent.getPayload(), OutboxEventEnvelope.class);
+                    objectMapper.readValue(snapshot.payload(), OutboxEventEnvelope.class);
             CorrelationData correlationData = new CorrelationData(envelope.eventId());
             rabbitTemplate.convertAndSend(
                     rabbitProperties.getExchange(),
                     rabbitProperties.getRoutingKey(),
-                    outboxEvent.getPayload(),
+                    snapshot.payload(),
                     message -> {
                         if (!envelope.eventId().isBlank()) {
                             message.getMessageProperties().setMessageId(envelope.eventId());
@@ -82,7 +82,7 @@ public class OutboxEventPublishProcessor {
                 String reason = confirm == null ? "confirm is null" : confirm.getReason();
                 throw new IllegalStateException("rabbit publish nacked: " + reason);
             }
-            outboxEvent.markPublished(Instant.now());
+            markPublished(outboxEventId);
             meterRegistry
                     .counter(
                             "outbox_publish_attempt_total",
@@ -92,7 +92,7 @@ public class OutboxEventPublishProcessor {
                             "success")
                     .increment();
         } catch (IllegalArgumentException ex) {
-            outboxEvent.markFailedImmediately(ex.getMessage(), Instant.now());
+            markFailedImmediately(outboxEventId, ex.getMessage());
             meterRegistry
                     .counter(
                             "outbox_publish_attempt_total",
@@ -107,10 +107,8 @@ public class OutboxEventPublishProcessor {
                     eventType,
                     ex);
         } catch (Exception ex) {
-            Instant nextAttemptAt = Instant.now().plusSeconds(backoffSeconds(outboxEvent));
-            outboxEvent.markRetryOrFailed(ex.getMessage(), nextAttemptAt);
-            String resultTag =
-                    outboxEvent.getStatus() == OutboxEventStatus.FAILED ? "failed" : "retry";
+            OutboxEventStatus nextStatus = markRetryOrFailed(outboxEventId, ex.getMessage());
+            String resultTag = nextStatus == OutboxEventStatus.FAILED ? "failed" : "retry";
             meterRegistry
                     .counter(
                             "outbox_publish_attempt_total",
@@ -123,9 +121,9 @@ public class OutboxEventPublishProcessor {
                     "[OUTBOX] publish_failed eventId={} eventType={} status={} attempt={}/{}",
                     outboxEventId,
                     eventType,
-                    outboxEvent.getStatus(),
-                    outboxEvent.getAttemptCount(),
-                    outboxEvent.getMaxAttempts(),
+                    nextStatus,
+                    snapshot.attemptCount(),
+                    snapshot.maxAttempts(),
                     ex);
         } finally {
             sample.stop(
@@ -135,9 +133,62 @@ public class OutboxEventPublishProcessor {
         }
     }
 
+    protected PublishSnapshot loadPublishSnapshot(Long outboxEventId) {
+        OutboxEvent outboxEvent = outboxEventRepository.findById(outboxEventId).orElse(null);
+        if (outboxEvent == null) {
+            return null;
+        }
+        return new PublishSnapshot(
+                outboxEvent.getId(),
+                outboxEvent.getEventType(),
+                outboxEvent.getPayload(),
+                outboxEvent.getAttemptCount(),
+                outboxEvent.getMaxAttempts());
+    }
+
+    protected void markPublished(Long outboxEventId) {
+        transactionTemplate.executeWithoutResult(
+                status ->
+                        outboxEventRepository
+                                .findById(outboxEventId)
+                                .ifPresent(event -> event.markPublished(Instant.now())));
+    }
+
+    protected void markFailedImmediately(Long outboxEventId, String errorMessage) {
+        transactionTemplate.executeWithoutResult(
+                status ->
+                        outboxEventRepository
+                                .findById(outboxEventId)
+                                .ifPresent(
+                                        event ->
+                                                event.markFailedImmediately(
+                                                        errorMessage, Instant.now())));
+    }
+
+    protected OutboxEventStatus markRetryOrFailed(Long outboxEventId, String errorMessage) {
+        return transactionTemplate.execute(
+                status -> {
+                    OutboxEvent outboxEvent =
+                            outboxEventRepository.findById(outboxEventId).orElse(null);
+                    if (outboxEvent == null) {
+                        return OutboxEventStatus.FAILED;
+                    }
+                    Instant nextAttemptAt = Instant.now().plusSeconds(backoffSeconds(outboxEvent));
+                    outboxEvent.markRetryOrFailed(errorMessage, nextAttemptAt);
+                    return outboxEvent.getStatus();
+                });
+    }
+
     private long backoffSeconds(OutboxEvent outboxEvent) {
         int nextAttemptCount = outboxEvent.getAttemptCount() + 1;
         long backoff = (long) Math.pow(2, Math.max(0, nextAttemptCount - 1)) * 5L;
         return Math.min(backoff, Duration.ofMinutes(5).toSeconds());
     }
+
+    protected record PublishSnapshot(
+            Long outboxEventId,
+            String eventType,
+            String payload,
+            int attemptCount,
+            int maxAttempts) {}
 }
