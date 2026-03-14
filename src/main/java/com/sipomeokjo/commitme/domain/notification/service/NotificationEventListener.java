@@ -12,6 +12,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 @RequiredArgsConstructor
@@ -19,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationEventListener {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
-    private final NotificationSseService notificationSseService;
+    private final NotificationSseDispatchService notificationSseDispatchService;
 
     @Async
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -52,6 +54,12 @@ public class NotificationEventListener {
                 saved.getId(),
                 event.userId(),
                 event.type());
-        notificationSseService.send(saved);
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        notificationSseDispatchService.dispatchAsync(saved.getId());
+                    }
+                });
     }
 }
