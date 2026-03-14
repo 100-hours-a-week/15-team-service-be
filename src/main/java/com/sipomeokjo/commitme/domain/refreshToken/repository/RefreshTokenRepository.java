@@ -12,7 +12,14 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
-    Optional<RefreshToken> findByTokenHash(String tokenHash);
+    @Query(
+            """
+            select token
+              from RefreshToken token
+              join fetch token.user user
+             where token.tokenHash = :tokenHash
+            """)
+    Optional<RefreshToken> findByTokenHashWithUser(@Param("tokenHash") String tokenHash);
 
     @Query(
             """

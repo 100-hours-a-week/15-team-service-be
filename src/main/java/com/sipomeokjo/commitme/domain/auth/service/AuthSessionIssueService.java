@@ -69,7 +69,7 @@ public class AuthSessionIssueService {
         Instant now = Instant.now(clock);
         RefreshToken refreshTokenEntity =
                 refreshTokenRepository
-                        .findByTokenHash(tokenHash)
+                        .findByTokenHashWithUser(tokenHash)
                         .orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID));
 
         if (refreshTokenEntity.getRevokedAt() != null
