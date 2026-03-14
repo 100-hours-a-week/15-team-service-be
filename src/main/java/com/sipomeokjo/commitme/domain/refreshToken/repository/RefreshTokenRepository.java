@@ -13,8 +13,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
-	
-	@Query(
+
+    @Query(
             """
             select token.user.id as userId,
                    user.status as userStatus,
