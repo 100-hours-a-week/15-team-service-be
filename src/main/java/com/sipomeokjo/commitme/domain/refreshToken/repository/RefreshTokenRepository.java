@@ -1,6 +1,7 @@
 package com.sipomeokjo.commitme.domain.refreshToken.repository;
 
 import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
+import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -12,14 +13,19 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
-    @Query(
+	
+	@Query(
             """
-            select token
+            select token.user.id as userId,
+                   user.status as userStatus,
+                   token.expiresAt as expiresAt,
+                   token.revokedAt as revokedAt
               from RefreshToken token
-              join fetch token.user user
+              join token.user user
              where token.tokenHash = :tokenHash
             """)
-    Optional<RefreshToken> findByTokenHashWithUser(@Param("tokenHash") String tokenHash);
+    Optional<RefreshTokenReissueSourceView> findReissueSourceByTokenHash(
+            @Param("tokenHash") String tokenHash);
 
     @Query(
             """
@@ -72,4 +78,14 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from RefreshToken token where token.user.id in :userIds")
     int deleteAllByUserIds(@Param("userIds") List<Long> userIds);
+
+    interface RefreshTokenReissueSourceView {
+        Long getUserId();
+
+        UserStatus getUserStatus();
+
+        Instant getExpiresAt();
+
+        Instant getRevokedAt();
+    }
 }
