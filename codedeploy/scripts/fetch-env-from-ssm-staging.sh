@@ -59,7 +59,7 @@ MONGO_URI="$(get_ssm "${PARAM_BASE}/MONGO_URI")"
 
 RABBITMQ_HOST="$(get_ssm "${PARAM_BASE}/RABBITMQ_HOST")"
 RABBITMQ_USERNAME="$(get_ssm "${PARAM_BASE}/RABBITMQ_BE_USERNAME")"
-RABBITMQ_PASSWORD="$(get_ssm "${PARAM_BASE}/RABBITMQ_BE_PASSWORD")
+RABBITMQ_PASSWORD="$(get_ssm "${PARAM_BASE}/RABBITMQ_BE_PASSWORD")"
 
 # 2) application-prod.yml 생성 (prod에서 바뀌는 것만 override)
 cat > "$OUT_FILE" <<YAML
