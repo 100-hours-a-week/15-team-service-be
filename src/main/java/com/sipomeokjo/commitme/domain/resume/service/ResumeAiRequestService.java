@@ -11,16 +11,14 @@ import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeEditResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateResponse;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
@@ -37,7 +35,6 @@ public class ResumeAiRequestService {
     private final ObjectMapper objectMapper;
 
     @Async
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleGenerate(ResumeAiGenerateEvent event) {
         if (event == null || event.resumeVersionId() == null) {
@@ -45,26 +42,44 @@ public class ResumeAiRequestService {
         }
 
         ResumeVersion version =
-                resumeVersionRepository.findById(event.resumeVersionId()).orElse(null);
+                resumeVersionRepository
+                        .findById(event.resumeVersionId())
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        if (version == null || version.getStatus() != ResumeVersionStatus.QUEUED) {
+        DispatchResult dispatchResult =
+                requestGenerateJob(event.userId(), event.positionName(), event.repoUrls());
+        if (dispatchResult.success()) {
+            version.startProcessing(dispatchResult.jobId());
             return;
+        }
+
+        version.failNow(dispatchResult.errorCode(), dispatchResult.errorMessage());
+    }
+
+    public DispatchResult requestGenerateJob(
+            Long userId, String positionName, List<String> repoUrls) {
+        if (userId == null || positionName == null || positionName.isBlank()) {
+            return DispatchResult.failed("AI_GENERATE_FAILED", "invalid request context");
+        }
+
+        if (repoUrls == null || repoUrls.isEmpty()) {
+            return DispatchResult.failed("AI_GENERATE_FAILED", "repoUrls is empty");
         }
 
         String githubToken;
         try {
             var auth =
                     authRepository
-                            .findByUser_IdAndProvider(event.userId(), AuthProvider.GITHUB)
+                            .findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
                             .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
             githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
         } catch (Exception e) {
-            version.failNow("AI_GENERATE_FAILED", e.getMessage());
-            return;
+            return DispatchResult.failed("AI_GENERATE_FAILED", e.getMessage());
         }
 
         AiResumeGenerateRequest aiReq =
-                new AiResumeGenerateRequest(event.repoUrls(), event.positionName(), githubToken);
+                new AiResumeGenerateRequest(repoUrls, positionName, githubToken);
 
         try {
             String url = aiProperties.getBaseUrl() + aiProperties.getResumeGeneratePath();
@@ -77,13 +92,12 @@ public class ResumeAiRequestService {
                             .body(AiResumeGenerateResponse.class);
 
             if (aiRes == null || aiRes.jobId() == null || aiRes.jobId().isBlank()) {
-                version.failNow("AI_RESPONSE_INVALID", "jobId is null/blank");
-                return;
+                return DispatchResult.failed("AI_RESPONSE_INVALID", "jobId is null/blank");
             }
 
-            version.startProcessing(aiRes.jobId());
+            return DispatchResult.succeeded(aiRes.jobId());
         } catch (Exception e) {
-            version.failNow("AI_GENERATE_FAILED", e.getMessage());
+            return DispatchResult.failed("AI_GENERATE_FAILED", e.getMessage());
         }
     }
 
@@ -120,6 +134,17 @@ public class ResumeAiRequestService {
         } catch (Exception e) {
             log.warn("[AI_EDIT] failed error={}", e.getMessage());
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+    }
+
+    public record DispatchResult(
+            boolean success, String jobId, String errorCode, String errorMessage) {
+        public static DispatchResult succeeded(String jobId) {
+            return new DispatchResult(true, jobId, null, null);
+        }
+
+        public static DispatchResult failed(String errorCode, String errorMessage) {
+            return new DispatchResult(false, null, errorCode, errorMessage);
         }
     }
 }

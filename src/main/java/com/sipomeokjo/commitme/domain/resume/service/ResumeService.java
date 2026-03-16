@@ -8,13 +8,15 @@ import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.api.validation.KeywordValidator;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
+import com.sipomeokjo.commitme.domain.outbox.dto.OutboxEventTypes;
+import com.sipomeokjo.commitme.domain.outbox.service.OutboxEventService;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.resume.dto.*;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
+import com.sipomeokjo.commitme.domain.resume.event.ResumeGenerateOutboxPayload;
 import com.sipomeokjo.commitme.domain.resume.mapper.ResumeMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
@@ -23,7 +25,6 @@ import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -43,7 +44,7 @@ public class ResumeService {
     private final CursorParser cursorParser;
     private final ResumeMapper resumeMapper;
 
-    private final ApplicationEventPublisher eventPublisher;
+    private final OutboxEventService outboxEventService;
     private final ResumeAiRequestService resumeAiRequestService;
     private final ResumeEditTransactionService resumeEditTransactionService;
 
@@ -136,10 +137,12 @@ public class ResumeService {
         ResumeVersion v1 = ResumeVersion.createV1(saved, "{}");
         resumeVersionRepository.save(v1);
 
-        ResumeAiGenerateEvent event =
-                new ResumeAiGenerateEvent(
-                        v1.getId(), userId, position.getName(), req.getRepoUrls());
-        eventPublisher.publishEvent(event);
+        outboxEventService.enqueue(
+                OutboxEventTypes.AI_JOB_REQUESTED,
+                "RESUME_VERSION",
+                String.valueOf(v1.getId()),
+                new ResumeGenerateOutboxPayload(
+                        v1.getId(), userId, position.getName(), req.getRepoUrls()));
 
         return saved.getId();
     }
