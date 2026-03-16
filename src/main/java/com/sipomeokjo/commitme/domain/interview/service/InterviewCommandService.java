@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
-import com.sipomeokjo.commitme.domain.company.entity.Company;
-import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewAnswerRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewCreateRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewResponse;
@@ -13,107 +11,54 @@ import com.sipomeokjo.commitme.domain.interview.dto.InterviewStartResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewUpdateNameRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewChatRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewChatResponse;
+import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewGenerateRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewGenerateRequest.ProjectPayload;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewGenerateResponse;
-import com.sipomeokjo.commitme.domain.interview.entity.Interview;
 import com.sipomeokjo.commitme.domain.interview.entity.InterviewMessage;
 import com.sipomeokjo.commitme.domain.interview.entity.InterviewType;
 import com.sipomeokjo.commitme.domain.interview.mapper.InterviewMapper;
 import com.sipomeokjo.commitme.domain.interview.repository.InterviewMessageRepository;
-import com.sipomeokjo.commitme.domain.interview.repository.InterviewRepository;
 import com.sipomeokjo.commitme.domain.interview.sse.InterviewSseEmitterManager;
-import com.sipomeokjo.commitme.domain.position.entity.Position;
-import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
-import com.sipomeokjo.commitme.domain.user.entity.User;
-import com.sipomeokjo.commitme.domain.user.service.UserFinder;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class InterviewCommandService {
 
-    private final InterviewRepository interviewRepository;
     private final InterviewMessageRepository interviewMessageRepository;
-    private final InterviewMapper interviewMapper;
-    private final UserFinder userFinder;
-    private final PositionFinder positionFinder;
-    private final CompanyRepository companyRepository;
-    private final ResumeVersionRepository resumeVersionRepository;
+    private final InterviewCommandTransactionService interviewCommandTransactionService;
     private final InterviewAiService interviewAiService;
+    private final InterviewMapper interviewMapper;
     private final InterviewSseEmitterManager sseEmitterManager;
     private final ObjectMapper objectMapper;
 
     public InterviewResponse updateName(
             Long userId, Long interviewId, InterviewUpdateNameRequest request) {
-        Interview interview =
-                interviewRepository
-                        .findByIdAndUserId(interviewId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_NOT_FOUND));
-
-        interview.updateName(request.name());
-
-        interviewRepository.save(interview);
-
-        return interviewMapper.toResponse(interview);
+        return interviewCommandTransactionService.updateName(userId, interviewId, request.name());
     }
 
     public void delete(Long userId, Long interviewId) {
-        Interview interview =
-                interviewRepository
-                        .findByIdAndUserId(interviewId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_NOT_FOUND));
-
-        // MongoDB 삭제 먼저 (트랜잭션 분리)
+        interviewCommandTransactionService.validateOwnership(userId, interviewId);
         interviewMessageRepository.deleteByInterviewId(interviewId);
-        // MySQL 삭제
-        interviewRepository.delete(interview);
+        interviewCommandTransactionService.deleteInterview(userId, interviewId);
     }
 
     public InterviewStartResponse create(Long userId, InterviewCreateRequest request) {
-        User user = userFinder.getByIdOrThrow(userId);
-
-        Position position = positionFinder.getByIdOrThrow(request.positionId());
-
-        Company company = null;
-        if (request.companyId() != null) {
-            company =
-                    companyRepository
-                            .findById(request.companyId())
-                            .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
-        }
-
-        ResumeVersion resumeVersion = resolveResumeVersion(request);
-        if (resumeVersion == null) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
-        }
-
-        String companyNameForAi = resolveCompanyName(company, request.companyName());
-
+        InterviewCommandTransactionService.CreatePrepared prepared =
+                interviewCommandTransactionService.prepareCreate(userId, request);
         AiInterviewGenerateRequest generateRequest =
                 buildGenerateRequest(
-                        resumeVersion,
-                        request.interviewType(),
-                        position.getName(),
-                        companyNameForAi);
-
-        String interviewName = generateInterviewName(position.getName(), request.interviewType());
-
-        Interview interview =
-                Interview.create(user, position, company, interviewName, request.interviewType());
-
-        interviewRepository.save(interview);
+                        prepared.resumeId(),
+                        prepared.resumeContent(),
+                        prepared.interviewType(),
+                        prepared.positionName(),
+                        prepared.companyName());
 
         AiInterviewGenerateResponse aiResponse =
                 interviewAiService.generateInterview(generateRequest);
@@ -127,90 +72,31 @@ public class InterviewCommandService {
             throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
 
-        interview.updateAiSessionId(aiResponse.aiSessionId());
-
-        List<InterviewMessage> questionMessages = new ArrayList<>();
-        int order = 1;
-        for (AiInterviewGenerateResponse.QuestionPayload question : aiResponse.questions()) {
-            questionMessages.add(
-                    InterviewMessage.createFromGeneratedQuestion(
-                            interview.getId(), order, question.questionId(), question.text()));
-            order++;
-        }
-        interviewMessageRepository.saveAll(questionMessages);
-
+        var interview = interviewCommandTransactionService.createInterview(prepared, aiResponse);
         return interviewMapper.toStartResponse(interview);
     }
 
     public void sendAnswer(Long userId, Long interviewId, InterviewAnswerRequest request) {
-        Interview interview =
-                interviewRepository
-                        .findByIdAndUserId(interviewId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_NOT_FOUND));
-
-        if (interview.isEnded()) {
-            throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_ENDED);
-        }
-
-        InterviewMessage message =
-                interviewMessageRepository
-                        .findByInterviewIdAndTurnNo(interviewId, request.turnNo())
-                        .orElseThrow(
-                                () -> new BusinessException(ErrorCode.INTERVIEW_SESSION_INVALID));
-
-        message.updateAnswer(request.answer(), request.answerInputType(), request.audioUrl());
-        interviewMessageRepository.save(message);
-
-        if (message.getQuestionId() == null || message.getQuestionId().isBlank()) {
-            throw new BusinessException(ErrorCode.INTERVIEW_SESSION_INVALID);
-        }
+        var prepared =
+                interviewCommandTransactionService.prepareAnswer(userId, interviewId, request);
 
         AiInterviewChatResponse chatResponse =
                 interviewAiService.chatInterview(
                         new AiInterviewChatRequest(
-                                interview.getAiSessionId(),
-                                message.getQuestionId(),
-                                request.answer()));
+                                prepared.aiSessionId(), prepared.questionId(), prepared.answer()));
 
         if (chatResponse == null || !"success".equalsIgnoreCase(chatResponse.status())) {
             throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
 
-        String followUpQuestion = chatResponse.followUpQuestion();
-        if (followUpQuestion != null && !followUpQuestion.isBlank()) {
-            Integer nextTurnNo = nextTurnNo(interviewId);
-            Instant askedAt = Instant.now();
-            InterviewMessage followUpMessage =
-                    InterviewMessage.createFollowUpQuestion(
-                            interviewId,
-                            nextTurnNo,
-                            message.getQuestionId(),
-                            followUpQuestion,
-                            askedAt);
-            interviewMessageRepository.save(followUpMessage);
-            sseEmitterManager.sendQuestion(
-                    interviewId,
-                    Map.of(
-                            "turnNo", nextTurnNo,
-                            "question", followUpQuestion,
-                            "askedAt", askedAt.toString()));
-            return;
-        }
-
-        sendNextQuestionIfAvailable(interviewId);
+        dispatchQuestion(
+                interviewId,
+                interviewCommandTransactionService.advanceAfterChat(interviewId, chatResponse));
     }
 
     public String end(Long userId, Long interviewId) {
-        Interview interview =
-                interviewRepository
-                        .findByIdAndUserId(interviewId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_NOT_FOUND));
-
-        if (interview.isEnded()) {
-            throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_ENDED);
-        }
-
-        interview.end();
+        var prepared = interviewCommandTransactionService.prepareEnd(userId, interviewId);
+        interviewCommandTransactionService.markEnded(userId, interviewId);
 
         List<InterviewMessage> messages =
                 interviewMessageRepository.findByInterviewIdAndTurnNoIsNotNullOrderByTurnNoAsc(
@@ -221,65 +107,55 @@ public class InterviewCommandService {
                 messages.stream().anyMatch(m -> m.getAnswer() != null && !m.getAnswer().isBlank());
 
         if (hasAnsweredMessages) {
-            AiInterviewEndResponse endResponse =
-                    interviewAiService.endInterview(interview, messages);
+            AiInterviewEndRequest endRequest =
+                    new AiInterviewEndRequest(
+                            prepared.aiSessionId(),
+                            prepared.interviewType(),
+                            prepared.positionName(),
+                            prepared.companyName(),
+                            messages.stream()
+                                    .filter(m -> m.getAnswer() != null && !m.getAnswer().isBlank())
+                                    .map(
+                                            m ->
+                                                    new AiInterviewEndRequest.MessagePayload(
+                                                            m.getTurnNo(),
+                                                            m.getQuestion(),
+                                                            m.getAnswer(),
+                                                            m.getAnswerInputType() == null
+                                                                    ? "text"
+                                                                    : (m.getAnswerInputType()
+                                                                                    .name()
+                                                                                    .equals("AUDIO")
+                                                                            ? "stt"
+                                                                            : "text"),
+                                                            m.getAskedAt() == null
+                                                                    ? null
+                                                                    : m.getAskedAt().toString(),
+                                                            m.getAnsweredAt() == null
+                                                                    ? null
+                                                                    : m.getAnsweredAt().toString()))
+                                    .toList());
+            AiInterviewEndResponse endResponse = interviewAiService.endInterview(endRequest);
             if (endResponse != null && "success".equalsIgnoreCase(endResponse.status())) {
-                interview.updateFeedback(writeFeedbackJson(endResponse));
+                String feedback =
+                        interviewCommandTransactionService.applyFeedback(
+                                interviewId, writeFeedbackJson(endResponse));
+                sseEmitterManager.sendEnd(interviewId);
+                return feedback;
             }
         }
 
         sseEmitterManager.sendEnd(interviewId);
-
-        return interview.getTotalFeedback();
-    }
-
-    private String generateInterviewName(String positionName, InterviewType interviewType) {
-        String date = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).toString();
-        String typeLabel = toInterviewTypeLabel(interviewType);
-        return String.join("_", date, positionName, typeLabel);
-    }
-
-    private String toInterviewTypeLabel(InterviewType interviewType) {
-        if (interviewType == null) {
-            return "면접";
-        }
-        return switch (interviewType) {
-            case BEHAVIORAL -> "인성";
-            case TECHNICAL -> "기술";
-        };
-    }
-
-    private String resolveCompanyName(Company company, String companyName) {
-        if (company != null) {
-            return company.getName();
-        }
-        if (companyName != null && !companyName.isBlank()) {
-            return companyName;
-        }
-        return null;
-    }
-
-    private ResumeVersion resolveResumeVersion(InterviewCreateRequest request) {
-        if (request.resumeVersionId() != null) {
-            return resumeVersionRepository.findById(request.resumeVersionId()).orElse(null);
-        }
-        if (request.resumeId() != null && request.resumeVersionNo() != null) {
-            return resumeVersionRepository
-                    .findByResume_IdAndVersionNo(request.resumeId(), request.resumeVersionNo())
-                    .orElse(null);
-        }
-        if (request.resumeId() != null) {
-            return resumeVersionRepository
-                    .findTopByResume_IdAndStatusOrderByVersionNoDesc(
-                            request.resumeId(), ResumeVersionStatus.SUCCEEDED)
-                    .orElse(null);
-        }
         return null;
     }
 
     private AiInterviewGenerateRequest buildGenerateRequest(
-            ResumeVersion resumeVersion, InterviewType type, String position, String companyName) {
-        JsonNode root = parseResumeContent(resumeVersion.getContent());
+            Long resumeId,
+            String resumeContent,
+            InterviewType type,
+            String position,
+            String companyName) {
+        JsonNode root = parseResumeContent(resumeContent);
         JsonNode projectsNode = root == null ? null : root.get("projects");
         JsonNode techStackNode = root == null ? null : root.get("techStack");
         List<String> topTechStack = parseTechStack(techStackNode);
@@ -299,7 +175,7 @@ public class InterviewCommandService {
         }
 
         return new AiInterviewGenerateRequest(
-                resumeVersion.getResume().getId().intValue(),
+                resumeId.intValue(),
                 new AiInterviewGenerateRequest.ResumeContent(projects),
                 type.name().toLowerCase(),
                 position,
@@ -377,52 +253,24 @@ public class InterviewCommandService {
         return node != null && node.isTextual() ? node.asText() : null;
     }
 
-    private Integer nextTurnNo(Long interviewId) {
-        return interviewMessageRepository
-                .findFirstByInterviewIdAndTurnNoIsNotNullOrderByTurnNoDesc(interviewId)
-                .map(msg -> msg.getTurnNo() + 1)
-                .orElse(1);
+    public void sendNextQuestionIfAvailable(Long interviewId) {
+        dispatchQuestion(
+                interviewId, interviewCommandTransactionService.prepareNextQuestion(interviewId));
     }
 
-    public void sendNextQuestionIfAvailable(Long interviewId) {
-        InterviewMessage latestAsked =
-                interviewMessageRepository
-                        .findFirstByInterviewIdAndTurnNoIsNotNullOrderByTurnNoDesc(interviewId)
-                        .orElse(null);
-
-        // 이미 질문을 보냈고 답변을 안 받은 경우 → 해당 질문을 다시 전송 (새로고침 대응)
-        if (latestAsked != null
-                && (latestAsked.getAnswer() == null || latestAsked.getAnswer().isBlank())) {
-            sseEmitterManager.sendQuestion(
-                    interviewId,
-                    Map.of(
-                            "turnNo", latestAsked.getTurnNo(),
-                            "question", latestAsked.getQuestion(),
-                            "askedAt", latestAsked.getAskedAt().toString()));
-            return;
-        }
-
-        InterviewMessage nextQuestion =
-                interviewMessageRepository
-                        .findFirstByInterviewIdAndQuestionOrderIsNotNullAndAskedAtIsNullOrderByQuestionOrderAsc(
-                                interviewId)
-                        .orElse(null);
-        if (nextQuestion == null) {
+    private void dispatchQuestion(
+            Long interviewId,
+            InterviewCommandTransactionService.InterviewQuestionDispatch dispatch) {
+        if (dispatch.completed()) {
             sseEmitterManager.sendAllQuestionsComplete(interviewId);
             return;
         }
-
-        Integer nextTurnNo = nextTurnNo(interviewId);
-        Instant askedAt = Instant.now();
-        nextQuestion.markAsked(nextTurnNo, askedAt);
-        interviewMessageRepository.save(nextQuestion);
-
         sseEmitterManager.sendQuestion(
                 interviewId,
                 Map.of(
-                        "turnNo", nextTurnNo,
-                        "question", nextQuestion.getQuestion(),
-                        "askedAt", askedAt.toString()));
+                        "turnNo", dispatch.turnNo(),
+                        "question", dispatch.question(),
+                        "askedAt", dispatch.askedAt().toString()));
     }
 
     private String writeFeedbackJson(AiInterviewEndResponse response) {

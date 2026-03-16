@@ -8,6 +8,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -64,4 +65,12 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
     @Query("SELECT rv FROM ResumeVersion rv WHERE rv.status IN :statuses")
     List<ResumeVersion> findEntitiesByStatusIn(
             @Param("statuses") List<ResumeVersionStatus> statuses);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+            "UPDATE ResumeVersion rv "
+                    + "SET rv.previewShownAt = CURRENT_TIMESTAMP "
+                    + "WHERE rv.id = :resumeVersionId "
+                    + "AND rv.previewShownAt IS NULL")
+    int markPreviewShownIfUnseen(@Param("resumeVersionId") Long resumeVersionId);
 }
