@@ -175,9 +175,6 @@ app:
       dlq-routing-key: "notification.requested.dlq"
       max-retry-count: 3
       
-  observability:
-    jdbc:
-      slow-query-threshold-ms: 300
   loadtest:
     mock-auth:
       enabled: true
