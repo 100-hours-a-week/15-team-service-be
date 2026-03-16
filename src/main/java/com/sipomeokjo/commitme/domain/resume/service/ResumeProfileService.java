@@ -1,5 +1,6 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
@@ -55,10 +56,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ResumeProfileService {
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
@@ -75,6 +78,7 @@ public class ResumeProfileService {
     private final UserValidationExceptionMapper validationExceptionMapper;
     private final S3UploadService s3UploadService;
     private final ResumeProfileMapper resumeProfileMapper;
+    private final ObjectMapper objectMapper;
     private final Clock clock;
 
     @Transactional
@@ -90,6 +94,7 @@ public class ResumeProfileService {
         v1.succeed("{}");
         resumeVersionRepository.save(v1);
         persistProfileData(user, request);
+        saveProfileSnapshot(userId, resume);
         return new ResumeProfileCreateResponse(resume.getId());
     }
 
@@ -99,6 +104,7 @@ public class ResumeProfileService {
         Resume resume = resumeFinder.getByIdAndUserIdOrThrow(resumeId, userId);
         validateProfileRequest(request);
         persistProfileData(resume.getUser(), request);
+        saveProfileSnapshot(userId, resume);
         resume.touchUpdatedAtNow();
         return new ResumeProfileUpdateResponse(resumeId, Instant.now(clock));
     }
@@ -123,7 +129,7 @@ public class ResumeProfileService {
                 resumeRepository
                         .findTopByUser_IdOrderByUpdatedAtDescIdDesc(userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
-        return buildProfileResponse(userId, resume);
+        return buildLiveProfileResponse(userId, resume);
     }
 
     @Transactional
@@ -140,10 +146,19 @@ public class ResumeProfileService {
                                                                 new BusinessException(
                                                                         ErrorCode
                                                                                 .RESUME_NOT_FOUND)));
-        return buildProfileResponse(userId, resume);
+        return getProfile(userId, resume);
     }
 
-    private ResumeProfileResponse buildProfileResponse(Long userId, Resume resume) {
+    @Transactional
+    public ResumeProfileResponse getProfile(Long userId, Resume resume) {
+        ResumeProfileResponse snapshotResponse = readSnapshotResponse(resume);
+        if (snapshotResponse != null) {
+            return withResumeId(resume.getId(), snapshotResponse);
+        }
+        return buildLiveProfileResponse(userId, resume);
+    }
+
+    private ResumeProfileResponse buildLiveProfileResponse(Long userId, Resume resume) {
         User user = resume.getUser();
         ResumeProfile profile = resolveOrCreateProfile(user);
         List<UserTechStack> techStacks =
@@ -168,6 +183,53 @@ public class ResumeProfileService {
                 resumeProfileMapper.toEducationResponses(educations),
                 resumeProfileMapper.toActivityResponses(activities),
                 resumeProfileMapper.toCertificateResponses(certificates));
+    }
+
+    private void saveProfileSnapshot(Long userId, Resume resume) {
+        ResumeProfileResponse snapshot = buildLiveProfileResponse(userId, resume);
+        try {
+            resume.updateProfileSnapshot(objectMapper.writeValueAsString(snapshot));
+        } catch (Exception e) {
+            log.warn(
+                    "[RESUME_PROFILE] snapshot_serialize_failed userId={} resumeId={} error={}",
+                    userId,
+                    resume.getId(),
+                    e.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private ResumeProfileResponse readSnapshotResponse(Resume resume) {
+        if (resume == null
+                || resume.getProfileSnapshot() == null
+                || resume.getProfileSnapshot().isBlank()) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(resume.getProfileSnapshot(), ResumeProfileResponse.class);
+        } catch (Exception e) {
+            log.warn(
+                    "[RESUME_PROFILE] snapshot_deserialize_failed resumeId={} error={}",
+                    resume.getId(),
+                    e.getMessage());
+            return null;
+        }
+    }
+
+    private ResumeProfileResponse withResumeId(Long resumeId, ResumeProfileResponse response) {
+        return new ResumeProfileResponse(
+                resumeId,
+                response.name(),
+                response.profileImageUrl(),
+                response.phoneCountryCode(),
+                response.phoneNumber(),
+                response.introduction(),
+                response.techStacks(),
+                response.experiences(),
+                response.educations(),
+                response.activities(),
+                response.certificates());
     }
 
     private ResumeProfile resolveOrCreateProfile(User user) {
