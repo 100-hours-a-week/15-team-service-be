@@ -57,6 +57,10 @@ REDIS_PW="$(get_ssm "${PARAM_BASE}/REDIS_PW")"
 
 MONGO_URI="$(get_ssm "${PARAM_BASE}/MONGO_URI")"
 
+RABBITMQ_HOST="$(get_ssm "${PARAM_BASE}/RABBITMQ_HOST")"
+RABBITMQ_USERNAME="$(get_ssm "${PARAM_BASE}/RABBITMQ_BE_USERNAME")"
+RABBITMQ_PASSWORD="$(get_ssm "${PARAM_BASE}/RABBITMQ_BE_PASSWORD")
+
 # 2) application-prod.yml 생성 (prod에서 바뀌는 것만 override)
 cat > "$OUT_FILE" <<YAML
 server:
@@ -65,9 +69,12 @@ server:
 spring:
   application:
     name: CommitMe
-  output:
-    ansi:
-      enabled: always
+  rabbitmq:
+    host: "${SPRING_RABBITMQ_HOST:localhost}"
+    port: "${SPRING_RABBITMQ_PORT:5672}"
+    username: "${SPRING_RABBITMQ_USERNAME:guest}"
+    password: "${SPRING_RABBITMQ_PASSWORD:guest}"
+    virtual-host: "${SPRING_RABBITMQ_VHOST:/}"
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: "${DB_URL}"
@@ -133,6 +140,32 @@ app:
     secret-key: "${S3_SECRET_KEY}"
     cdn-base-url: "https://cdn.commit-me.com"
     presign-duration-minutes: 30
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    fail-open: ${APP_RATE_LIMIT_FAIL_OPEN:true}
+    key-prefix: "${APP_RATE_LIMIT_KEY_PREFIX::be:prod:rate-limit:api}"
+  rabbit:
+    exchange: "${APP_RABBIT_EXCHANGE:commitme.events}"
+    queue: "${APP_RABBIT_QUEUE:commitme.events.queue}"
+    routing-key: "${APP_RABBIT_ROUTING_KEY:commitme.events}"
+    retry-queue: "${APP_RABBIT_RETRY_QUEUE:commitme.events.queue.retry}"
+    retry-routing-key: "${APP_RABBIT_RETRY_ROUTING_KEY:commitme.events.retry}"
+    retry-ttl-ms: "${APP_RABBIT_RETRY_TTL_MS:5000}"
+    dlq-queue: "${APP_RABBIT_DLQ_QUEUE:commitme.events.queue.dlq}"
+    dlq-routing-key: "${APP_RABBIT_DLQ_ROUTING_KEY:commitme.events.dlq}"
+    notification:
+      exchange: "${APP_RABBIT_NOTIFICATION_EXCHANGE:notification.events}"
+      queue: "${APP_RABBIT_NOTIFICATION_QUEUE:notification.requested.queue}"
+      routing-key: "${APP_RABBIT_NOTIFICATION_ROUTING_KEY:notification.requested}"
+      retry-queue: "${APP_RABBIT_NOTIFICATION_RETRY_QUEUE:notification.requested.retry.queue}"
+      retry-routing-key: "${APP_RABBIT_NOTIFICATION_RETRY_ROUTING_KEY:notification.requested.retry}"
+      retry-ttl-ms: "${APP_RABBIT_NOTIFICATION_RETRY_TTL_MS:5000}"
+      dlq-queue: "${APP_RABBIT_NOTIFICATION_DLQ_QUEUE:notification.requested.dlq.queue}"
+      dlq-routing-key: "${APP_RABBIT_NOTIFICATION_DLQ_ROUTING_KEY:notification.requested.dlq}"
+      max-retry-count: "${APP_RABBIT_NOTIFICATION_MAX_RETRY_COUNT:3}"
+  observability:
+    jdbc:
+      slow-query-threshold-ms: 300
   loadtest:
     mock-auth:
       enabled: true
