@@ -46,6 +46,9 @@ public class Resume extends BaseEntity {
     @Column(name = "current_version_no")
     private Integer currentVersionNo;
 
+    @Column(name = "profile_snapshot", columnDefinition = "json")
+    private String profileSnapshot;
+
     public static Resume create(User user, Position position, Company company, String name) {
         Resume r = new Resume();
         r.user = user;
@@ -62,6 +65,14 @@ public class Resume extends BaseEntity {
 
     public void setCurrentVersionNo(int versionNo) {
         this.currentVersionNo = versionNo;
+    }
+
+    public void updateProfileSnapshot(String profileSnapshot) {
+        if (profileSnapshot == null || profileSnapshot.isBlank()) {
+            this.profileSnapshot = null;
+            return;
+        }
+        this.profileSnapshot = profileSnapshot;
     }
 
     public void touchUpdatedAtNow() {

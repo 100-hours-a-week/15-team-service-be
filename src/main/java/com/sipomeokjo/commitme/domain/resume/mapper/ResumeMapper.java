@@ -1,6 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.mapper;
 
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeDetailDto;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeSummaryDto;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
@@ -27,7 +28,11 @@ public class ResumeMapper {
                 resume.getUpdatedAt());
     }
 
-    public ResumeDetailDto toDetailDto(Resume resume, ResumeVersion version, boolean isEditing) {
+    public ResumeDetailDto toDetailDto(
+            Resume resume,
+            ResumeVersion version,
+            boolean isEditing,
+            ResumeProfileResponse profileResponse) {
         if (resume == null || version == null) {
             return null;
         }
@@ -44,6 +49,7 @@ public class ResumeMapper {
                 info.companyName(),
                 version.getVersionNo(),
                 version.getContent(),
+                ResumeDetailDto.ResumeDetailProfileDto.from(profileResponse),
                 version.getCommittedAt(),
                 resume.getCreatedAt(),
                 resume.getUpdatedAt());
