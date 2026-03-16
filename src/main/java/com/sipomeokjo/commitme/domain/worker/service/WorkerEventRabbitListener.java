@@ -10,17 +10,13 @@ import com.sipomeokjo.commitme.domain.worker.dto.WorkerEventEnvelope;
 import com.sipomeokjo.commitme.domain.worker.dto.WorkerEventType;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -34,7 +30,8 @@ public class WorkerEventRabbitListener {
     private final EventConsumeIdempotencyService eventConsumeIdempotencyService;
     private final AiJobRequestedWorker aiJobRequestedWorker;
     private final AiJobResultWorker aiJobResultWorker;
-    private final RabbitTemplate rabbitTemplate;
+    private final RabbitEventKeyResolver rabbitEventKeyResolver;
+    private final RabbitMessageRepublisher rabbitMessageRepublisher;
     private final RabbitProperties rabbitProperties;
     private final MeterRegistry meterRegistry;
 
@@ -77,7 +74,9 @@ public class WorkerEventRabbitListener {
         }
 
         String workerName = resolveWorkerName(eventType);
-        String eventKey = normalizeEventKey(resolveEventKey(envelope, message));
+        String eventKey =
+                rabbitEventKeyResolver.resolve(
+                        envelope.idempotencyKey(), envelope.eventId(), message);
         EventConsumeStartResult startResult =
                 eventConsumeIdempotencyService.tryStart(workerName, eventKey, queueName);
         if (startResult == EventConsumeStartResult.ALREADY_SUCCEEDED) {
@@ -145,19 +144,8 @@ public class WorkerEventRabbitListener {
     private boolean publishToRetryQueue(
             Message message, String workerName, WorkerEventType eventType) {
         try {
-            rabbitTemplate.convertAndSend(
-                    rabbitProperties.getExchange(),
-                    rabbitProperties.getRetryRoutingKey(),
-                    new String(message.getBody(), StandardCharsets.UTF_8),
-                    postMessage -> {
-                        if (message.getMessageProperties().getMessageId() != null) {
-                            postMessage
-                                    .getMessageProperties()
-                                    .setMessageId(message.getMessageProperties().getMessageId());
-                        }
-                        postMessage.getMessageProperties().setContentType("application/json");
-                        return postMessage;
-                    });
+            rabbitMessageRepublisher.republishJsonBody(
+                    message, rabbitProperties.getExchange(), rabbitProperties.getRetryRoutingKey());
             meterRegistry
                     .counter(
                             "worker_retry_total",
@@ -250,32 +238,6 @@ public class WorkerEventRabbitListener {
         return WORKER_AI_RESULT;
     }
 
-    private String resolveEventKey(WorkerEventEnvelope envelope, Message message) {
-        String candidate = firstNonBlank(envelope.idempotencyKey(), envelope.eventId());
-        if (candidate != null) {
-            return candidate;
-        }
-
-        String messageId = message.getMessageProperties().getMessageId();
-        if (messageId != null && !messageId.isBlank()) {
-            return messageId;
-        }
-
-        return sha256(message.getBody());
-    }
-
-    private String normalizeEventKey(String eventKey) {
-        if (eventKey == null || eventKey.isBlank()) {
-            return null;
-        }
-
-        String normalized = eventKey.trim();
-        if (normalized.length() <= 100) {
-            return normalized;
-        }
-        return normalized.substring(0, 100);
-    }
-
     private String firstText(JsonNode node, String... fields) {
         if (node == null || fields == null) {
             return null;
@@ -322,28 +284,6 @@ public class WorkerEventRabbitListener {
             return Long.parseLong(text);
         } catch (Exception ex) {
             return null;
-        }
-    }
-
-    private String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    private String sha256(byte[] bytes) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(bytes);
-            return HexFormat.of().formatHex(hash);
-        } catch (Exception ex) {
-            return new String(bytes, StandardCharsets.UTF_8);
         }
     }
 }
