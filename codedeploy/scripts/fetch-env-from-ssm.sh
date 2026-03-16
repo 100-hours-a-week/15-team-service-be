@@ -150,28 +150,31 @@ app:
     cdn-base-url: "https://cdn.commit-me.com"
     presign-duration-minutes: 30
   rate-limit:
-    enabled: ${APP_RATE_LIMIT_ENABLED:true}
-    fail-open: ${APP_RATE_LIMIT_FAIL_OPEN:true}
-    key-prefix: "${APP_RATE_LIMIT_KEY_PREFIX::be:prod:rate-limit:api}"
+    enabled: true
+    fail-open: true
+    key-prefix: "be:prod:rate-limit:api"
+
   rabbit:
-    exchange: "${APP_RABBIT_EXCHANGE:commitme.events}"
-    queue: "${APP_RABBIT_QUEUE:commitme.events.queue}"
-    routing-key: "${APP_RABBIT_ROUTING_KEY:commitme.events}"
-    retry-queue: "${APP_RABBIT_RETRY_QUEUE:commitme.events.queue.retry}"
-    retry-routing-key: "${APP_RABBIT_RETRY_ROUTING_KEY:commitme.events.retry}"
-    retry-ttl-ms: "${APP_RABBIT_RETRY_TTL_MS:5000}"
-    dlq-queue: "${APP_RABBIT_DLQ_QUEUE:commitme.events.queue.dlq}"
-    dlq-routing-key: "${APP_RABBIT_DLQ_ROUTING_KEY:commitme.events.dlq}"
+    exchange: "commitme.events"
+    queue: "commitme.events.queue"
+    routing-key: "commitme.events"
+    retry-queue: "commitme.events.queue.retry"
+    retry-routing-key: "commitme.events.retry"
+    retry-ttl-ms: 5000
+    dlq-queue: "commitme.events.queue.dlq"
+    dlq-routing-key: "commitme.events.dlq"
+
     notification:
-      exchange: "${APP_RABBIT_NOTIFICATION_EXCHANGE:notification.events}"
-      queue: "${APP_RABBIT_NOTIFICATION_QUEUE:notification.requested.queue}"
-      routing-key: "${APP_RABBIT_NOTIFICATION_ROUTING_KEY:notification.requested}"
-      retry-queue: "${APP_RABBIT_NOTIFICATION_RETRY_QUEUE:notification.requested.retry.queue}"
-      retry-routing-key: "${APP_RABBIT_NOTIFICATION_RETRY_ROUTING_KEY:notification.requested.retry}"
-      retry-ttl-ms: "${APP_RABBIT_NOTIFICATION_RETRY_TTL_MS:5000}"
-      dlq-queue: "${APP_RABBIT_NOTIFICATION_DLQ_QUEUE:notification.requested.dlq.queue}"
-      dlq-routing-key: "${APP_RABBIT_NOTIFICATION_DLQ_ROUTING_KEY:notification.requested.dlq}"
-      max-retry-count: "${APP_RABBIT_NOTIFICATION_MAX_RETRY_COUNT:3}"
+      exchange: "notification.events"
+      queue: "notification.requested.queue"
+      routing-key: "notification.requested"
+      retry-queue: "notification.requested.retry.queue"
+      retry-routing-key: "notification.requested.retry"
+      retry-ttl-ms: 5000
+      dlq-queue: "notification.requested.dlq.queue"
+      dlq-routing-key: "notification.requested.dlq"
+      max-retry-count: 3
+      
   observability:
     jdbc:
       slow-query-threshold-ms: 300
