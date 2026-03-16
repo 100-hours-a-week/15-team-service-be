@@ -70,11 +70,11 @@ spring:
   application:
     name: CommitMe
   rabbitmq:
-    host: "${SPRING_RABBITMQ_HOST:localhost}"
-    port: "${SPRING_RABBITMQ_PORT:5672}"
-    username: "${SPRING_RABBITMQ_USERNAME:guest}"
-    password: "${SPRING_RABBITMQ_PASSWORD:guest}"
-    virtual-host: "${SPRING_RABBITMQ_VHOST:/}"
+    host: "${RABBITMQ_HOST}"
+    port: 5672
+    username: "${RABBITMQ_USERNAME}"
+    password: "${RABBITMQ_PASSWORD}"
+    virtual-host: /
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: "${DB_URL}"
