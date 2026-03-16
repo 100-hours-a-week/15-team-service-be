@@ -33,6 +33,7 @@ import com.sipomeokjo.commitme.domain.user.entity.UserTechStack;
 import com.sipomeokjo.commitme.domain.user.mapper.UserValidationExceptionMapper;
 import com.sipomeokjo.commitme.domain.user.repository.ResumeProfileRepository;
 import com.sipomeokjo.commitme.domain.user.repository.TechStackRepository;
+import com.sipomeokjo.commitme.domain.user.repository.TechStackUpsertRow;
 import com.sipomeokjo.commitme.domain.user.repository.UserActivityRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserCertificateRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserEducationRepository;
@@ -47,6 +48,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -289,30 +291,41 @@ public class ResumeProfileService {
             }
         }
 
-        List<TechStack> foundTechStacks =
-                techStackRepository.findAllByNameNormalizedIn(normalizedToName.keySet());
-        Map<String, TechStack> techStackByNormalized = new HashMap<>();
-        for (TechStack techStack : foundTechStacks) {
-            techStackByNormalized.put(techStack.getNameNormalized(), techStack);
-        }
+        Map<String, TechStack> techStackByNormalized =
+                toTechStackByNormalized(
+                        techStackRepository.findAllByNameNormalizedIn(normalizedToName.keySet()));
+        Map<String, TechStack> techStackByName =
+                toTechStackByName(
+                        techStackRepository.findAllByNameIn(
+                                new LinkedHashSet<>(normalizedToName.values())));
 
-        List<TechStack> newTechStacks = new ArrayList<>();
+        List<TechStackUpsertRow> missingTechStacks = new ArrayList<>();
         for (Map.Entry<String, String> entry : normalizedToName.entrySet()) {
-            if (techStackByNormalized.containsKey(entry.getKey())) {
+            if (techStackByNormalized.containsKey(entry.getKey())
+                    || techStackByName.containsKey(entry.getValue())) {
                 continue;
             }
-            newTechStacks.add(TechStack.create(entry.getValue(), entry.getKey()));
+            missingTechStacks.add(new TechStackUpsertRow(entry.getValue(), entry.getKey()));
         }
-        if (!newTechStacks.isEmpty()) {
-            List<TechStack> savedTechStacks = techStackRepository.saveAll(newTechStacks);
-            for (TechStack techStack : savedTechStacks) {
-                techStackByNormalized.put(techStack.getNameNormalized(), techStack);
-            }
+
+        if (!missingTechStacks.isEmpty()) {
+            techStackRepository.upsertAll(missingTechStacks);
+            techStackByNormalized.putAll(
+                    toTechStackByNormalized(
+                            techStackRepository.findAllByNameNormalizedIn(
+                                    normalizedToName.keySet())));
+            techStackByName.putAll(
+                    toTechStackByName(
+                            techStackRepository.findAllByNameIn(
+                                    new LinkedHashSet<>(normalizedToName.values()))));
         }
 
         List<UserTechStack> userTechStacks = new ArrayList<>();
-        for (String normalizedName : normalizedToName.keySet()) {
-            TechStack techStack = techStackByNormalized.get(normalizedName);
+        for (Map.Entry<String, String> entry : normalizedToName.entrySet()) {
+            TechStack techStack = techStackByNormalized.get(entry.getKey());
+            if (techStack == null) {
+                techStack = techStackByName.get(entry.getValue());
+            }
             if (techStack != null) {
                 userTechStacks.add(UserTechStack.create(user, techStack));
             }
@@ -320,6 +333,22 @@ public class ResumeProfileService {
         if (!userTechStacks.isEmpty()) {
             userTechStackRepository.saveAll(userTechStacks);
         }
+    }
+
+    private Map<String, TechStack> toTechStackByNormalized(List<TechStack> techStacks) {
+        Map<String, TechStack> techStackByNormalized = new HashMap<>();
+        for (TechStack techStack : techStacks) {
+            techStackByNormalized.put(techStack.getNameNormalized(), techStack);
+        }
+        return techStackByNormalized;
+    }
+
+    private Map<String, TechStack> toTechStackByName(List<TechStack> techStacks) {
+        Map<String, TechStack> techStackByName = new HashMap<>();
+        for (TechStack techStack : techStacks) {
+            techStackByName.put(techStack.getName(), techStack);
+        }
+        return techStackByName;
     }
 
     private void syncExperiences(User user, List<ResumeProfileRequest.ExperienceRequest> requests) {

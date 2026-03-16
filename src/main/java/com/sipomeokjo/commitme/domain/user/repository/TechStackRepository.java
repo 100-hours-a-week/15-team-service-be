@@ -5,6 +5,9 @@ import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface TechStackRepository extends JpaRepository<TechStack, Long> {
+public interface TechStackRepository
+        extends JpaRepository<TechStack, Long>, TechStackBulkUpsertRepository {
     List<TechStack> findAllByNameNormalizedIn(Collection<String> nameNormalized);
+
+    List<TechStack> findAllByNameIn(Collection<String> names);
 }

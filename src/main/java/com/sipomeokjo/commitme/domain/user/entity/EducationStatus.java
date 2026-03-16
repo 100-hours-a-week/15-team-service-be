@@ -4,9 +4,9 @@ import java.util.Locale;
 
 public enum EducationStatus {
     GRADUATED,
-    DEFERRED,
-    ENROLLED,
-    DROPPED,
+    GRADUATION_POSTPONED,
+    ENROLLING,
+    DROPPED_OUT,
     COMPLETED;
 
     public static EducationStatus fromValue(String value) {

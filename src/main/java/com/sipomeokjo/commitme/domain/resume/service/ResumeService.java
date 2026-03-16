@@ -42,6 +42,7 @@ public class ResumeService {
     private final CompanyRepository companyRepository;
     private final CursorParser cursorParser;
     private final ResumeMapper resumeMapper;
+    private final ResumeProfileService resumeProfileService;
 
     private final ApplicationEventPublisher eventPublisher;
     private final ResumeAiRequestService resumeAiRequestService;
@@ -146,7 +147,8 @@ public class ResumeService {
 
     public ResumeDetailDto get(Long userId, Long resumeId) {
 
-        Resume resume = resumeFinder.getByIdAndUserIdWithLockOrThrow(resumeId, userId);
+        Resume resume = resumeFinder.getByIdAndUserIdOrThrow(resumeId, userId);
+        ResumeProfileResponse profileResponse = resumeProfileService.getProfile(userId, resume);
         boolean isEditing =
                 resumeVersionRepository.existsByResume_IdAndStatusIn(
                         resume.getId(),
@@ -160,8 +162,10 @@ public class ResumeService {
                         .orElse(null);
 
         if (previewVersion != null) {
-            previewVersion.markPreviewShownNow();
-            return resumeMapper.toDetailDto(resume, previewVersion, isEditing);
+            int updated = resumeVersionRepository.markPreviewShownIfUnseen(previewVersion.getId());
+            if (updated > 0) {
+                return resumeMapper.toDetailDto(resume, previewVersion, isEditing, profileResponse);
+            }
         }
 
         ResumeVersion version =
@@ -174,7 +178,7 @@ public class ResumeService {
             throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
         }
 
-        return resumeMapper.toDetailDto(resume, version, isEditing);
+        return resumeMapper.toDetailDto(resume, version, isEditing, profileResponse);
     }
 
     @Transactional(readOnly = true)
