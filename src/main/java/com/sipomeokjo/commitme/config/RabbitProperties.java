@@ -19,4 +19,20 @@ public class RabbitProperties {
 
     private String dlqQueue = "commitme.events.queue.dlq";
     private String dlqRoutingKey = "commitme.events.dlq";
+
+    private final Notification notification = new Notification();
+
+    @Getter
+    @Setter
+    public static class Notification {
+        private String exchange = "notification.events";
+        private String queue = "notification.requested.queue";
+        private String routingKey = "notification.requested";
+        private String retryQueue = "notification.requested.retry.queue";
+        private String retryRoutingKey = "notification.requested.retry";
+        private int retryTtlMs = 5000;
+        private String dlqQueue = "notification.requested.dlq.queue";
+        private String dlqRoutingKey = "notification.requested.dlq";
+        private int maxRetryCount = 3;
+    }
 }

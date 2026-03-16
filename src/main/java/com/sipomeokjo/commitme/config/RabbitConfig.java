@@ -51,4 +51,38 @@ public class RabbitConfig {
         return new Declarables(
                 exchange, mainQueue, retryQueue, dlqQueue, mainBinding, retryBinding, dlqBinding);
     }
+
+    @Bean
+    public Declarables notificationRabbitTopology() {
+        RabbitProperties.Notification notification = rabbitProperties.getNotification();
+
+        TopicExchange exchange = new TopicExchange(notification.getExchange(), true, false);
+
+        Queue mainQueue =
+                QueueBuilder.durable(notification.getQueue())
+                        .deadLetterExchange(notification.getExchange())
+                        .deadLetterRoutingKey(notification.getDlqRoutingKey())
+                        .build();
+
+        Queue retryQueue =
+                QueueBuilder.durable(notification.getRetryQueue())
+                        .ttl(notification.getRetryTtlMs())
+                        .deadLetterExchange(notification.getExchange())
+                        .deadLetterRoutingKey(notification.getRoutingKey())
+                        .build();
+
+        Queue dlqQueue = QueueBuilder.durable(notification.getDlqQueue()).build();
+
+        Binding mainBinding =
+                BindingBuilder.bind(mainQueue).to(exchange).with(notification.getRoutingKey());
+        Binding retryBinding =
+                BindingBuilder.bind(retryQueue)
+                        .to(exchange)
+                        .with(notification.getRetryRoutingKey());
+        Binding dlqBinding =
+                BindingBuilder.bind(dlqQueue).to(exchange).with(notification.getDlqRoutingKey());
+
+        return new Declarables(
+                exchange, mainQueue, retryQueue, dlqQueue, mainBinding, retryBinding, dlqBinding);
+    }
 }
