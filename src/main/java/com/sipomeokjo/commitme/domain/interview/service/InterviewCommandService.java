@@ -12,6 +12,11 @@ import com.sipomeokjo.commitme.domain.interview.dto.InterviewUpdateNameRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewChatRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewChatResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndRequest;
+import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndRequest.ProfilePayload.ActivityItem;
+import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndRequest.ProfilePayload.CertificateItem;
+import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndRequest.ProfilePayload.EducationItem;
+import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndRequest.ProfilePayload.ExperienceItem;
+import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndRequest.ProfilePayload.TechStackItem;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewEndResponse;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewGenerateRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.ai.AiInterviewGenerateRequest.ProjectPayload;
@@ -21,6 +26,8 @@ import com.sipomeokjo.commitme.domain.interview.entity.InterviewType;
 import com.sipomeokjo.commitme.domain.interview.mapper.InterviewMapper;
 import com.sipomeokjo.commitme.domain.interview.repository.InterviewMessageRepository;
 import com.sipomeokjo.commitme.domain.interview.sse.InterviewSseEmitterManager;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
+import com.sipomeokjo.commitme.domain.resume.service.ResumeProfileService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +44,7 @@ public class InterviewCommandService {
     private final InterviewMapper interviewMapper;
     private final InterviewSseEmitterManager sseEmitterManager;
     private final ObjectMapper objectMapper;
+    private final ResumeProfileService resumeProfileService;
 
     public InterviewResponse updateName(
             Long userId, Long interviewId, InterviewUpdateNameRequest request) {
@@ -134,7 +142,9 @@ public class InterviewCommandService {
                                                             m.getAnsweredAt() == null
                                                                     ? null
                                                                     : m.getAnsweredAt().toString()))
-                                    .toList());
+                                    .toList(),
+                            resolveProfilePayload(
+                                    userId, prepared.resumeId(), prepared.profileSnapshot()));
             AiInterviewEndResponse endResponse = interviewAiService.endInterview(endRequest);
             if (endResponse != null && "success".equalsIgnoreCase(endResponse.status())) {
                 String feedback =
@@ -271,6 +281,84 @@ public class InterviewCommandService {
                         "turnNo", dispatch.turnNo(),
                         "question", dispatch.question(),
                         "askedAt", dispatch.askedAt().toString()));
+    }
+
+    private AiInterviewEndRequest.ProfilePayload resolveProfilePayload(
+            Long userId, Long resumeId, String profileSnapshot) {
+        ResumeProfileResponse resp = null;
+
+        if (profileSnapshot != null && !profileSnapshot.isBlank()) {
+            try {
+                resp = objectMapper.readValue(profileSnapshot, ResumeProfileResponse.class);
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (resp == null && resumeId != null) {
+            try {
+                resp = resumeProfileService.getProfile(userId, resumeId);
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (resp == null) {
+            return null;
+        }
+
+        final ResumeProfileResponse r = resp;
+        return new AiInterviewEndRequest.ProfilePayload(
+                r.name(),
+                r.profileImageUrl(),
+                r.phoneCountryCode(),
+                r.phoneNumber(),
+                r.introduction(),
+                r.techStacks().stream().map(t -> new TechStackItem(t.id(), t.name())).toList(),
+                r.experiences().stream()
+                        .map(
+                                e ->
+                                        new ExperienceItem(
+                                                e.id(),
+                                                e.companyName(),
+                                                e.position(),
+                                                e.department(),
+                                                e.startAt(),
+                                                e.endAt(),
+                                                e.isCurrentlyWorking(),
+                                                e.employmentType(),
+                                                e.responsibilities()))
+                        .toList(),
+                r.educations().stream()
+                        .map(
+                                e ->
+                                        new EducationItem(
+                                                e.id(),
+                                                e.educationType(),
+                                                e.institution(),
+                                                e.major(),
+                                                e.status(),
+                                                e.startAt(),
+                                                e.endAt()))
+                        .toList(),
+                r.activities().stream()
+                        .map(
+                                a ->
+                                        new ActivityItem(
+                                                a.id(),
+                                                a.title(),
+                                                a.organization(),
+                                                a.year(),
+                                                a.description()))
+                        .toList(),
+                r.certificates().stream()
+                        .map(
+                                c ->
+                                        new CertificateItem(
+                                                c.id(),
+                                                c.name(),
+                                                c.score(),
+                                                c.issuer(),
+                                                c.issuedAt()))
+                        .toList());
     }
 
     private String writeFeedbackJson(AiInterviewEndResponse response) {
