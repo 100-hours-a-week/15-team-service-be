@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.domain.interview.entity;
 
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
+import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.global.BaseEntity;
 import jakarta.persistence.Column;
@@ -79,6 +80,10 @@ public class Interview extends BaseEntity {
     @JoinColumn(name = "company_id")
     private Company company;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resume_id")
+    private Resume resume;
+
     @Column(name = "name", nullable = false)
     private String name;
 
@@ -112,6 +117,10 @@ public class Interview extends BaseEntity {
 
     public void updateAiSessionId(String aiSessionId) {
         this.aiSessionId = aiSessionId;
+    }
+
+    public void updateResume(Resume resume) {
+        this.resume = resume;
     }
 
     public boolean isEnded() {

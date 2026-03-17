@@ -19,6 +19,7 @@ import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
+import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.service.UserFinder;
@@ -40,6 +41,7 @@ public class InterviewCommandTransactionService {
     private final PositionFinder positionFinder;
     private final CompanyRepository companyRepository;
     private final ResumeVersionRepository resumeVersionRepository;
+    private final ResumeRepository resumeRepository;
 
     @Transactional
     public InterviewResponse updateName(Long userId, Long interviewId, String name) {
@@ -121,6 +123,9 @@ public class InterviewCommandTransactionService {
                         company,
                         prepared.interviewName(),
                         prepared.interviewType());
+        if (prepared.resumeId() != null) {
+            interview.updateResume(resumeRepository.getReferenceById(prepared.resumeId()));
+        }
         interviewRepository.save(interview);
         interview.updateAiSessionId(aiResponse.aiSessionId());
 
@@ -200,19 +205,25 @@ public class InterviewCommandTransactionService {
     public EndPrepared prepareEnd(Long userId, Long interviewId) {
         Interview interview =
                 interviewRepository
-                        .findByIdAndUserId(interviewId, userId)
+                        .findByIdAndUserIdWithResume(interviewId, userId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.INTERVIEW_NOT_FOUND));
 
         if (interview.isEnded()) {
             throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_ENDED);
         }
 
+        Long resumeId = interview.getResume() != null ? interview.getResume().getId() : null;
+        String profileSnapshot =
+                interview.getResume() != null ? interview.getResume().getProfileSnapshot() : null;
+
         return new EndPrepared(
                 interview.getId(),
                 interview.getAiSessionId(),
                 interview.getInterviewType(),
                 interview.getPosition().getName(),
-                interview.getCompany() != null ? interview.getCompany().getName() : "미지정");
+                interview.getCompany() != null ? interview.getCompany().getName() : "미지정",
+                resumeId,
+                profileSnapshot);
     }
 
     @Transactional
@@ -335,7 +346,9 @@ public class InterviewCommandTransactionService {
             String aiSessionId,
             InterviewType interviewType,
             String positionName,
-            String companyName) {}
+            String companyName,
+            Long resumeId,
+            String profileSnapshot) {}
 
     public record InterviewQuestionDispatch(
             boolean completed, Integer turnNo, String question, Instant askedAt) {
