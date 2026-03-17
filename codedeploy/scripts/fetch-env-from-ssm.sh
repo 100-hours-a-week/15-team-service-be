@@ -56,6 +56,10 @@ REDIS_PW="$(get_ssm "${PARAM_BASE}/REDIS_PW")"
 
 MONGO_URI="$(get_ssm "${PARAM_BASE}/MONGO_URI")"
 
+RABBITMQ_HOST="$(get_ssm "${PARAM_BASE}/RABBITMQ_HOST")"
+RABBITMQ_USERNAME="$(get_ssm "${PARAM_BASE}/RABBITMQ_BE_USERNAME")"
+RABBITMQ_PASSWORD="$(get_ssm "${PARAM_BASE}/RABBITMQ_BE_PASSWORD")"
+
 # 2) application-prod.yml 생성 (prod에서 바뀌는 것만 override)
 cat > "$OUT_FILE" <<YAML
 server:
@@ -64,9 +68,12 @@ server:
 spring:
   application:
     name: CommitMe
-  output:
-    ansi:
-      enabled: always
+  rabbitmq:
+    host: "${RABBITMQ_HOST}"
+    port: 5672
+    username: "${RABBITMQ_USERNAME}"
+    password: "${RABBITMQ_PASSWORD}"
+    virtual-host: /
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: "${DB_URL}"
@@ -142,6 +149,32 @@ app:
     secret-key: "${S3_SECRET_KEY}"
     cdn-base-url: "https://cdn.commit-me.com"
     presign-duration-minutes: 30
+  rate-limit:
+    enabled: true
+    fail-open: true
+    key-prefix: "be:prod:rate-limit:api"
+
+  rabbit:
+    exchange: "commitme.events"
+    queue: "commitme.events.queue"
+    routing-key: "commitme.events"
+    retry-queue: "commitme.events.queue.retry"
+    retry-routing-key: "commitme.events.retry"
+    retry-ttl-ms: 5000
+    dlq-queue: "commitme.events.queue.dlq"
+    dlq-routing-key: "commitme.events.dlq"
+
+    notification:
+      exchange: "notification.events"
+      queue: "notification.requested.queue"
+      routing-key: "notification.requested"
+      retry-queue: "notification.requested.retry.queue"
+      retry-routing-key: "notification.requested.retry"
+      retry-ttl-ms: 5000
+      dlq-queue: "notification.requested.dlq.queue"
+      dlq-routing-key: "notification.requested.dlq"
+      max-retry-count: 3
+      
   loadtest:
     mock-auth:
       enabled: true
