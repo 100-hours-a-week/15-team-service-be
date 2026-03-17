@@ -1,10 +1,10 @@
 package com.sipomeokjo.commitme.domain.resume.mapper;
 
+import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeDetailDto;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeSummaryDto;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -27,15 +27,13 @@ public class ResumeMapper {
                 resume.getCurrentVersionNo(),
                 resume.getUpdatedAt());
     }
-
-    public ResumeDetailDto toDetailDto(
+	
+	public ResumeDetailDto toDetailDto(
             Resume resume,
-            ResumeVersion version,
+            ResumeEventDocument event,
             boolean isEditing,
             ResumeProfileResponse profileResponse) {
-        if (resume == null || version == null) {
-            return null;
-        }
+        if (resume == null || event == null) return null;
 
         RelatedInfo info = extractRelatedInfo(resume);
 
@@ -47,10 +45,10 @@ public class ResumeMapper {
                 info.positionName(),
                 info.companyId(),
                 info.companyName(),
-                version.getVersionNo(),
-                version.getContent(),
+                event.getVersionNo(),
+                event.getSnapshot(),
                 ResumeDetailDto.ResumeDetailProfileDto.from(profileResponse),
-                version.getCommittedAt(),
+                event.getCommittedAt(),
                 resume.getCreatedAt(),
                 resume.getUpdatedAt());
     }

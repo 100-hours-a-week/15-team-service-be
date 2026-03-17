@@ -205,8 +205,12 @@ public class WorkerEventRabbitListener {
             repoUrlsNode.forEach(node -> repoUrls.add(node.asText()));
         }
 
+        Long versionNoLong = firstLong(payloadNode, "versionNo", "version_no");
+        Integer versionNo = versionNoLong != null ? versionNoLong.intValue() : null;
+
         return new AiJobRequestedPayload(
-                firstLong(payloadNode, "resumeVersionId", "resume_version_id"),
+                firstLong(payloadNode, "resumeId", "resume_id"),
+                versionNo,
                 firstLong(payloadNode, "userId", "user_id"),
                 firstText(payloadNode, "positionName", "position_name"),
                 repoUrls);

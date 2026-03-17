@@ -5,12 +5,13 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.outbox.dto.OutboxEventTypes;
 import com.sipomeokjo.commitme.domain.outbox.service.OutboxEventService;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeCallbackRequest;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeCallbackSource;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeCompletionOutboxPayload;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class ResumeAiCallbackService {
 
-    private final ResumeVersionRepository resumeVersionRepository;
+    private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ObjectMapper objectMapper;
     private final OutboxEventService outboxEventService;
 
@@ -44,16 +45,19 @@ public class ResumeAiCallbackService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        ResumeVersion version =
-                resumeVersionRepository
+        ResumeEventDocument event =
+                resumeEventMongoRepository
                         .findByAiTaskId(req.jobId())
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        if (version.getStatus() == ResumeVersionStatus.SUCCEEDED
-                || version.getStatus() == ResumeVersionStatus.FAILED) {
-            ResumeAiCallbackResult result = toResult(version, false);
-            publishCompletionEvent(result, req, callbackSource);
+        if (event.getStatus() == ResumeVersionStatus.SUCCEEDED
+                || event.getStatus() == ResumeVersionStatus.FAILED) {
+            log.debug(
+                    "[RESUME_AI_CALLBACK] already_terminal resumeId={} versionNo={} status={}",
+                    event.getResumeId(),
+                    event.getVersionNo(),
+                    event.getStatus());
             return;
         }
 
@@ -61,19 +65,21 @@ public class ResumeAiCallbackService {
 
         if ("success".equalsIgnoreCase(status)) {
             if (req.content() == null) {
-                version.failNow("BAD_CALLBACK", "content is null");
-                ResumeAiCallbackResult result = toResult(version, true);
+                event.failNow("BAD_CALLBACK", "content is null");
+                resumeEventMongoRepository.save(event);
+                ResumeAiCallbackResult result = toResult(event, true);
                 publishCompletionEvent(result, req, callbackSource);
                 return;
             }
 
             try {
                 String json = objectMapper.writeValueAsString(req.content());
-                version.succeed(json);
+                event.succeed(json, Instant.now());
             } catch (Exception e) {
-                version.failNow("JSON_SERIALIZATION_FAILED", e.getMessage());
+                event.failNow("JSON_SERIALIZATION_FAILED", e.getMessage());
             }
-            ResumeAiCallbackResult result = toResult(version, true);
+            resumeEventMongoRepository.save(event);
+            ResumeAiCallbackResult result = toResult(event, true);
             publishCompletionEvent(result, req, callbackSource);
             return;
         }
@@ -90,25 +96,27 @@ public class ResumeAiCallbackService {
                             ? "unknown"
                             : req.error().message();
 
-            version.failNow(code, msg);
-            ResumeAiCallbackResult result = toResult(version, true);
+            event.failNow(code, msg);
+            resumeEventMongoRepository.save(event);
+            ResumeAiCallbackResult result = toResult(event, true);
             publishCompletionEvent(result, req, callbackSource);
             return;
         }
 
-        version.failNow("BAD_CALLBACK", "invalid status=" + req.status());
-        ResumeAiCallbackResult result = toResult(version, true);
+        event.failNow("BAD_CALLBACK", "invalid status=" + req.status());
+        resumeEventMongoRepository.save(event);
+        ResumeAiCallbackResult result = toResult(event, true);
         publishCompletionEvent(result, req, callbackSource);
     }
 
-    private ResumeAiCallbackResult toResult(ResumeVersion version, boolean updated) {
+    private ResumeAiCallbackResult toResult(ResumeEventDocument event, boolean updated) {
         return new ResumeAiCallbackResult(
-                version.getResume().getUser().getId(),
-                version.getResume().getId(),
-                version.getVersionNo(),
-                version.getAiTaskId(),
-                version.getStatus(),
-                version.getUpdatedAt(),
+                event.getUserId(),
+                event.getResumeId(),
+                event.getVersionNo(),
+                event.getAiTaskId(),
+                event.getStatus(),
+                event.getUpdatedAt(),
                 updated);
     }
 

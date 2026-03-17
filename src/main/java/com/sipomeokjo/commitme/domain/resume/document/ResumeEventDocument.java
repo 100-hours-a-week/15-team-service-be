@@ -1,6 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.document;
 
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
+import java.time.Duration;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -126,6 +127,22 @@ public class ResumeEventDocument {
         if (this.previewShownAt == null) {
             this.previewShownAt = previewShownAt;
         }
+    }
+
+    public void failNow(String errorCode, String message) {
+        fail("[" + errorCode + "] " + (message == null ? "" : message), Instant.now());
+    }
+
+    public boolean isProcessingTimedOut(long timeoutMinutes) {
+        if (this.status != ResumeVersionStatus.PROCESSING) return false;
+        if (this.startedAt == null) return false;
+        return this.startedAt.plus(Duration.ofMinutes(timeoutMinutes)).isBefore(Instant.now());
+    }
+
+    public boolean isQueuedTimedOut(long timeoutMinutes) {
+        if (this.status != ResumeVersionStatus.QUEUED) return false;
+        if (this.createdAt == null) return false;
+        return this.createdAt.plus(Duration.ofMinutes(timeoutMinutes)).isBefore(Instant.now());
     }
 
     private static String normalizeSnapshot(String snapshot) {

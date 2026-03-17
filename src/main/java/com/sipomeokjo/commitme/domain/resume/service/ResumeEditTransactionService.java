@@ -2,10 +2,11 @@ package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,74 +18,67 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class ResumeEditTransactionService {
     private final ResumeFinder resumeFinder;
-    private final ResumeVersionRepository resumeVersionRepository;
+    private final ResumeEventMongoRepository resumeEventMongoRepository;
 
     @Transactional
     public EditPrepared prepareEdit(Long userId, Long resumeId) {
-        Resume resume = resumeFinder.getByIdAndUserIdWithLockOrThrow(resumeId, userId);
+        Resume resume = resumeFinder.getByIdAndUserIdOrThrow(resumeId, userId);
 
-        List<Long> pendingVersions =
-                resumeVersionRepository.findByResumeIdAndStatusInWithLock(
+        boolean hasPending =
+                resumeEventMongoRepository.existsByResumeIdAndStatusIn(
                         resume.getId(),
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
-        if (!pendingVersions.isEmpty()) {
-            log.warn(
-                    "[RESUME_EDIT] in_progress userId={} resumeId={} pendingCount={}",
-                    userId,
-                    resumeId,
-                    pendingVersions.size());
+        if (hasPending) {
+            log.warn("[RESUME_EDIT] in_progress userId={} resumeId={}", userId, resumeId);
             throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
         }
 
-        ResumeVersion latestSucceeded =
-                resumeVersionRepository
-                        .findTopByResume_IdAndStatusOrderByVersionNoDesc(
+        ResumeEventDocument latestSucceeded =
+                resumeEventMongoRepository
+                        .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
                                 resume.getId(), ResumeVersionStatus.SUCCEEDED)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
         int nextVersionNo =
-                resumeVersionRepository
-                        .findLatestVersionNoByResumeId(resume.getId())
-                        .map(v -> v.getVersionNo() + 1)
+                resumeEventMongoRepository
+                        .findTopByResumeIdOrderByVersionNoDesc(resume.getId())
+                        .map(e -> e.getVersionNo() + 1)
                         .orElse(1);
 
-        ResumeVersion next =
-                ResumeVersion.createNext(resume, nextVersionNo, latestSucceeded.getContent());
-        ResumeVersion saved = resumeVersionRepository.save(next);
+        ResumeEventDocument next =
+                ResumeEventDocument.create(
+                        resume.getId(),
+                        nextVersionNo,
+                        userId,
+                        ResumeVersionStatus.QUEUED,
+                        latestSucceeded.getSnapshot());
+        resumeEventMongoRepository.save(next);
+
         return new EditPrepared(
-                saved.getId(),
-                resume.getId(),
-                resume.getName(),
-                saved.getVersionNo(),
-                saved.getContent());
+                resume.getId(), resume.getName(), nextVersionNo, latestSucceeded.getSnapshot());
     }
 
-    @Transactional
-    public ResumeVersion markEditRequested(Long resumeVersionId, String jobId) {
-        ResumeVersion next =
-                resumeVersionRepository
-                        .findById(resumeVersionId)
+    public ResumeEventDocument markEditRequested(Long resumeId, Integer versionNo, String jobId) {
+        ResumeEventDocument event =
+                resumeEventMongoRepository
+                        .findByResumeIdAndVersionNo(resumeId, versionNo)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
-        next.startProcessing(jobId);
-        return next;
+        event.startProcessing(jobId, Instant.now());
+        return resumeEventMongoRepository.save(event);
     }
 
-    @Transactional
-    public void markEditFailed(Long resumeVersionId, String errorMessage) {
-        ResumeVersion next =
-                resumeVersionRepository
-                        .findById(resumeVersionId)
+    public void markEditFailed(Long resumeId, Integer versionNo, String errorMessage) {
+        ResumeEventDocument event =
+                resumeEventMongoRepository
+                        .findByResumeIdAndVersionNo(resumeId, versionNo)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
-        next.failNow("AI_EDIT_FAILED", errorMessage);
+        event.failNow("AI_EDIT_FAILED", errorMessage);
+        resumeEventMongoRepository.save(event);
     }
 
     public record EditPrepared(
-            Long resumeVersionId,
-            Long resumeId,
-            String resumeName,
-            Integer versionNo,
-            String baseContent) {}
+            Long resumeId, String resumeName, Integer versionNo, String baseContent) {}
 }
