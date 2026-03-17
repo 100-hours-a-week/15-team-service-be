@@ -102,3 +102,7 @@ tasks.register("copyOasToSwagger", Copy) {
 }
 
 tasks.named("bootJar") { dependsOn("copyOasToSwagger") }
+
+tasks.named("processResources") {
+    mustRunAfter("copyOasToSwagger")
+}
