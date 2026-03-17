@@ -127,11 +127,10 @@ public class ResumeProfileService {
 
     @Transactional
     public ResumeProfileResponse getProfile(Long userId) {
-        Resume resume =
-                resumeRepository
-                        .findTopByUser_IdOrderByUpdatedAtDescIdDesc(userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
-        return buildLiveProfileResponse(userId, resume);
+        return resumeRepository
+                .findTopByUser_IdOrderByUpdatedAtDescIdDesc(userId)
+                .map(resume -> buildLiveProfileResponse(userId, resume))
+                .orElseGet(() -> buildEmptyProfileResponse(userId));
     }
 
     @Transactional
@@ -160,11 +159,27 @@ public class ResumeProfileService {
         return buildLiveProfileResponse(userId, resume);
     }
 
+    private ResumeProfileResponse buildEmptyProfileResponse(Long userId) {
+        User user = userFinder.getByIdOrThrow(userId);
+        ResumeProfile profile = resolveOrCreateProfile(user);
+        return new ResumeProfileResponse(
+                null,
+                user.getName(),
+                s3UploadService.toCdnUrl(user.getProfileImageUrl()),
+                profile.getPhoneCountryCode(),
+                profile.getPhoneNationalNumber(),
+                profile.getSummary(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of());
+    }
+
     private ResumeProfileResponse buildLiveProfileResponse(Long userId, Resume resume) {
         User user = resume.getUser();
         ResumeProfile profile = resolveOrCreateProfile(user);
-        List<UserTechStack> techStacks =
-                userTechStackRepository.findAllByUser_IdOrderByCreatedAtAsc(userId);
+        List<UserTechStack> techStacks = userTechStackRepository.findAllByUser_Id(userId);
         List<UserExperience> experiences =
                 userExperienceRepository.findAllByUser_IdOrderByCreatedAtAsc(userId);
         List<UserEducation> educations =

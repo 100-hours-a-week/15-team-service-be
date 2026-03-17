@@ -142,8 +142,7 @@ class ResumeProfileServiceTest {
         given(resumeRepository.findByIdAndUser_Id(resumeId, userId))
                 .willReturn(Optional.of(resume));
         given(resumeProfileRepository.findById(userId)).willReturn(Optional.of(profile));
-        given(userTechStackRepository.findAllByUser_IdOrderByCreatedAtAsc(userId))
-                .willReturn(List.of());
+        given(userTechStackRepository.findAllByUser_Id(userId)).willReturn(List.of());
         given(userExperienceRepository.findAllByUser_IdOrderByCreatedAtAsc(userId))
                 .willReturn(List.of());
         given(userEducationRepository.findAllByUser_IdOrderByIdAsc(userId)).willReturn(List.of());
@@ -193,8 +192,7 @@ class ResumeProfileServiceTest {
                 .willReturn("profiles/new.png");
         given(s3UploadService.toCdnUrl("profiles/new.png"))
                 .willReturn("https://cdn.commit-me.com/profiles/new.png");
-        given(userTechStackRepository.findAllByUser_IdOrderByCreatedAtAsc(userId))
-                .willReturn(List.of());
+        given(userTechStackRepository.findAllByUser_Id(userId)).willReturn(List.of());
         given(userExperienceRepository.findAllByUser_IdOrderByCreatedAtAsc(userId))
                 .willReturn(List.of());
         given(userEducationRepository.findAllByUser_IdOrderByIdAsc(userId)).willReturn(List.of());
