@@ -95,14 +95,17 @@ openapi3 {
 
 tasks.register("copyOasToSwagger", Copy) {
     dependsOn("openapi3")
-
-    delete("src/main/resources/static/swagger/openapi3.yaml")
     from(layout.buildDirectory.file("api-spec/openapi3.yaml"))
-    into("src/main/resources/static/swagger/")
+    into(layout.buildDirectory.dir("swagger/"))
 }
 
-tasks.named("bootJar") { dependsOn("copyOasToSwagger") }
+tasks.named("bootJar") {
+    dependsOn("copyOasToSwagger")
+    from(layout.buildDirectory.dir("swagger/")) {
+        into("BOOT-INF/classes/static/swagger/")
+    }
+}
 
-tasks.named("processResources") {
-    mustRunAfter("copyOasToSwagger")
+tasks.named("jar") {
+    dependsOn("copyOasToSwagger")
 }
