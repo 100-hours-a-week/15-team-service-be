@@ -4,6 +4,8 @@ import com.sipomeokjo.commitme.domain.notification.entity.Notification;
 import com.sipomeokjo.commitme.domain.notification.entity.NotificationType;
 import com.sipomeokjo.commitme.domain.notification.repository.NotificationRepository;
 import com.sipomeokjo.commitme.domain.notification.service.NotificationSseDispatchService;
+import com.sipomeokjo.commitme.domain.notification.service.NotificationSseService;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeRefreshRequiredSsePayload;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import com.sipomeokjo.commitme.domain.worker.dto.AiJobResultPayload;
@@ -21,6 +23,7 @@ public class AiJobResultWorker {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final NotificationSseDispatchService notificationSseDispatchService;
+    private final NotificationSseService notificationSseService;
 
     @Transactional
     public WorkerHandleResult handle(AiJobResultPayload payload) {
@@ -46,6 +49,27 @@ public class AiJobResultWorker {
                         notificationSseDispatchService.dispatchAsync(saved.getId());
                     }
                 });
+
+        if ("EDIT".equalsIgnoreCase(payload.source())
+                && payload.resumeId() != null
+                && payload.versionNo() != null
+                && payload.status() != null) {
+
+            Long resumeId = payload.resumeId();
+            Integer versionNo = payload.versionNo();
+            String sseStatus = payload.status();
+
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            notificationSseService.sendResumeRefreshRequired(
+                                    payload.userId(),
+                                    new ResumeRefreshRequiredSsePayload(
+                                            resumeId, versionNo, sseStatus));
+                        }
+                    });
+        }
 
         return WorkerHandleResult.success();
     }

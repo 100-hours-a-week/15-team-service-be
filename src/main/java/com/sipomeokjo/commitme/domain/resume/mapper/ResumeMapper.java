@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ResumeMapper {
 
-    public ResumeSummaryDto toSummaryDto(Resume resume) {
+    public ResumeSummaryDto toSummaryDto(Resume resume, boolean isEditing) {
         if (resume == null) {
             return null;
         }
@@ -25,10 +25,11 @@ public class ResumeMapper {
                 info.companyId(),
                 info.companyName(),
                 resume.getCurrentVersionNo(),
+                isEditing,
                 resume.getUpdatedAt());
     }
-	
-	public ResumeDetailDto toDetailDto(
+
+    public ResumeDetailDto toDetailDto(
             Resume resume,
             ResumeEventDocument event,
             boolean isEditing,

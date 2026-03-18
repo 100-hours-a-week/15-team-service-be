@@ -24,6 +24,8 @@ import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -59,18 +61,27 @@ public class ResumeService {
         int size = CursorRequest.resolveLimit(request, 10);
         String normalizedKeyword = KeywordValidator.normalize(keyword, 30);
 
+        Set<Long> succeededIds =
+                resumeEventMongoRepository
+                        .findResumeIdsByUserIdAndStatus(userId, ResumeVersionStatus.SUCCEEDED)
+                        .stream()
+                        .map(ResumeEventDocument::getResumeId)
+                        .collect(Collectors.toSet());
+
+        if (succeededIds.isEmpty()) {
+            return new CursorResponse<>(List.of(), null, null);
+        }
+
         List<Resume> resumes =
                 (sortBy == ResumeSortBy.UPDATED_ASC)
                         ? resumeRepository.findSucceededByUserIdWithCursorAsc(
-                                userId,
-                                ResumeVersionStatus.SUCCEEDED,
+                                succeededIds,
                                 normalizedKeyword,
                                 cursor.createdAt(),
                                 cursor.id(),
                                 PageRequest.of(0, size + 1))
                         : resumeRepository.findSucceededByUserIdWithCursorDesc(
-                                userId,
-                                ResumeVersionStatus.SUCCEEDED,
+                                succeededIds,
                                 normalizedKeyword,
                                 cursor.createdAt(),
                                 cursor.id(),
@@ -78,8 +89,23 @@ public class ResumeService {
 
         boolean hasMore = resumes.size() > size;
         List<Resume> pageResumes = hasMore ? resumes.subList(0, size) : resumes;
+
+        Set<Long> editingResumeIds =
+                resumeEventMongoRepository
+                        .findByUserIdAndStatusIn(
+                                userId,
+                                List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING))
+                        .stream()
+                        .map(ResumeEventDocument::getResumeId)
+                        .collect(Collectors.toSet());
+
         List<ResumeSummaryDto> items =
-                pageResumes.stream().map(resumeMapper::toSummaryDto).toList();
+                pageResumes.stream()
+                        .map(
+                                r ->
+                                        resumeMapper.toSummaryDto(
+                                                r, editingResumeIds.contains(r.getId())))
+                        .toList();
 
         String next =
                 hasMore && !pageResumes.isEmpty() ? encodeCursor(pageResumes.getLast()) : null;

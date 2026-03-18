@@ -69,6 +69,7 @@ public class ResumeEditTransactionService {
         return resumeEventMongoRepository.save(event);
     }
 
+    @Transactional
     public void markEditFailed(Long resumeId, Integer versionNo, String errorMessage) {
         ResumeEventDocument event =
                 resumeEventMongoRepository

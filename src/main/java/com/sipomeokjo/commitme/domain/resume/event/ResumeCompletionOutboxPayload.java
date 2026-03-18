@@ -12,4 +12,6 @@ public record ResumeCompletionOutboxPayload(
         ResumeVersionStatus status,
         ResumeCallbackSource source,
         String errorCode,
-        String errorMessage) {}
+        String errorMessage,
+        String resumeName,
+        String message) {}

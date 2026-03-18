@@ -10,4 +10,5 @@ public record ResumeSummaryDto(
         Long companyId,
         String companyName,
         Integer currentVersionNo,
+        boolean isEditing,
         Instant updatedAt) {}
