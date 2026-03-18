@@ -90,6 +90,7 @@ spring:
       password: "${REDIS_PW}"
     
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: none
     properties:
