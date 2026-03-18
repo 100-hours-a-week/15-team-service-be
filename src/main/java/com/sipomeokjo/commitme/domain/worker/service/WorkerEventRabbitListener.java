@@ -205,8 +205,12 @@ public class WorkerEventRabbitListener {
             repoUrlsNode.forEach(node -> repoUrls.add(node.asText()));
         }
 
+        Long versionNoLong = firstLong(payloadNode, "versionNo", "version_no");
+        Integer versionNo = versionNoLong != null ? versionNoLong.intValue() : null;
+
         return new AiJobRequestedPayload(
-                firstLong(payloadNode, "resumeVersionId", "resume_version_id"),
+                firstLong(payloadNode, "resumeId", "resume_id"),
+                versionNo,
                 firstLong(payloadNode, "userId", "user_id"),
                 firstText(payloadNode, "positionName", "position_name"),
                 repoUrls);
@@ -219,7 +223,13 @@ public class WorkerEventRabbitListener {
 
         Long userId = firstLong(payloadNode, "userId", "user_id");
         String payloadJson = objectMapper.writeValueAsString(payloadNode);
-        return new AiJobResultPayload(userId, payloadJson);
+        String source = firstText(payloadNode, "source");
+        Long resumeId = firstLong(payloadNode, "resumeId", "resume_id");
+        Long versionNoLong = firstLong(payloadNode, "versionNo", "version_no");
+        Integer versionNo = versionNoLong != null ? versionNoLong.intValue() : null;
+        String status = firstText(payloadNode, "status");
+
+        return new AiJobResultPayload(userId, payloadJson, source, resumeId, versionNo, status);
     }
 
     private void recordMetrics(String workerName, String result, long startedAtNanos) {

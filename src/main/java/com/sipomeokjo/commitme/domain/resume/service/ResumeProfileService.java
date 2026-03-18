@@ -5,15 +5,16 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileCreateResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileUpdateResponse;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
+import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.mapper.ResumeProfileMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.entity.CertificateType;
 import com.sipomeokjo.commitme.domain.user.entity.EducationStatus;
@@ -66,7 +67,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class ResumeProfileService {
     private final ResumeRepository resumeRepository;
-    private final ResumeVersionRepository resumeVersionRepository;
+    private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ResumeProfileRepository resumeProfileRepository;
     private final UserFinder userFinder;
     private final PositionFinder positionFinder;
@@ -92,9 +93,11 @@ public class ResumeProfileService {
         Resume resume = Resume.create(user, position, null, request.name().trim() + " 이력서");
         resumeRepository.save(resume);
 
-        ResumeVersion v1 = ResumeVersion.createV1(resume, "{}");
-        v1.succeed("{}");
-        resumeVersionRepository.save(v1);
+        ResumeEventDocument event =
+                ResumeEventDocument.create(
+                        resume.getId(), 1, userId, ResumeVersionStatus.QUEUED, "{}");
+        event.succeed("{}", Instant.now(clock));
+        resumeEventMongoRepository.save(event);
         persistProfileData(user, request);
         saveProfileSnapshot(userId, resume);
         return new ResumeProfileCreateResponse(resume.getId());

@@ -14,7 +14,7 @@ import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.mapper.ResumeProfileMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.entity.ResumeProfile;
 import com.sipomeokjo.commitme.domain.user.entity.TechStack;
@@ -49,7 +49,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class ResumeProfileServiceTest {
 
     @Mock private ResumeRepository resumeRepository;
-    @Mock private ResumeVersionRepository resumeVersionRepository;
+    @Mock private ResumeEventMongoRepository resumeEventMongoRepository;
     @Mock private ResumeProfileRepository resumeProfileRepository;
     @Mock private UserFinder userFinder;
     @Mock private PositionFinder positionFinder;
@@ -73,7 +73,7 @@ class ResumeProfileServiceTest {
         resumeProfileService =
                 new ResumeProfileService(
                         resumeRepository,
-                        resumeVersionRepository,
+                        resumeEventMongoRepository,
                         resumeProfileRepository,
                         userFinder,
                         positionFinder,
