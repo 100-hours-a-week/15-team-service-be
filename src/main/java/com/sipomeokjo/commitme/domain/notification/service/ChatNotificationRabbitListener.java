@@ -204,7 +204,9 @@ public class ChatNotificationRabbitListener {
         notificationPayload.put("sourceEventId", payload.sourceEventId());
         notificationPayload.put("messageId", payload.messageId());
         notificationPayload.put("chatroomId", payload.chatroomId());
+        notificationPayload.put("chatroomName", payload.chatroomName());
         notificationPayload.put("senderId", payload.senderId());
+        notificationPayload.put("senderName", payload.senderName());
         notificationPayload.put(
                 "createdAt", payload.createdAt() == null ? Instant.now() : payload.createdAt());
         notificationPayload.put("messagePreview", payload.messagePreview());
