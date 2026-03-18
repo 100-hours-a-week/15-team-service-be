@@ -7,7 +7,9 @@ public record NotificationRequestedPayload(
         String sourceEventId,
         String messageId,
         Long chatroomId,
+        String chatroomName,
         Long targetUserId,
         Long senderId,
+        String senderName,
         Instant createdAt,
         String messagePreview) {}
