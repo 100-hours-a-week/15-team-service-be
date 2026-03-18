@@ -28,6 +28,8 @@ import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeBulkSeed
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeBulkSeedResponse;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackReplayRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackReplayResponse;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteRequest;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteResponse;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetResponse;
 import com.sipomeokjo.commitme.domain.loadtest.service.LoadtestService;
@@ -159,5 +161,12 @@ public class LoadtestController {
             @RequestBody LoadtestResumeResetRequest request) {
 
         return APIResponse.onSuccess(SuccessCode.OK, loadtestService.resetResumes(request));
+    }
+
+    @PostMapping("/resumes/force-complete")
+    public ResponseEntity<APIResponse<LoadtestResumeForceCompleteResponse>> forceCompleteResumes(
+            @RequestBody LoadtestResumeForceCompleteRequest request) {
+
+        return APIResponse.onSuccess(SuccessCode.OK, loadtestService.forceCompleteResumes(request));
     }
 }

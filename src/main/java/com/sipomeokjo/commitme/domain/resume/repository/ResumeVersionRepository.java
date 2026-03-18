@@ -66,6 +66,9 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
     List<ResumeVersion> findEntitiesByStatusIn(
             @Param("statuses") List<ResumeVersionStatus> statuses);
 
+    List<ResumeVersion> findByResume_IdInAndStatusIn(
+            List<Long> resumeIds, List<ResumeVersionStatus> statuses, Pageable pageable);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
             "UPDATE ResumeVersion rv "

@@ -36,6 +36,8 @@ import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeBulkSeed
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackReplayRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackReplayResponse;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackType;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteRequest;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteResponse;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeReplayResultStatus;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetResponse;
@@ -672,6 +674,92 @@ public class LoadtestService {
                 resumes.size(),
                 deletedVersionCount,
                 deletedNotificationCount);
+    }
+
+    @Transactional
+    public LoadtestResumeForceCompleteResponse forceCompleteResumes(
+            LoadtestResumeForceCompleteRequest request) {
+        String runId =
+                request.runId() != null && !request.runId().isBlank()
+                        ? normalizeRunId(request.runId())
+                        : null;
+        int limit =
+                request.limit() != null && request.limit() > 0
+                        ? Math.min(request.limit(), MAX_CALLBACK_REPLAY_LIMIT)
+                        : 500;
+        String resultStatus =
+                request.resultStatus() != null && !request.resultStatus().isBlank()
+                        ? request.resultStatus().toUpperCase()
+                        : "SUCCESS";
+
+        List<Long> resumeIds = new ArrayList<>();
+
+        if (runId != null) {
+            List<Long> userIds = resolveMockUserIdsByRunId(runId);
+            if (!userIds.isEmpty()) {
+                resumeRepository.findByUser_IdIn(userIds).stream()
+                        .map(Resume::getId)
+                        .forEach(resumeIds::add);
+            }
+        }
+
+        if (request.resumeIds() != null && !request.resumeIds().isEmpty()) {
+            request.resumeIds().stream()
+                    .filter(id -> !resumeIds.contains(id))
+                    .forEach(resumeIds::add);
+        }
+
+        if (resumeIds.isEmpty()) {
+            return new LoadtestResumeForceCompleteResponse(runId, 0, 0, 0, resultStatus);
+        }
+
+        List<ResumeVersion> targetVersions =
+                resumeVersionRepository.findByResume_IdInAndStatusIn(
+                        resumeIds,
+                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING),
+                        PageRequest.of(0, limit));
+
+        int completedVersionCount = 0;
+        int skippedCount = 0;
+
+        for (ResumeVersion version : targetVersions) {
+            try {
+                if ("FAILED".equals(resultStatus)) {
+                    version.failNow(
+                            "LOADTEST_FORCE_COMPLETE",
+                            "loadtest force-complete runId="
+                                    + runId
+                                    + " versionId="
+                                    + version.getId());
+                } else {
+                    version.succeed(
+                            buildSeedResumeContentJson(
+                                    runId != null ? runId : "force-complete",
+                                    0,
+                                    0,
+                                    version.getVersionNo() != null ? version.getVersionNo() : 1,
+                                    "force-complete"));
+                }
+                completedVersionCount++;
+            } catch (Exception e) {
+                log.warn(
+                        "[LoadtestForceComplete] skipped versionId={} error={}",
+                        version.getId(),
+                        e.getMessage());
+                skippedCount++;
+            }
+        }
+
+        log.info(
+                "[LoadtestForceComplete] runId={} targetVersionCount={} completedVersionCount={} skippedCount={} resultStatus={}",
+                runId,
+                targetVersions.size(),
+                completedVersionCount,
+                skippedCount,
+                resultStatus);
+
+        return new LoadtestResumeForceCompleteResponse(
+                runId, targetVersions.size(), completedVersionCount, skippedCount, resultStatus);
     }
 
     private List<User> resolveOrCreateActiveMockUsers(String runId, int count, int startIndex) {
