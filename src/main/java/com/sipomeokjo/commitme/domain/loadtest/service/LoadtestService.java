@@ -38,6 +38,8 @@ import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallback
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackType;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteResponse;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceEditRequest;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceEditResponse;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeReplayResultStatus;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetResponse;
@@ -66,6 +68,7 @@ import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRe
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiCallbackService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
+import com.sipomeokjo.commitme.domain.user.repository.ResumeProfileRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import com.sipomeokjo.commitme.domain.userSetting.entity.UserSetting;
 import com.sipomeokjo.commitme.domain.userSetting.repository.UserSettingRepository;
@@ -78,7 +81,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -115,6 +117,7 @@ public class LoadtestService {
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
+    private final ResumeProfileRepository resumeProfileRepository;
     private final ResumeAiCallbackService resumeAiCallbackService;
     private final NotificationRepository notificationRepository;
     private final LoadtestProperties loadtestProperties;
@@ -385,6 +388,7 @@ public class LoadtestService {
         List<Long> resumeIds = resumes.stream().map(Resume::getId).toList();
 
         if (deleteResumes && !resumeIds.isEmpty()) {
+            resumeEventMongoRepository.deleteByResumeIdIn(resumeIds);
             deletedVersionCount = resumeVersionRepository.findAllByResume_IdIn(resumeIds).size();
             resumeVersionRepository.deleteByResume_IdIn(resumeIds);
             deletedResumeCount = resumes.size();
@@ -403,6 +407,7 @@ public class LoadtestService {
             deletedPolicyAgreementCount = policyAgreementRepository.deleteAllByUserIds(userIds);
             deletedUserSettingCount = userSettingRepository.deleteAllByUserIds(userIds);
             deletedAuthCount = authRepository.deleteAllByUserIds(userIds);
+            resumeProfileRepository.deleteByUserIdIn(userIds);
             deletedUserCount = userIds.size();
             userRepository.deleteAllByIdInBatch(userIds);
         }
@@ -512,13 +517,14 @@ public class LoadtestService {
                                         buildResumeSeedName(sequence, resumeIndex)));
 
                 int versionNo = 1;
+                Instant seedTime = Instant.now(clock);
                 for (int count = 0; count < succeededVersionsPerResume; count++) {
                     String content =
                             buildSeedResumeContentJson(
                                     runId, sequence, resumeIndex, versionNo, "success");
                     ResumeVersion version = createAndSaveResumeVersion(resume, versionNo, content);
                     version.succeed(content);
-                    Instant succeededAt = Instant.now(clock);
+
                     ResumeEventDocument doc =
                             ResumeEventDocument.create(
                                     resume.getId(),
@@ -526,9 +532,12 @@ public class LoadtestService {
                                     user.getId(),
                                     ResumeVersionStatus.QUEUED,
                                     content);
-                    doc.succeed(content, succeededAt);
-                    doc.markCommitted(succeededAt);
+                    doc.startProcessing(
+                            buildSeedAiTaskId(runId, sequence, resumeIndex, versionNo), seedTime);
+                    doc.succeed(content, seedTime);
+                    doc.markCommitted(seedTime);
                     resumeEventMongoRepository.save(doc);
+
                     createdVersionCount++;
                     versionNo++;
                 }
@@ -548,15 +557,17 @@ public class LoadtestService {
                                     + " versionNo="
                                     + versionNo;
                     version.failNow(LOADTEST_SEED_ERROR_CODE, errorMessage);
+
                     ResumeEventDocument doc =
                             ResumeEventDocument.create(
                                     resume.getId(),
                                     versionNo,
                                     user.getId(),
                                     ResumeVersionStatus.QUEUED,
-                                    "{}");
+                                    content);
                     doc.failNow(LOADTEST_SEED_ERROR_CODE, errorMessage);
                     resumeEventMongoRepository.save(doc);
+
                     createdVersionCount++;
                     versionNo++;
                 }
@@ -568,10 +579,11 @@ public class LoadtestService {
                     Instant processStartedAt = Instant.now(clock);
                     if (pendingStartedMinutesAgo > 0) {
                         processStartedAt =
-                                Instant.now(clock)
-                                        .minus(Duration.ofMinutes(pendingStartedMinutesAgo));
+                                processStartedAt.minus(
+                                        Duration.ofMinutes(pendingStartedMinutesAgo));
                         version.overrideProcessingStartedAt(processStartedAt);
                     }
+
                     ResumeEventDocument doc =
                             ResumeEventDocument.create(
                                     resume.getId(),
@@ -581,6 +593,7 @@ public class LoadtestService {
                                     "{}");
                     doc.startProcessing(aiTaskId, processStartedAt);
                     resumeEventMongoRepository.save(doc);
+
                     createdVersionCount++;
                     versionNo++;
                 }
@@ -681,6 +694,7 @@ public class LoadtestService {
         int deletedVersionCount = 0;
 
         if (!resumeIds.isEmpty()) {
+            resumeEventMongoRepository.deleteByResumeIdIn(resumeIds);
             deletedVersionCount = resumeVersionRepository.findAllByResume_IdIn(resumeIds).size();
             resumeVersionRepository.deleteByResume_IdIn(resumeIds);
             resumeRepository.deleteAllInBatch(resumes);
@@ -711,52 +725,106 @@ public class LoadtestService {
         int limit = normalizeCallbackReplayLimit(request.limit());
         LoadtestResumeReplayResultStatus resultStatus =
                 normalizeReplayResultStatus(request.resultStatus());
-
         List<ResumeEventDocument> targets = resolveForceCompleteTargets(request, limit);
         Instant now = Instant.now(clock);
         int completedCount = 0;
-
         for (ResumeEventDocument doc : targets) {
             if (resultStatus == LoadtestResumeReplayResultStatus.FAILED) {
                 doc.failNow("LOADTEST_FORCE_COMPLETE", "loadtest force-complete");
             } else {
-                doc.succeed("{}", now);
+                String snapshot =
+                        doc.getSnapshot() != null && !doc.getSnapshot().isBlank()
+                                ? doc.getSnapshot()
+                                : "{}";
+                doc.startProcessing("lt-fc-" + UUID.randomUUID().toString().substring(0, 12), now);
+                doc.succeed(snapshot, now);
                 doc.markCommitted(now);
             }
             resumeEventMongoRepository.save(doc);
             completedCount++;
         }
-
-        log.info(
-                "[LoadtestResumeForceComplete] runId={} targetCount={} completedCount={} resultStatus={}",
-                request.runId(),
-                targets.size(),
-                completedCount,
-                resultStatus);
-
         return new LoadtestResumeForceCompleteResponse(
                 request.runId(), targets.size(), completedCount, resultStatus);
     }
 
     private List<ResumeEventDocument> resolveForceCompleteTargets(
             LoadtestResumeForceCompleteRequest request, int limit) {
-        List<ResumeVersionStatus> activeStatuses =
+        List<ResumeVersionStatus> pendingStatuses =
                 List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING);
-        Pageable pageable = PageRequest.of(0, limit);
 
         if (request.resumeIds() != null && !request.resumeIds().isEmpty()) {
             return resumeEventMongoRepository.findByResumeIdInAndStatusIn(
-                    request.resumeIds(), activeStatuses, pageable);
+                    request.resumeIds(), pendingStatuses, PageRequest.of(0, limit));
         }
 
-        String runId = normalizeRunId(request.runId());
-        List<Long> userIds = resolveMockUserIdsByRunId(runId);
-        if (userIds.isEmpty()) {
-            return List.of();
+        if (request.runId() != null && !request.runId().isBlank()) {
+            List<Long> userIds = resolveMockUserIdsByRunId(normalizeRunId(request.runId()));
+            if (userIds.isEmpty()) {
+                return List.of();
+            }
+            return resumeEventMongoRepository.findByUserIdInAndStatusInOrderByCreatedAtAsc(
+                    userIds, pendingStatuses, PageRequest.of(0, limit));
         }
 
-        return resumeEventMongoRepository.findByUserIdInAndStatusInOrderByCreatedAtAsc(
-                userIds, activeStatuses, pageable);
+        throw new BusinessException(ErrorCode.BAD_REQUEST);
+    }
+
+    @Transactional
+    public LoadtestResumeForceEditResponse forceEdit(LoadtestResumeForceEditRequest request) {
+        if (request.userId() == null || request.resumeId() == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        }
+        Long userId = request.userId();
+        Long resumeId = request.resumeId();
+
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUser_Id(resumeId, userId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+
+        boolean hasPending =
+                resumeEventMongoRepository.existsByResumeIdAndStatusIn(
+                        resume.getId(),
+                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
+        if (hasPending) {
+            throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
+        }
+
+        ResumeEventDocument latestSucceeded =
+                resumeEventMongoRepository
+                        .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
+                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+
+        int nextVersionNo =
+                resumeEventMongoRepository
+                        .findTopByResumeIdOrderByVersionNoDesc(resume.getId())
+                        .map(e -> e.getVersionNo() + 1)
+                        .orElse(1);
+
+        String snapshot =
+                latestSucceeded.getSnapshot() != null && !latestSucceeded.getSnapshot().isBlank()
+                        ? latestSucceeded.getSnapshot()
+                        : "{}";
+        Instant now = Instant.now(clock);
+        String fakeTaskId = "lt-edit-" + UUID.randomUUID().toString().substring(0, 12);
+
+        ResumeEventDocument next =
+                ResumeEventDocument.create(
+                        resume.getId(),
+                        nextVersionNo,
+                        userId,
+                        ResumeVersionStatus.QUEUED,
+                        snapshot);
+        next.startProcessing(fakeTaskId, now);
+        next.succeed(snapshot, now);
+        next.markCommitted(now);
+        resumeEventMongoRepository.save(next);
+
+        resume.setCurrentVersionNo(nextVersionNo);
+
+        return new LoadtestResumeForceEditResponse(resumeId, nextVersionNo);
     }
 
     private List<User> resolveOrCreateActiveMockUsers(String runId, int count, int startIndex) {

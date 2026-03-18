@@ -30,6 +30,8 @@ import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallback
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeCallbackReplayResponse;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceCompleteResponse;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceEditRequest;
+import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeForceEditResponse;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetRequest;
 import com.sipomeokjo.commitme.domain.loadtest.resume.dto.LoadtestResumeResetResponse;
 import com.sipomeokjo.commitme.domain.loadtest.service.LoadtestService;
@@ -168,5 +170,12 @@ public class LoadtestController {
             @RequestBody LoadtestResumeForceCompleteRequest request) {
 
         return APIResponse.onSuccess(SuccessCode.OK, loadtestService.forceCompleteResumes(request));
+    }
+
+    @PostMapping("/resumes/force-edit")
+    public ResponseEntity<APIResponse<LoadtestResumeForceEditResponse>> forceEditResume(
+            @RequestBody LoadtestResumeForceEditRequest request) {
+
+        return APIResponse.onSuccess(SuccessCode.OK, loadtestService.forceEdit(request));
     }
 }
