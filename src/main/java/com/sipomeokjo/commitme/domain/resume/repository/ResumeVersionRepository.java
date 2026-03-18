@@ -16,11 +16,17 @@ public interface ResumeVersionRepository extends JpaRepository<ResumeVersion, Lo
 
     Optional<ResumeVersion> findByResume_IdAndVersionNo(Long resumeId, Integer versionNo);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM ResumeVersion rv WHERE rv.resume.id = :resumeId")
     void deleteByResume_Id(Long resumeId);
 
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("DELETE FROM ResumeVersion rv WHERE rv.resume.id IN :resumeIds")
     void deleteByResume_IdIn(List<Long> resumeIds);
 
     List<ResumeVersion> findAllByResume_IdIn(List<Long> resumeIds);
+
+    long countByResume_IdIn(List<Long> resumeIds);
 
     Optional<ResumeVersion> findByAiTaskId(String aiTaskId);
 

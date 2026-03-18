@@ -19,6 +19,7 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeGenerateOutboxPayload;
 import com.sipomeokjo.commitme.domain.resume.mapper.ResumeMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.service.UserFinder;
@@ -40,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ResumeService {
     private final ResumeRepository resumeRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
+    private final ResumeVersionRepository resumeVersionRepository;
     private final UserFinder userFinder;
     private final ResumeFinder resumeFinder;
     private final PositionFinder positionFinder;
@@ -346,6 +348,7 @@ public class ResumeService {
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
 
         resumeEventMongoRepository.deleteByResumeId(resume.getId());
+        resumeVersionRepository.deleteByResume_Id(resume.getId());
         resumeRepository.delete(resume);
     }
 }

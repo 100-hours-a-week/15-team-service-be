@@ -54,6 +54,7 @@ import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.resume.config.AiProperties;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeCreateRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeCallbackRequest;
 import com.sipomeokjo.commitme.domain.resume.entity.Resume;
@@ -61,6 +62,7 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiCallbackService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
@@ -76,6 +78,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -111,6 +114,7 @@ public class LoadtestService {
     private final AuthSessionIssueService authSessionIssueService;
     private final ResumeRepository resumeRepository;
     private final ResumeVersionRepository resumeVersionRepository;
+    private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ResumeAiCallbackService resumeAiCallbackService;
     private final NotificationRepository notificationRepository;
     private final LoadtestProperties loadtestProperties;
@@ -509,28 +513,32 @@ public class LoadtestService {
 
                 int versionNo = 1;
                 for (int count = 0; count < succeededVersionsPerResume; count++) {
-                    ResumeVersion version =
-                            createAndSaveResumeVersion(
-                                    resume,
-                                    versionNo,
-                                    buildSeedResumeContentJson(
-                                            runId, sequence, resumeIndex, versionNo, "success"));
-                    version.succeed(
+                    String content =
                             buildSeedResumeContentJson(
-                                    runId, sequence, resumeIndex, versionNo, "success"));
+                                    runId, sequence, resumeIndex, versionNo, "success");
+                    ResumeVersion version = createAndSaveResumeVersion(resume, versionNo, content);
+                    version.succeed(content);
+                    Instant succeededAt = Instant.now(clock);
+                    ResumeEventDocument doc =
+                            ResumeEventDocument.create(
+                                    resume.getId(),
+                                    versionNo,
+                                    user.getId(),
+                                    ResumeVersionStatus.QUEUED,
+                                    content);
+                    doc.succeed(content, succeededAt);
+                    doc.markCommitted(succeededAt);
+                    resumeEventMongoRepository.save(doc);
                     createdVersionCount++;
                     versionNo++;
                 }
 
                 for (int count = 0; count < failedVersionsPerResume; count++) {
-                    ResumeVersion version =
-                            createAndSaveResumeVersion(
-                                    resume,
-                                    versionNo,
-                                    buildSeedResumeContentJson(
-                                            runId, sequence, resumeIndex, versionNo, "failed"));
-                    version.failNow(
-                            LOADTEST_SEED_ERROR_CODE,
+                    String content =
+                            buildSeedResumeContentJson(
+                                    runId, sequence, resumeIndex, versionNo, "failed");
+                    ResumeVersion version = createAndSaveResumeVersion(resume, versionNo, content);
+                    String errorMessage =
                             "loadtest seeded failed version runId="
                                     + runId
                                     + " sequence="
@@ -538,20 +546,41 @@ public class LoadtestService {
                                     + " resumeIndex="
                                     + resumeIndex
                                     + " versionNo="
-                                    + versionNo);
+                                    + versionNo;
+                    version.failNow(LOADTEST_SEED_ERROR_CODE, errorMessage);
+                    ResumeEventDocument doc =
+                            ResumeEventDocument.create(
+                                    resume.getId(),
+                                    versionNo,
+                                    user.getId(),
+                                    ResumeVersionStatus.QUEUED,
+                                    "{}");
+                    doc.failNow(LOADTEST_SEED_ERROR_CODE, errorMessage);
+                    resumeEventMongoRepository.save(doc);
                     createdVersionCount++;
                     versionNo++;
                 }
 
                 for (int count = 0; count < pendingVersionsPerResume; count++) {
+                    String aiTaskId = buildSeedAiTaskId(runId, sequence, resumeIndex, versionNo);
                     ResumeVersion version = createAndSaveResumeVersion(resume, versionNo, "{}");
-                    version.startProcessing(
-                            buildSeedAiTaskId(runId, sequence, resumeIndex, versionNo));
+                    version.startProcessing(aiTaskId);
+                    Instant processStartedAt = Instant.now(clock);
                     if (pendingStartedMinutesAgo > 0) {
-                        version.overrideProcessingStartedAt(
+                        processStartedAt =
                                 Instant.now(clock)
-                                        .minus(Duration.ofMinutes(pendingStartedMinutesAgo)));
+                                        .minus(Duration.ofMinutes(pendingStartedMinutesAgo));
+                        version.overrideProcessingStartedAt(processStartedAt);
                     }
+                    ResumeEventDocument doc =
+                            ResumeEventDocument.create(
+                                    resume.getId(),
+                                    versionNo,
+                                    user.getId(),
+                                    ResumeVersionStatus.QUEUED,
+                                    "{}");
+                    doc.startProcessing(aiTaskId, processStartedAt);
+                    resumeEventMongoRepository.save(doc);
                     createdVersionCount++;
                     versionNo++;
                 }
@@ -679,87 +708,55 @@ public class LoadtestService {
     @Transactional
     public LoadtestResumeForceCompleteResponse forceCompleteResumes(
             LoadtestResumeForceCompleteRequest request) {
-        String runId =
-                request.runId() != null && !request.runId().isBlank()
-                        ? normalizeRunId(request.runId())
-                        : null;
-        int limit =
-                request.limit() != null && request.limit() > 0
-                        ? Math.min(request.limit(), MAX_CALLBACK_REPLAY_LIMIT)
-                        : 500;
-        String resultStatus =
-                request.resultStatus() != null && !request.resultStatus().isBlank()
-                        ? request.resultStatus().toUpperCase()
-                        : "SUCCESS";
+        int limit = normalizeCallbackReplayLimit(request.limit());
+        LoadtestResumeReplayResultStatus resultStatus =
+                normalizeReplayResultStatus(request.resultStatus());
 
-        List<Long> resumeIds = new ArrayList<>();
+        List<ResumeEventDocument> targets = resolveForceCompleteTargets(request, limit);
+        Instant now = Instant.now(clock);
+        int completedCount = 0;
 
-        if (runId != null) {
-            List<Long> userIds = resolveMockUserIdsByRunId(runId);
-            if (!userIds.isEmpty()) {
-                resumeRepository.findByUser_IdIn(userIds).stream()
-                        .map(Resume::getId)
-                        .forEach(resumeIds::add);
+        for (ResumeEventDocument doc : targets) {
+            if (resultStatus == LoadtestResumeReplayResultStatus.FAILED) {
+                doc.failNow("LOADTEST_FORCE_COMPLETE", "loadtest force-complete");
+            } else {
+                doc.succeed("{}", now);
+                doc.markCommitted(now);
             }
-        }
-
-        if (request.resumeIds() != null && !request.resumeIds().isEmpty()) {
-            request.resumeIds().stream()
-                    .filter(id -> !resumeIds.contains(id))
-                    .forEach(resumeIds::add);
-        }
-
-        if (resumeIds.isEmpty()) {
-            return new LoadtestResumeForceCompleteResponse(runId, 0, 0, 0, resultStatus);
-        }
-
-        List<ResumeVersion> targetVersions =
-                resumeVersionRepository.findByResume_IdInAndStatusIn(
-                        resumeIds,
-                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING),
-                        PageRequest.of(0, limit));
-
-        int completedVersionCount = 0;
-        int skippedCount = 0;
-
-        for (ResumeVersion version : targetVersions) {
-            try {
-                if ("FAILED".equals(resultStatus)) {
-                    version.failNow(
-                            "LOADTEST_FORCE_COMPLETE",
-                            "loadtest force-complete runId="
-                                    + runId
-                                    + " versionId="
-                                    + version.getId());
-                } else {
-                    version.succeed(
-                            buildSeedResumeContentJson(
-                                    runId != null ? runId : "force-complete",
-                                    0,
-                                    0,
-                                    version.getVersionNo() != null ? version.getVersionNo() : 1,
-                                    "force-complete"));
-                }
-                completedVersionCount++;
-            } catch (Exception e) {
-                log.warn(
-                        "[LoadtestForceComplete] skipped versionId={} error={}",
-                        version.getId(),
-                        e.getMessage());
-                skippedCount++;
-            }
+            resumeEventMongoRepository.save(doc);
+            completedCount++;
         }
 
         log.info(
-                "[LoadtestForceComplete] runId={} targetVersionCount={} completedVersionCount={} skippedCount={} resultStatus={}",
-                runId,
-                targetVersions.size(),
-                completedVersionCount,
-                skippedCount,
+                "[LoadtestResumeForceComplete] runId={} targetCount={} completedCount={} resultStatus={}",
+                request.runId(),
+                targets.size(),
+                completedCount,
                 resultStatus);
 
         return new LoadtestResumeForceCompleteResponse(
-                runId, targetVersions.size(), completedVersionCount, skippedCount, resultStatus);
+                request.runId(), targets.size(), completedCount, resultStatus);
+    }
+
+    private List<ResumeEventDocument> resolveForceCompleteTargets(
+            LoadtestResumeForceCompleteRequest request, int limit) {
+        List<ResumeVersionStatus> activeStatuses =
+                List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING);
+        Pageable pageable = PageRequest.of(0, limit);
+
+        if (request.resumeIds() != null && !request.resumeIds().isEmpty()) {
+            return resumeEventMongoRepository.findByResumeIdInAndStatusIn(
+                    request.resumeIds(), activeStatuses, pageable);
+        }
+
+        String runId = normalizeRunId(request.runId());
+        List<Long> userIds = resolveMockUserIdsByRunId(runId);
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+
+        return resumeEventMongoRepository.findByUserIdInAndStatusInOrderByCreatedAtAsc(
+                userIds, activeStatuses, pageable);
     }
 
     private List<User> resolveOrCreateActiveMockUsers(String runId, int count, int startIndex) {

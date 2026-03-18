@@ -22,6 +22,12 @@ public interface ResumeEventMongoRepository extends MongoRepository<ResumeEventD
     List<ResumeEventDocument> findByUserIdInAndStatusOrderByCreatedAtAsc(
             List<Long> userIds, ResumeVersionStatus status, Pageable pageable);
 
+    List<ResumeEventDocument> findByUserIdInAndStatusInOrderByCreatedAtAsc(
+            List<Long> userIds, List<ResumeVersionStatus> statuses, Pageable pageable);
+
+    List<ResumeEventDocument> findByResumeIdInAndStatusIn(
+            List<Long> resumeIds, List<ResumeVersionStatus> statuses, Pageable pageable);
+
     boolean existsByUserIdAndStatusIn(Long userId, List<ResumeVersionStatus> statuses);
 
     List<ResumeEventDocument> findByUserIdAndStatusIn(
@@ -39,5 +45,9 @@ public interface ResumeEventMongoRepository extends MongoRepository<ResumeEventD
 
     List<ResumeEventDocument> findByStatusIn(List<ResumeVersionStatus> statuses);
 
+    long countByResumeIdIn(List<Long> resumeIds);
+
     void deleteByResumeId(Long resumeId);
+
+    void deleteByResumeIdIn(List<Long> resumeIds);
 }

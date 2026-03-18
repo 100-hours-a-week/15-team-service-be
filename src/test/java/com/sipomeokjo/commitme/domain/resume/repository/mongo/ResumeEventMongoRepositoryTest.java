@@ -133,6 +133,21 @@ class ResumeEventMongoRepositoryTest {
         assertThat(found).extracting(ResumeEventDocument::getResumeId).containsExactly(11L, 12L);
     }
 
+    @Test
+    void deleteByResumeIdIn_removesAllMatchingEvents() {
+        resumeEventMongoRepository.save(
+                createEvent(21L, 1, 100L, ResumeVersionStatus.SUCCEEDED, "{\"v\":1}"));
+        resumeEventMongoRepository.save(
+                createEvent(21L, 2, 100L, ResumeVersionStatus.PROCESSING, "{\"v\":2}"));
+        resumeEventMongoRepository.save(
+                createEvent(22L, 1, 101L, ResumeVersionStatus.SUCCEEDED, "{\"v\":1}"));
+
+        resumeEventMongoRepository.deleteByResumeIdIn(List.of(21L));
+
+        assertThat(resumeEventMongoRepository.countByResumeIdIn(List.of(21L))).isZero();
+        assertThat(resumeEventMongoRepository.findByResumeIdAndVersionNo(22L, 1)).isPresent();
+    }
+
     private ResumeEventDocument createEvent(
             Long resumeId,
             Integer versionNo,
