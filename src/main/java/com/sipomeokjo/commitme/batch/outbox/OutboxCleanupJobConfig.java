@@ -1,13 +1,11 @@
 package com.sipomeokjo.commitme.batch.outbox;
 
 import com.sipomeokjo.commitme.config.OutboxCleanupProperties;
-import com.sipomeokjo.commitme.domain.outbox.entity.OutboxEvent;
-import com.sipomeokjo.commitme.domain.outbox.entity.OutboxEventStatus;
 import com.sipomeokjo.commitme.domain.outbox.repository.OutboxEventRepository;
-import jakarta.persistence.EntityManagerFactory;
+import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
+import javax.sql.DataSource;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
@@ -15,8 +13,10 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.database.JpaPagingItemReader;
-import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder;
+import org.springframework.batch.item.database.JdbcPagingItemReader;
+import org.springframework.batch.item.database.Order;
+import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
+import org.springframework.batch.item.database.support.MySqlPagingQueryProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,19 +30,19 @@ public class OutboxCleanupJobConfig {
 
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
-    private final EntityManagerFactory entityManagerFactory;
+    private final DataSource dataSource;
     private final OutboxEventRepository outboxEventRepository;
     private final OutboxCleanupProperties props;
 
     public OutboxCleanupJobConfig(
             JobRepository jobRepository,
             PlatformTransactionManager transactionManager,
-            EntityManagerFactory entityManagerFactory,
+            DataSource dataSource,
             OutboxEventRepository outboxEventRepository,
             OutboxCleanupProperties props) {
         this.jobRepository = jobRepository;
         this.transactionManager = transactionManager;
-        this.entityManagerFactory = entityManagerFactory;
+        this.dataSource = dataSource;
         this.outboxEventRepository = outboxEventRepository;
         this.props = props;
     }
@@ -55,7 +55,7 @@ public class OutboxCleanupJobConfig {
     @Bean
     public Step outboxCleanupStep() {
         return new StepBuilder(STEP_NAME, jobRepository)
-                .<OutboxEvent, OutboxEvent>chunk(props.chunkSize(), transactionManager)
+                .<Long, Long>chunk(props.chunkSize(), transactionManager)
                 .reader(outboxCleanupReader(null))
                 .writer(outboxCleanupWriter())
                 .faultTolerant()
@@ -68,29 +68,32 @@ public class OutboxCleanupJobConfig {
 
     @Bean
     @StepScope
-    public JpaPagingItemReader<OutboxEvent> outboxCleanupReader(
+    public JdbcPagingItemReader<Long> outboxCleanupReader(
             @Value("#{jobParameters['cutoffInstant']}") String cutoffInstantStr) {
         Instant cutoff = cutoffInstantStr != null ? Instant.parse(cutoffInstantStr) : Instant.now();
-        List<OutboxEventStatus> terminalStatuses =
-                List.of(OutboxEventStatus.PUBLISHED, OutboxEventStatus.FAILED);
 
-        return new JpaPagingItemReaderBuilder<OutboxEvent>()
+        MySqlPagingQueryProvider queryProvider = new MySqlPagingQueryProvider();
+        queryProvider.setSelectClause("SELECT id");
+        queryProvider.setFromClause("FROM outbox_event");
+        queryProvider.setWhereClause(
+                "WHERE status IN ('PUBLISHED', 'FAILED') AND created_at < :cutoff");
+        queryProvider.setSortKeys(Map.of("id", Order.ASCENDING));
+
+        return new JdbcPagingItemReaderBuilder<Long>()
                 .name("outboxCleanupReader")
-                .entityManagerFactory(entityManagerFactory)
+                .dataSource(dataSource)
+                .queryProvider(queryProvider)
+                .parameterValues(Map.of("cutoff", Timestamp.from(cutoff)))
                 .pageSize(props.chunkSize())
-                .queryString(
-                        "SELECT o FROM OutboxEvent o "
-                                + "WHERE o.status IN :statuses "
-                                + "AND o.createdAt < :cutoff "
-                                + "ORDER BY o.id ASC")
-                .parameterValues(Map.of("statuses", terminalStatuses, "cutoff", cutoff))
+                .rowMapper((rs, rowNum) -> rs.getLong("id"))
                 .saveState(false)
                 .build();
     }
 
     @Bean
-    public ItemWriter<OutboxEvent> outboxCleanupWriter() {
+    public ItemWriter<Long> outboxCleanupWriter() {
         return chunk ->
-                outboxEventRepository.deleteAllInBatch(new java.util.ArrayList<>(chunk.getItems()));
+                outboxEventRepository.deleteAllByIdInBatch(
+                        new java.util.ArrayList<>(chunk.getItems()));
     }
 }
