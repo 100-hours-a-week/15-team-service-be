@@ -99,12 +99,17 @@ spring:
         format_sql: false
     show-sql: false
     
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
     baseline-version: "20260204.0"
-    
+
 logging:
   level:
     org.hibernate.SQL: off
@@ -122,6 +127,21 @@ management:
       env: prod
         
 app:
+  batch:
+    outbox-cleanup:
+      enabled: true
+      retention-days: 7
+      chunk-size: 500
+      cron: "0 0 2 * * *"
+      lock-at-most: PT30M
+      lock-at-least: PT5M
+    partition-management:
+      enabled: true
+      months-ahead: 3
+      months-to-keep: 3
+      cron: "0 0 1 1 * *"
+      lock-at-most: PT10M
+      lock-at-least: PT2M
   observability:
     jdbc:
       slow-query-threshold-ms: 300

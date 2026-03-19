@@ -33,7 +33,9 @@ ext {
 }
 
 dependencies {
-//	implementation 'org.springframework.boot:spring-boot-starter-batch'
+implementation 'org.springframework.boot:spring-boot-starter-batch'
+    implementation 'net.javacrumbs.shedlock:shedlock-spring:6.6.1'
+    implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.6.1'
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.9')
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
