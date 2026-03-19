@@ -17,7 +17,7 @@ public class PartitionManagementService {
     private static final DateTimeFormatter PARTITION_NAME_FMT =
             DateTimeFormatter.ofPattern("yyyyMM");
     private static final DateTimeFormatter BOUNDARY_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -50,8 +50,8 @@ public class PartitionManagementService {
             LocalDate month = now.plusMonths(i).withDayOfMonth(1);
             String name = "p" + month.format(PARTITION_NAME_FMT);
             if (!existing.contains(name) && !"pFuture".equals(name)) {
-                LocalDate nextMonth = month.plusMonths(1);
-                String boundary = nextMonth.atStartOfDay().format(BOUNDARY_FMT);
+                // 'YYYY-MM-DD' 날짜 문자열 — RANGE COLUMNS 방식으로 timezone-independent
+                String boundary = month.plusMonths(1).format(BOUNDARY_FMT);
                 toAdd.add(name);
                 boundaries.add(boundary);
             }
@@ -70,9 +70,9 @@ public class PartitionManagementService {
             reorganize
                     .append("PARTITION `")
                     .append(toAdd.get(i))
-                    .append("` VALUES LESS THAN (UNIX_TIMESTAMP('")
+                    .append("` VALUES LESS THAN ('")
                     .append(boundaries.get(i))
-                    .append("')),");
+                    .append("'),");
         }
         reorganize.append("PARTITION `pFuture` VALUES LESS THAN MAXVALUE)");
 
