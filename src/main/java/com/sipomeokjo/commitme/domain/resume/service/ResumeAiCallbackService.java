@@ -5,14 +5,14 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.outbox.dto.OutboxEventTypes;
 import com.sipomeokjo.commitme.domain.outbox.service.OutboxEventService;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeCallbackRequest;
-import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeCallbackSource;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeCompletionOutboxPayload;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ResumeAiCallbackService {
 
     private final ResumeEventMongoRepository resumeEventMongoRepository;
-    private final ResumeRepository resumeRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
     private final ObjectMapper objectMapper;
     private final OutboxEventService outboxEventService;
 
@@ -142,7 +142,10 @@ public class ResumeAiCallbackService {
                         : OutboxEventTypes.AI_JOB_FAILED;
 
         String resumeName =
-                resumeRepository.findById(result.resumeId()).map(Resume::getName).orElse("이력서");
+                resumeMongoRepository
+                        .findByResumeId(result.resumeId())
+                        .map(ResumeDocument::getName)
+                        .orElse("이력서");
 
         String message = buildNotificationMessage(source, result.status(), resumeName);
         outboxEventService.enqueue(

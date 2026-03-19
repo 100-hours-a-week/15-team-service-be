@@ -2,13 +2,13 @@ package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.domain.notification.entity.NotificationType;
 import com.sipomeokjo.commitme.domain.notification.service.NotificationEventPublisher;
-import com.sipomeokjo.commitme.domain.resume.entity.Resume;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeCallbackSource;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeCompletionEvent;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeEditCompletedEvent;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeEditFailedEvent;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class ResumeCompletionPostProcessListener {
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationEventPublisher notificationEventPublisher;
-    private final ResumeRepository resumeRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -72,9 +72,9 @@ public class ResumeCompletionPostProcessListener {
 
     private void publishNotification(ResumeCompletionEvent event) {
         String resumeName =
-                resumeRepository
-                        .findByIdAndUser_Id(event.resumeId(), event.userId())
-                        .map(Resume::getName)
+                resumeMongoRepository
+                        .findByResumeId(event.resumeId())
+                        .map(ResumeDocument::getName)
                         .orElse("이력서");
 
         Map<String, Object> payload = new LinkedHashMap<>();

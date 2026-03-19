@@ -41,6 +41,8 @@ public interface ResumeEventMongoRepository extends MongoRepository<ResumeEventD
 
     Optional<ResumeEventDocument> findTopByResumeIdOrderByVersionNoDesc(Long resumeId);
 
+    List<ResumeEventDocument> findByResumeIdOrderByVersionNoAsc(Long resumeId);
+
     Optional<ResumeEventDocument> findByAiTaskId(String aiTaskId);
 
     List<ResumeEventDocument> findByStatusIn(List<ResumeVersionStatus> statuses);

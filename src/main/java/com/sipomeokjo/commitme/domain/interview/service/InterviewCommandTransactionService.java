@@ -17,10 +17,10 @@ import com.sipomeokjo.commitme.domain.interview.repository.InterviewMessageRepos
 import com.sipomeokjo.commitme.domain.interview.repository.InterviewRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.time.Instant;
@@ -42,6 +42,7 @@ public class InterviewCommandTransactionService {
     private final CompanyRepository companyRepository;
     private final ResumeVersionRepository resumeVersionRepository;
     private final ResumeRepository resumeRepository;
+    private final ResumeEventMongoRepository resumeEventMongoRepository;
 
     @Transactional
     public InterviewResponse updateName(Long userId, Long interviewId, String name) {
@@ -83,8 +84,8 @@ public class InterviewCommandTransactionService {
                             .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         }
 
-        ResumeVersion resumeVersion = resolveResumeVersion(request);
-        if (resumeVersion == null) {
+        ResumeContent resumeContent = resolveResumeContent(request);
+        if (resumeContent == null) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
@@ -99,8 +100,8 @@ public class InterviewCommandTransactionService {
                 request.interviewType(),
                 position.getName(),
                 companyNameForAi,
-                resumeVersion.getResume().getId(),
-                resumeVersion.getContent());
+                resumeContent.resumeId(),
+                resumeContent.content());
     }
 
     @Transactional
@@ -287,23 +288,45 @@ public class InterviewCommandTransactionService {
         return InterviewQuestionDispatch.question(nextTurnNo, nextQuestion.getQuestion(), askedAt);
     }
 
-    private ResumeVersion resolveResumeVersion(InterviewCreateRequest request) {
+    private ResumeContent resolveResumeContent(InterviewCreateRequest request) {
         if (request.resumeVersionId() != null) {
-            return resumeVersionRepository.findById(request.resumeVersionId()).orElse(null);
+            return resumeVersionRepository
+                    .findById(request.resumeVersionId())
+                    .flatMap(
+                            v ->
+                                    resumeEventMongoRepository
+                                            .findByResumeIdAndVersionNo(
+                                                    v.getResume().getId(), v.getVersionNo())
+                                            .filter(
+                                                    e ->
+                                                            e.getStatus()
+                                                                    == ResumeVersionStatus
+                                                                            .SUCCEEDED)
+                                            .map(
+                                                    e ->
+                                                            new ResumeContent(
+                                                                    v.getResume().getId(),
+                                                                    e.getSnapshot())))
+                    .orElse(null);
         }
         if (request.resumeId() != null && request.resumeVersionNo() != null) {
-            return resumeVersionRepository
-                    .findByResume_IdAndVersionNo(request.resumeId(), request.resumeVersionNo())
+            return resumeEventMongoRepository
+                    .findByResumeIdAndVersionNo(request.resumeId(), request.resumeVersionNo())
+                    .filter(e -> e.getStatus() == ResumeVersionStatus.SUCCEEDED)
+                    .map(e -> new ResumeContent(request.resumeId(), e.getSnapshot()))
                     .orElse(null);
         }
         if (request.resumeId() != null) {
-            return resumeVersionRepository
-                    .findTopByResume_IdAndStatusOrderByVersionNoDesc(
+            return resumeEventMongoRepository
+                    .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
                             request.resumeId(), ResumeVersionStatus.SUCCEEDED)
+                    .map(e -> new ResumeContent(request.resumeId(), e.getSnapshot()))
                     .orElse(null);
         }
         return null;
     }
+
+    private record ResumeContent(Long resumeId, String content) {}
 
     private String generateInterviewName(String positionName, InterviewType interviewType) {
         String date = java.time.LocalDate.now(java.time.ZoneId.systemDefault()).toString();
