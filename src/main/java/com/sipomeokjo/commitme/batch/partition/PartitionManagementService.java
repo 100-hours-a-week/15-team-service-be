@@ -16,8 +16,7 @@ public class PartitionManagementService {
     private static final String TABLE_NAME = "event_consume_log";
     private static final DateTimeFormatter PARTITION_NAME_FMT =
             DateTimeFormatter.ofPattern("yyyyMM");
-    private static final DateTimeFormatter BOUNDARY_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter BOUNDARY_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final JdbcTemplate jdbcTemplate;
 
