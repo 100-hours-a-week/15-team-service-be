@@ -38,8 +38,8 @@ public interface ResumeEventMongoRepository extends MongoRepository<ResumeEventD
             Long userId, ResumeVersionStatus status);
 
     boolean existsByResumeIdAndStatusIn(Long resumeId, List<ResumeVersionStatus> statuses);
-
-    Optional<ResumeEventDocument> findTopByResumeIdOrderByVersionNoDesc(Long resumeId);
+	
+	Optional<ResumeEventDocument> findTopByResumeIdOrderByVersionNoDesc(Long resumeId);
 
     Optional<ResumeEventDocument> findByAiTaskId(String aiTaskId);
 
