@@ -8,8 +8,8 @@ import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeVersionDiffDto;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeVersionDiffDto.DiffItem;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
+import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ public class ResumeDiffService {
 
     private static final String BASE_CURRENT = "current";
 
-    private final ResumeMongoRepository resumeMongoRepository;
+    private final ResumeRepository resumeRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ObjectMapper objectMapper;
 
@@ -32,7 +32,6 @@ public class ResumeDiffService {
     public ResumeVersionDiffDto getDiff(
             Long userId, Long resumeId, int targetVersionNo, String baseParam) {
 
-        // Ownership check: prefer Mongo projection, fall back to JPA
         int baseVersionNo = resolveBaseVersionNo(userId, resumeId, baseParam);
 
         // Validate target
@@ -85,27 +84,23 @@ public class ResumeDiffService {
 
     private int resolveBaseVersionNo(Long userId, Long resumeId, String baseParam) {
         if (BASE_CURRENT.equalsIgnoreCase(baseParam) || baseParam == null || baseParam.isBlank()) {
-            return resumeMongoRepository
-                    .findByResumeId(resumeId)
-                    .filter(doc -> doc.getUserId().equals(userId))
+            return resumeRepository
+                    .findByIdAndUser_Id(resumeId, userId)
                     .map(
-                            doc -> {
-                                if (doc.getCurrentVersionNo() == null) {
+                            resume -> {
+                                if (resume.getCurrentVersionNo() == null) {
                                     throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND);
                                 }
-                                return doc.getCurrentVersionNo();
+                                return resume.getCurrentVersionNo();
                             })
                     .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
         }
         // Numeric base version
         try {
             int vno = Integer.parseInt(baseParam.trim());
-            boolean owned =
-                    resumeMongoRepository
-                            .findByResumeId(resumeId)
-                            .map(doc -> doc.getUserId().equals(userId))
-                            .orElse(false);
-            if (!owned) throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
+            if (!resumeRepository.existsByIdAndUser_Id(resumeId, userId)) {
+                throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
+            }
             return vno;
         } catch (NumberFormatException e) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);

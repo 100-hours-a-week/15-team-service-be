@@ -24,8 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 @Slf4j
 public class OutboxEventPublishProcessor {
-    private static final List<OutboxEventStatus> READY_STATUSES =
-            List.of(OutboxEventStatus.PENDING, OutboxEventStatus.RETRY);
+    private static final List<String> READY_STATUSES =
+            List.of(OutboxEventStatus.PENDING.name(), OutboxEventStatus.RETRY.name());
 
     private final OutboxEventRepository outboxEventRepository;
     private final RabbitTemplate rabbitTemplate;

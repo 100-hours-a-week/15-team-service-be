@@ -1,7 +1,6 @@
 package com.sipomeokjo.commitme.domain.outbox.repository;
 
 import com.sipomeokjo.commitme.domain.outbox.entity.OutboxEvent;
-import com.sipomeokjo.commitme.domain.outbox.entity.OutboxEventStatus;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -20,7 +19,7 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
                             + "FOR UPDATE SKIP LOCKED",
             nativeQuery = true)
     List<OutboxEvent> findReadyEventsWithLock(
-            @Param("statuses") List<OutboxEventStatus> statuses,
+            @Param("statuses") List<String> statuses,
             @Param("now") Instant now,
             @Param("limit") int limit);
 }

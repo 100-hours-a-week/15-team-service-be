@@ -1,6 +1,5 @@
 package com.sipomeokjo.commitme.domain.resume.mapper;
 
-import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeDetailDto;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
@@ -71,45 +70,6 @@ public class ResumeMapper {
         }
 
         return new RelatedInfo(positionId, positionName, companyId, companyName);
-    }
-
-    public ResumeSummaryDto toSummaryDto(ResumeDocument doc, boolean isEditing) {
-        if (doc == null) {
-            return null;
-        }
-        return new ResumeSummaryDto(
-                doc.getResumeId(),
-                doc.getName(),
-                doc.getPositionId(),
-                doc.getPositionName(),
-                doc.getCompanyId(),
-                doc.getCompanyName(),
-                doc.getCurrentVersionNo(),
-                isEditing,
-                doc.getUpdatedAt());
-    }
-
-    public ResumeDetailDto toDetailDto(
-            ResumeDocument doc,
-            ResumeEventDocument event,
-            boolean isEditing,
-            ResumeProfileResponse profileResponse) {
-        if (doc == null || event == null) return null;
-
-        return new ResumeDetailDto(
-                doc.getResumeId(),
-                doc.getName(),
-                isEditing,
-                doc.getPositionId(),
-                doc.getPositionName(),
-                doc.getCompanyId(),
-                doc.getCompanyName(),
-                event.getVersionNo(),
-                event.getSnapshot(),
-                ResumeDetailDto.ResumeDetailProfileDto.from(profileResponse),
-                event.getCommittedAt(),
-                doc.getCreatedAt(),
-                doc.getUpdatedAt());
     }
 
     private record RelatedInfo(

@@ -5,7 +5,6 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
-import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileCreateResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileRequest;
@@ -16,8 +15,6 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.mapper.ResumeProfileMapper;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoQueryRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.entity.CertificateType;
 import com.sipomeokjo.commitme.domain.user.entity.EducationStatus;
@@ -71,8 +68,6 @@ import org.springframework.stereotype.Service;
 public class ResumeProfileService {
     private final ResumeRepository resumeRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
-    private final ResumeMongoRepository resumeMongoRepository;
-    private final ResumeMongoQueryRepository resumeMongoQueryRepository;
     private final ResumeProfileRepository resumeProfileRepository;
     private final UserFinder userFinder;
     private final PositionFinder positionFinder;
@@ -126,44 +121,32 @@ public class ResumeProfileService {
         validateProfileRequest(request);
         persistProfileData(user, request);
         Long latestResumeId =
-                resumeMongoQueryRepository
-                        .findByUserIdWithCursorDesc(userId, null, null, null, 1)
-                        .stream()
-                        .findFirst()
-                        .map(ResumeDocument::getResumeId)
+                resumeRepository
+                        .findTopByUser_IdOrderByUpdatedAtDescIdDesc(userId)
+                        .map(Resume::getId)
                         .orElse(null);
         return new ResumeProfileUpdateResponse(latestResumeId, Instant.now(clock));
     }
 
     @Transactional
     public ResumeProfileResponse getProfile(Long userId) {
-        return resumeMongoQueryRepository
-                .findByUserIdWithCursorDesc(userId, null, null, null, 1)
-                .stream()
-                .findFirst()
-                .map(doc -> getProfile(userId, doc.getResumeId(), doc.getProfileSnapshot()))
+        return resumeRepository
+                .findTopByUser_IdOrderByUpdatedAtDescIdDesc(userId)
+                .map(resume -> getProfile(userId, resume.getId(), resume.getProfileSnapshot()))
                 .orElseGet(() -> buildEmptyProfileResponse(userId));
     }
 
     @Transactional
     public ResumeProfileResponse getProfile(Long userId, Long resumeId) {
-        var doc =
-                resumeMongoRepository
-                        .findByResumeId(resumeId)
-                        .filter(d -> d.getUserId().equals(userId))
-                        .orElseGet(
+        Resume resume =
+                resumeRepository
+                        .findByIdAndUser_Id(resumeId, userId)
+                        .or(
                                 () ->
-                                        resumeMongoQueryRepository
-                                                .findByUserIdWithCursorDesc(
-                                                        userId, null, null, null, 1)
-                                                .stream()
-                                                .findFirst()
-                                                .orElseThrow(
-                                                        () ->
-                                                                new BusinessException(
-                                                                        ErrorCode
-                                                                                .RESUME_NOT_FOUND)));
-        return getProfile(userId, doc.getResumeId(), doc.getProfileSnapshot());
+                                        resumeRepository.findTopByUser_IdOrderByUpdatedAtDescIdDesc(
+                                                userId))
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        return getProfile(userId, resume.getId(), resume.getProfileSnapshot());
     }
 
     @Transactional
