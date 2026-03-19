@@ -74,6 +74,7 @@ spring:
     username: "${RABBITMQ_USERNAME}"
     password: "${RABBITMQ_PASSWORD}"
     virtual-host: /
+    publisher-confirm-type: correlated
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: "${DB_URL}"
