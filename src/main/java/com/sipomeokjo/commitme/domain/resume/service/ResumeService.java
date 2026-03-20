@@ -26,6 +26,7 @@ import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -195,12 +196,18 @@ public class ResumeService {
                         resumeId,
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
 
-        ResumeEventDocument event =
-                resumeEventMongoRepository
-                        .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
-                                resumeId, ResumeVersionStatus.SUCCEEDED)
-                        .orElseThrow(
-                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+        Optional<ResumeEventDocument> eventOpt =
+                resumeEventMongoRepository.findFirstByResumeIdAndStatusOrderByVersionNoDesc(
+                        resumeId, ResumeVersionStatus.SUCCEEDED);
+
+        if (eventOpt.isEmpty()) {
+            if (isEditing) {
+                throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
+            }
+            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND);
+        }
+
+        ResumeEventDocument event = eventOpt.get();
 
         return resumeMapper.toDetailDto(resume, event, isEditing, profileResponse);
     }
