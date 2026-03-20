@@ -9,6 +9,7 @@ import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileCreateResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileUpdateResponse;
+import com.sipomeokjo.commitme.domain.resume.service.ResumeDiffService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeProfileService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeService;
 import com.sipomeokjo.commitme.security.resolver.CurrentUserId;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class ResumeController {
 
     private final ResumeService resumeService;
+    private final ResumeDiffService resumeDiffService;
     private final ResumeProfileService resumeProfileService;
 
     @GetMapping
@@ -48,6 +50,25 @@ public class ResumeController {
             @CurrentUserId Long userId, @PathVariable Long resumeId) {
         return APIResponse.onSuccess(
                 SuccessCode.RESUME_FETCHED, resumeService.get(userId, resumeId));
+    }
+
+    @GetMapping("/{resumeId}/versions")
+    public ResponseEntity<APIResponse<CursorResponse<ResumeVersionSummaryDto>>> getVersionList(
+            @CurrentUserId Long userId, @PathVariable Long resumeId, CursorRequest request) {
+        return APIResponse.onSuccess(
+                SuccessCode.RESUME_VERSION_LIST_FETCHED,
+                resumeService.getVersionList(userId, resumeId, request));
+    }
+
+    @GetMapping("/{resumeId}/versions/{targetVersionNo}/diff")
+    public ResponseEntity<APIResponse<ResumeVersionDiffDto>> getVersionDiff(
+            @CurrentUserId Long userId,
+            @PathVariable Long resumeId,
+            @PathVariable int targetVersionNo,
+            @RequestParam(required = false) String base) {
+        return APIResponse.onSuccess(
+                SuccessCode.RESUME_VERSION_DIFF_FETCHED,
+                resumeDiffService.getDiff(userId, resumeId, targetVersionNo, base));
     }
 
     @GetMapping("/{resumeId}/versions/{versionNo}")

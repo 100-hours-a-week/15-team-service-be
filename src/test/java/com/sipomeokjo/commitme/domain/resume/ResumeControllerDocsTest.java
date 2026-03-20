@@ -20,6 +20,7 @@ import com.sipomeokjo.commitme.domain.resume.dto.ResumeDetailDto;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
+import com.sipomeokjo.commitme.domain.resume.service.ResumeDiffService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeProfileService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeService;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenProvider;
@@ -47,6 +48,7 @@ class ResumeControllerDocsTest {
     @Autowired private ObjectMapper objectMapper;
 
     @MockitoBean private ResumeService resumeService;
+    @MockitoBean private ResumeDiffService resumeDiffService;
     @MockitoBean private ResumeProfileService resumeProfileService;
     @MockitoBean private AccessTokenProvider accessTokenProvider;
     @MockitoBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
