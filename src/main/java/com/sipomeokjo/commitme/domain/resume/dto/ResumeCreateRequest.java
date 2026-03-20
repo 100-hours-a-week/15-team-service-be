@@ -13,4 +13,5 @@ public class ResumeCreateRequest {
     private Long positionId;
     private Long companyId;
     private String name;
+    private ResumeProfileRequest masterProfile;
 }

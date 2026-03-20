@@ -206,7 +206,7 @@ public class ResumeProfileService {
                 resumeProfileMapper.toCertificateResponses(certificates));
     }
 
-    private void saveProfileSnapshot(Long userId, Resume resume) {
+    void saveProfileSnapshot(Long userId, Resume resume) {
         ResumeProfileResponse snapshot = buildLiveProfileResponse(userId, resume.getId());
         try {
             resume.updateProfileSnapshot(objectMapper.writeValueAsString(snapshot));
@@ -257,7 +257,7 @@ public class ResumeProfileService {
                                         ResumeProfile.create(user, null, null, null)));
     }
 
-    private void persistProfileData(User user, ResumeProfileRequest request) {
+    void persistProfileData(User user, ResumeProfileRequest request) {
         ResumeProfile profile =
                 resumeProfileRepository
                         .findById(user.getId())

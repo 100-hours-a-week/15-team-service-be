@@ -165,6 +165,11 @@ public class ResumeService {
         Resume resume = Resume.create(user, position, company, name);
         Resume saved = resumeRepository.save(resume);
 
+        if (req.getMasterProfile() != null) {
+            resumeProfileService.persistProfileData(user, req.getMasterProfile());
+        }
+        resumeProfileService.saveProfileSnapshot(userId, saved);
+
         ResumeEventDocument event =
                 ResumeEventDocument.create(
                         saved.getId(), 1, userId, ResumeVersionStatus.QUEUED, "{}");

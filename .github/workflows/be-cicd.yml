@@ -59,9 +59,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Trivy Secret Scan
-        uses: aquasecurity/trivy-action@v0.28.0
+      - name: Manual Trivy Setup
+        uses: aquasecurity/setup-trivy@v0.2.6
         with:
+          cache: true
+          version: v0.69.3
+
+      - name: Trivy Secret Scan
+        uses: aquasecurity/trivy-action@v0.34.0
+        with:
+          skip-setup-trivy: true
           scan-type: "fs"
           scan-ref: "."
           scanners: "vuln"
