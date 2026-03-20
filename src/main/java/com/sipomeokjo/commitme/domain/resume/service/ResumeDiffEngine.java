@@ -1,6 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,7 +19,8 @@ public class ResumeDiffEngine {
     public enum ChangeType {
         ADDED,
         REMOVED,
-        MODIFIED
+        MODIFIED,
+        UNCHANGED
     }
 
     public record DiffEntry(String path, ChangeType changeType, Object before, Object after) {}
@@ -29,7 +31,6 @@ public class ResumeDiffEngine {
         return result;
     }
 
-    @SuppressWarnings("unchecked")
     private void diffMaps(
             String prefix,
             Map<String, Object> base,
@@ -79,7 +80,62 @@ public class ResumeDiffEngine {
         }
 
         if (!Objects.equals(base, target)) {
-            result.add(new DiffEntry(path, ChangeType.MODIFIED, base, target));
+            if (base instanceof String s1
+                    && target instanceof String s2
+                    && (s1.contains("\n") || s2.contains("\n"))) {
+                diffStrings(path, s1, s2, result);
+            } else {
+                result.add(new DiffEntry(path, ChangeType.MODIFIED, base, target));
+            }
+        }
+    }
+
+    private void diffStrings(String path, String base, String target, List<DiffEntry> result) {
+        List<String> baseLines = Arrays.asList(base.split("\n", -1));
+        List<String> targetLines = Arrays.asList(target.split("\n", -1));
+
+        int m = baseLines.size(), n = targetLines.size();
+        int[][] dp = new int[m + 1][n + 1];
+        for (int i = m - 1; i >= 0; i--) {
+            for (int j = n - 1; j >= 0; j--) {
+                dp[i][j] =
+                        baseLines.get(i).equals(targetLines.get(j))
+                                ? 1 + dp[i + 1][j + 1]
+                                : Math.max(dp[i + 1][j], dp[i][j + 1]);
+            }
+        }
+
+        int i = 0, j = 0, idx = 0;
+        while (i < m || j < n) {
+            if (i < m && j < n && baseLines.get(i).equals(targetLines.get(j))) {
+                result.add(
+                        new DiffEntry(
+                                path + "[" + idx + "]",
+                                ChangeType.UNCHANGED,
+                                baseLines.get(i),
+                                baseLines.get(i)));
+                i++;
+                j++;
+                idx++;
+            } else if (i < m && (j >= n || dp[i + 1][j] >= dp[i][j + 1])) {
+                result.add(
+                        new DiffEntry(
+                                path + "[" + idx + "]",
+                                ChangeType.REMOVED,
+                                baseLines.get(i),
+                                null));
+                i++;
+                idx++;
+            } else {
+                result.add(
+                        new DiffEntry(
+                                path + "[" + idx + "]",
+                                ChangeType.ADDED,
+                                null,
+                                targetLines.get(j)));
+                j++;
+                idx++;
+            }
         }
     }
 
@@ -161,8 +217,7 @@ public class ResumeDiffEngine {
             case "experiences", "educations", "activities", "certificates" ->
                     item -> {
                         if (item instanceof Map<?, ?> m) {
-                            Object id = ((Map<String, Object>) m).get("id");
-                            if (id != null) return id;
+                            return ((Map<String, Object>) m).get("id");
                             // natural key fallback (no-op, index fallback used)
                         }
                         return null;

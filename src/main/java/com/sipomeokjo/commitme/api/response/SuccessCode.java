@@ -20,6 +20,8 @@ public enum SuccessCode implements ResponseCode {
     RESUME_LIST_FETCHED(HttpStatus.OK, "SUCCESS", "이력서 목록 조회에 성공했습니다."),
     RESUME_FETCHED(HttpStatus.OK, "SUCCESS", "이력서 상세 조회에 성공했습니다."),
     RESUME_CREATED(HttpStatus.CREATED, "CREATED", "이력서가 생성되었습니다."),
+    RESUME_VERSION_LIST_FETCHED(HttpStatus.OK, "SUCCESS", "이력서 버전 목록 조회에 성공했습니다."),
+    RESUME_VERSION_DIFF_FETCHED(HttpStatus.OK, "SUCCESS", "이력서 버전 비교에 성공했습니다."),
     RESUME_VERSION_FETCHED(HttpStatus.OK, "SUCCESS", "이력서 버전 조회에 성공했습니다."),
     RESUME_NAME_UPDATED(HttpStatus.OK, "SUCCESS", "이력서 이름이 수정되었습니다."),
     RESUME_EDIT_REQUESTED(HttpStatus.OK, "SUCCESS", "이력서 수정 요청에 성공했습니다."),

@@ -24,6 +24,7 @@ import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRe
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -194,28 +195,12 @@ public class ResumeService {
                         resumeId,
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
 
-        ResumeEventDocument previewEvent =
-                resumeEventMongoRepository
-                        .findFirstByResumeIdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
-                                resumeId, ResumeVersionStatus.SUCCEEDED)
-                        .filter(v -> !v.getVersionNo().equals(resume.getCurrentVersionNo()))
-                        .orElse(null);
-
-        if (previewEvent != null) {
-            previewEvent.markPreviewShown(Instant.now());
-            resumeEventMongoRepository.save(previewEvent);
-            return resumeMapper.toDetailDto(resume, previewEvent, isEditing, profileResponse);
-        }
-
         ResumeEventDocument event =
                 resumeEventMongoRepository
-                        .findByResumeIdAndVersionNo(resumeId, resume.getCurrentVersionNo())
+                        .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
+                                resumeId, ResumeVersionStatus.SUCCEEDED)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
-
-        if (event.getStatus() != ResumeVersionStatus.SUCCEEDED) {
-            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
-        }
 
         return resumeMapper.toDetailDto(resume, event, isEditing, profileResponse);
     }
@@ -223,6 +208,62 @@ public class ResumeService {
     @Transactional(readOnly = true)
     public boolean existsByResumeIdAndUserId(Long resumeId, Long userId) {
         return resumeRepository.existsByIdAndUser_Id(resumeId, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public CursorResponse<ResumeVersionSummaryDto> getVersionList(
+            Long userId, Long resumeId, CursorRequest request) {
+
+        resumeRepository
+                .findByIdAndUser_Id(resumeId, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+
+        int size = CursorRequest.resolveLimit(request, 50);
+
+        List<ResumeVersionSummaryDto> committed =
+                new ArrayList<>(
+                        resumeEventMongoRepository
+                                .findByResumeIdOrderByVersionNoAsc(resumeId)
+                                .stream()
+                                .filter(
+                                        e ->
+                                                e.getStatus() == ResumeVersionStatus.SUCCEEDED
+                                                        && e.getCommittedAt() != null)
+                                .map(
+                                        e ->
+                                                new ResumeVersionSummaryDto(
+                                                        e.getVersionNo(), e.getCommittedAt()))
+                                .toList());
+
+        resumeEventMongoRepository
+                .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
+                        resumeId, ResumeVersionStatus.SUCCEEDED)
+                .ifPresent(
+                        e -> {
+                            if (e.getCommittedAt() == null) {
+                                committed.addFirst(
+                                        new ResumeVersionSummaryDto(e.getVersionNo(), null));
+                            }
+                        });
+
+        int cursorVersionNo = 0;
+        if (request != null && request.next() != null) {
+            try {
+                cursorVersionNo = Integer.parseInt(request.next());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        final int finalCursor = cursorVersionNo;
+        List<ResumeVersionSummaryDto> filtered =
+                committed.stream().filter(dto -> dto.versionNo() > finalCursor).toList();
+
+        boolean hasMore = filtered.size() > size;
+        List<ResumeVersionSummaryDto> result = hasMore ? filtered.subList(0, size) : filtered;
+        String next =
+                hasMore && !result.isEmpty() ? String.valueOf(result.getLast().versionNo()) : null;
+
+        return new CursorResponse<>(result, null, next);
     }
 
     public ResumeVersionDto getVersion(Long userId, Long resumeId, int versionNo) {
