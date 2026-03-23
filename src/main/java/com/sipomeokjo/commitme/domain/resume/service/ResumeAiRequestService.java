@@ -14,19 +14,30 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
 import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+import java.net.SocketTimeoutException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ResumeAiRequestService {
+
+    private static final String AI_SERVICE = "aiService";
+
     private final ResumeVersionRepository resumeVersionRepository;
     private final AuthRepository authRepository;
     private final AccessTokenCipher accessTokenCipher;
@@ -35,6 +46,7 @@ public class ResumeAiRequestService {
     private final ObjectMapper objectMapper;
 
     @Async
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleGenerate(ResumeAiGenerateEvent event) {
         if (event == null || event.resumeVersionId() == null) {
@@ -57,6 +69,8 @@ public class ResumeAiRequestService {
         version.failNow(dispatchResult.errorCode(), dispatchResult.errorMessage());
     }
 
+    @CircuitBreaker(name = AI_SERVICE, fallbackMethod = "requestGenerateJobFallback")
+    @Retry(name = AI_SERVICE)
     public DispatchResult requestGenerateJob(
             Long userId, String positionName, List<String> repoUrls) {
         if (userId == null || positionName == null || positionName.isBlank()) {
@@ -74,8 +88,11 @@ public class ResumeAiRequestService {
                             .findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
                             .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
             githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
-        } catch (Exception e) {
+        } catch (BusinessException e) {
             return DispatchResult.failed("AI_GENERATE_FAILED", e.getMessage());
+        } catch (Exception e) {
+            log.error("[AI_RESUME] token_decrypt_failed", e);
+            return DispatchResult.failed("AI_GENERATE_FAILED", "failed to get github token");
         }
 
         AiResumeGenerateRequest aiReq =
@@ -92,15 +109,45 @@ public class ResumeAiRequestService {
                             .body(AiResumeGenerateResponse.class);
 
             if (aiRes == null || aiRes.jobId() == null || aiRes.jobId().isBlank()) {
+                log.warn("[AI_RESUME] generate_invalid_response");
                 return DispatchResult.failed("AI_RESPONSE_INVALID", "jobId is null/blank");
             }
 
+            log.info("[AI_RESUME] generate_success jobId={}", aiRes.jobId());
             return DispatchResult.succeeded(aiRes.jobId());
-        } catch (Exception e) {
-            return DispatchResult.failed("AI_GENERATE_FAILED", e.getMessage());
+        } catch (ResourceAccessException e) {
+            log.error("[AI_RESUME] generate_failed reason=connection_error", e);
+            String errorMsg = getConnectionErrorMessage(e);
+            throw new RuntimeException(errorMsg, e);
+        } catch (RestClientException e) {
+            log.error("[AI_RESUME] generate_failed reason=rest_client_error", e);
+            throw new RuntimeException("AI server communication error", e);
         }
     }
 
+    private DispatchResult requestGenerateJobFallback(
+            Long userId, String positionName, List<String> repoUrls, CallNotPermittedException e) {
+        log.warn("[AI_RESUME] circuit_breaker_open action=generate");
+        return DispatchResult.failed(
+                "AI_CIRCUIT_BREAKER_OPEN", "AI service temporarily unavailable");
+    }
+
+    private DispatchResult requestGenerateJobFallback(
+            Long userId, String positionName, List<String> repoUrls, Exception e) {
+        log.error("[AI_RESUME] fallback_triggered action=generate", e);
+        return DispatchResult.failed("AI_GENERATE_FAILED", e.getMessage());
+    }
+
+    private String getConnectionErrorMessage(ResourceAccessException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof SocketTimeoutException) {
+            return "AI server response timeout";
+        }
+        return "AI server connection failed";
+    }
+
+    @CircuitBreaker(name = AI_SERVICE, fallbackMethod = "requestEditFallback")
+    @Retry(name = AI_SERVICE)
     public String requestEdit(Long resumeId, String resumeJson, String requestMessage) {
         if (resumeJson == null || resumeJson.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
@@ -124,17 +171,46 @@ public class ResumeAiRequestService {
 
             if (aiRes == null || aiRes.jobId() == null || aiRes.jobId().isBlank()) {
                 log.warn("[AI_EDIT] invalid_response");
-                throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+                throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
             }
 
+            log.info("[AI_EDIT] success jobId={}", aiRes.jobId());
             return aiRes.jobId();
         } catch (BusinessException e) {
-            log.warn("[AI_EDIT] failed error={}", e.getMessage());
             throw e;
+        } catch (ResourceAccessException e) {
+            log.error("[AI_EDIT] failed reason=connection_error", e);
+            throw handleResourceAccessException(e);
+        } catch (RestClientException e) {
+            log.error("[AI_EDIT] failed reason=rest_client_error", e);
+            throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
         } catch (Exception e) {
-            log.warn("[AI_EDIT] failed error={}", e.getMessage());
-            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+            log.error("[AI_EDIT] failed reason=unexpected_error", e);
+            throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
         }
+    }
+
+    private String requestEditFallback(
+            Long resumeId, String resumeJson, String requestMessage, CallNotPermittedException e) {
+        log.warn("[AI_EDIT] circuit_breaker_open");
+        throw new BusinessException(ErrorCode.AI_CIRCUIT_BREAKER_OPEN);
+    }
+
+    private String requestEditFallback(
+            Long resumeId, String resumeJson, String requestMessage, Exception e) {
+        log.error("[AI_EDIT] fallback_triggered", e);
+        if (e instanceof BusinessException) {
+            throw (BusinessException) e;
+        }
+        throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
+    }
+
+    private BusinessException handleResourceAccessException(ResourceAccessException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof SocketTimeoutException) {
+            return new BusinessException(ErrorCode.AI_SERVICE_TIMEOUT);
+        }
+        return new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
     }
 
     public record DispatchResult(
