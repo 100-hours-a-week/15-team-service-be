@@ -126,12 +126,10 @@ public class ResumeAiRequestService {
     }
 
     private DispatchResult requestGenerateJobFallback(
-            Long userId,
-            String positionName,
-            List<String> repoUrls,
-            CallNotPermittedException e) {
+            Long userId, String positionName, List<String> repoUrls, CallNotPermittedException e) {
         log.warn("[AI_RESUME] circuit_breaker_open action=generate");
-        return DispatchResult.failed("AI_CIRCUIT_BREAKER_OPEN", "AI service temporarily unavailable");
+        return DispatchResult.failed(
+                "AI_CIRCUIT_BREAKER_OPEN", "AI service temporarily unavailable");
     }
 
     private DispatchResult requestGenerateJobFallback(
@@ -193,10 +191,7 @@ public class ResumeAiRequestService {
     }
 
     private String requestEditFallback(
-            Long resumeId,
-            String resumeJson,
-            String requestMessage,
-            CallNotPermittedException e) {
+            Long resumeId, String resumeJson, String requestMessage, CallNotPermittedException e) {
         log.warn("[AI_EDIT] circuit_breaker_open");
         throw new BusinessException(ErrorCode.AI_CIRCUIT_BREAKER_OPEN);
     }

@@ -179,8 +179,7 @@ public enum ErrorCode implements ResponseCode {
     // AI
     AI_SERVICE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE, "AI_SERVICE_UNAVAILABLE", "AI 서버에 연결할 수 없습니다."),
-    AI_SERVICE_TIMEOUT(
-            HttpStatus.GATEWAY_TIMEOUT, "AI_SERVICE_TIMEOUT", "AI 서버 응답 시간이 초과되었습니다."),
+    AI_SERVICE_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "AI_SERVICE_TIMEOUT", "AI 서버 응답 시간이 초과되었습니다."),
     AI_CIRCUIT_BREAKER_OPEN(
             HttpStatus.SERVICE_UNAVAILABLE,
             "AI_CIRCUIT_BREAKER_OPEN",
