@@ -80,7 +80,10 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -127,6 +130,7 @@ public class LoadtestService {
     private final ObjectMapper objectMapper;
     private final AiProperties aiProperties;
     private final Clock clock;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     @Transactional
     public LoadtestAuthSignupResponse signupPending(LoadtestAuthSignupRequest request) {
@@ -408,6 +412,15 @@ public class LoadtestService {
             deletedUserSettingCount = userSettingRepository.deleteAllByUserIds(userIds);
             deletedAuthCount = authRepository.deleteAllByUserIds(userIds);
             resumeProfileRepository.deleteByUserIdIn(userIds);
+
+            // resume_version → resume 순서로 삭제 (user_id FK 위반 방지)
+            MapSqlParameterSource params = new MapSqlParameterSource("userIds", userIds);
+            namedParameterJdbcTemplate.update(
+                    "DELETE rv FROM resume_version rv INNER JOIN resume r ON rv.resume_id = r.id WHERE r.user_id IN (:userIds)",
+                    params);
+            namedParameterJdbcTemplate.update(
+                    "DELETE FROM resume WHERE user_id IN (:userIds)", params);
+
             deletedUserCount = userIds.size();
             userRepository.deleteAllByIdInBatch(userIds);
         }
@@ -522,6 +535,7 @@ public class LoadtestService {
                                         null));
 
                 int versionNo = 1;
+                int lastSucceededVersionNo = 0;
                 Instant seedTime = Instant.now(clock);
                 for (int count = 0; count < succeededVersionsPerResume; count++) {
                     String content =
@@ -540,6 +554,7 @@ public class LoadtestService {
                     doc.markCommitted(seedTime);
                     resumeEventMongoRepository.save(doc);
 
+                    lastSucceededVersionNo = versionNo;
                     createdVersionCount++;
                     versionNo++;
                 }
@@ -592,6 +607,11 @@ public class LoadtestService {
 
                     createdVersionCount++;
                     versionNo++;
+                }
+
+                if (lastSucceededVersionNo > 0 && pendingVersionsPerResume == 0) {
+                    resumeProjectionService.applyAiSuccess(resumeId, lastSucceededVersionNo, true);
+                    resumeProjectionService.applyVersionCommitted(resumeId, lastSucceededVersionNo);
                 }
 
                 createdResumeCount++;
@@ -726,6 +746,8 @@ public class LoadtestService {
         for (ResumeEventDocument doc : targets) {
             if (resultStatus == LoadtestResumeReplayResultStatus.FAILED) {
                 doc.failNow("LOADTEST_FORCE_COMPLETE", "loadtest force-complete");
+                resumeEventMongoRepository.save(doc);
+                resumeProjectionService.applyAiFailure(doc.getResumeId(), doc.getVersionNo());
             } else {
                 String snapshot =
                         doc.getSnapshot() != null && !doc.getSnapshot().isBlank()
@@ -734,8 +756,12 @@ public class LoadtestService {
                 doc.startProcessing("lt-fc-" + UUID.randomUUID().toString().substring(0, 12), now);
                 doc.succeed(snapshot, now);
                 doc.markCommitted(now);
+                resumeEventMongoRepository.save(doc);
+                resumeProjectionService.applyAiSuccess(
+                        doc.getResumeId(), doc.getVersionNo(), doc.getVersionNo() == 1);
+                resumeProjectionService.applyVersionCommitted(
+                        doc.getResumeId(), doc.getVersionNo());
             }
-            resumeEventMongoRepository.save(doc);
             completedCount++;
         }
         return new LoadtestResumeForceCompleteResponse(
@@ -808,8 +834,17 @@ public class LoadtestService {
         next.startProcessing(fakeTaskId, now);
         next.succeed(snapshot, now);
         next.markCommitted(now);
-        resumeEventMongoRepository.save(next);
+        try {
+            resumeEventMongoRepository.save(next);
+        } catch (DuplicateKeyException e) {
+            log.warn(
+                    "[LOADTEST_FORCE_EDIT] version_conflict resumeId={} versionNo={}",
+                    resumeId,
+                    nextVersionNo);
+            throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
+        }
 
+        resumeProjectionService.applyAiSuccess(resumeId, nextVersionNo, false);
         resumeProjectionService.applyVersionCommitted(resumeId, nextVersionNo);
 
         return new LoadtestResumeForceEditResponse(resumeId, nextVersionNo);

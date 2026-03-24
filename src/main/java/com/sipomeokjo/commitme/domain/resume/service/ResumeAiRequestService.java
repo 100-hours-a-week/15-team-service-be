@@ -47,7 +47,12 @@ public class ResumeAiRequestService {
                     authRepository
                             .findByUser_IdAndProvider(userId, AuthProvider.GITHUB)
                             .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
-            githubToken = accessTokenCipher.decrypt(auth.getAccessToken());
+            String rawToken = auth.getAccessToken();
+            if (rawToken == null || rawToken.isBlank()) {
+                log.debug("[AI_RESUME] no_github_token userId={}", userId);
+                return DispatchResult.failed("NO_GITHUB_TOKEN", "github token not available");
+            }
+            githubToken = accessTokenCipher.decrypt(rawToken);
         } catch (BusinessException e) {
             return DispatchResult.failed("AI_GENERATE_FAILED", e.getMessage());
         } catch (Exception e) {
