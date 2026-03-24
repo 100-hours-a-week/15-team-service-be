@@ -22,4 +22,18 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
             @Param("statuses") List<String> statuses,
             @Param("now") Instant now,
             @Param("limit") int limit);
+
+    @Query(
+            value =
+                    "SELECT * FROM outbox_event oe "
+                            + "WHERE oe.status = 'PROCESSING' "
+                            + "AND oe.locked_at <= :lockedBefore "
+                            + "ORDER BY oe.id ASC "
+                            + "LIMIT :limit "
+                            + "FOR UPDATE SKIP LOCKED",
+            nativeQuery = true)
+    List<OutboxEvent> findStuckProcessingEventsWithLock(
+            @Param("lockedBefore") Instant lockedBefore, @Param("limit") int limit);
+
+    void deleteByAggregateId(String aggregateId);
 }
