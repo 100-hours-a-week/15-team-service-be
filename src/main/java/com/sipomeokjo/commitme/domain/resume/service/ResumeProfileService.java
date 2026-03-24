@@ -5,16 +5,16 @@ import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileCreateResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileUpdateResponse;
-import com.sipomeokjo.commitme.domain.resume.entity.Resume;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.mapper.ResumeProfileMapper;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import com.sipomeokjo.commitme.domain.upload.service.S3UploadService;
 import com.sipomeokjo.commitme.domain.user.entity.CertificateType;
 import com.sipomeokjo.commitme.domain.user.entity.EducationStatus;
@@ -23,7 +23,6 @@ import com.sipomeokjo.commitme.domain.user.entity.EmploymentType;
 import com.sipomeokjo.commitme.domain.user.entity.EnumParseException;
 import com.sipomeokjo.commitme.domain.user.entity.ResumeProfile;
 import com.sipomeokjo.commitme.domain.user.entity.ResumeProfileValidationException;
-import com.sipomeokjo.commitme.domain.user.entity.TechStack;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserActivity;
 import com.sipomeokjo.commitme.domain.user.entity.UserCertificate;
@@ -33,23 +32,19 @@ import com.sipomeokjo.commitme.domain.user.entity.UserProfileValidationException
 import com.sipomeokjo.commitme.domain.user.entity.UserTechStack;
 import com.sipomeokjo.commitme.domain.user.mapper.UserValidationExceptionMapper;
 import com.sipomeokjo.commitme.domain.user.repository.ResumeProfileRepository;
-import com.sipomeokjo.commitme.domain.user.repository.TechStackRepository;
-import com.sipomeokjo.commitme.domain.user.repository.TechStackUpsertRow;
 import com.sipomeokjo.commitme.domain.user.repository.UserActivityRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserCertificateRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserEducationRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserExperienceRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserTechStackRepository;
 import com.sipomeokjo.commitme.domain.user.service.UserFinder;
-import jakarta.transaction.Transactional;
+import com.sipomeokjo.commitme.global.mongo.MongoSequenceService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -61,18 +56,18 @@ import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ResumeProfileService {
-    private final ResumeRepository resumeRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ResumeProfileRepository resumeProfileRepository;
     private final UserFinder userFinder;
     private final PositionFinder positionFinder;
-    private final ResumeFinder resumeFinder;
-    private final TechStackRepository techStackRepository;
+    private final MongoSequenceService mongoSequenceService;
     private final UserTechStackRepository userTechStackRepository;
     private final UserExperienceRepository userExperienceRepository;
     private final UserEducationRepository userEducationRepository;
@@ -83,34 +78,51 @@ public class ResumeProfileService {
     private final ResumeProfileMapper resumeProfileMapper;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final ResumeProjectionService resumeProjectionService;
 
     @Transactional
     public ResumeProfileCreateResponse createProfile(Long userId, ResumeProfileRequest request) {
         User user = userFinder.getByIdOrThrow(userId);
         Position position = positionFinder.getByIdOrThrow(user.getPosition().getId());
         validateProfileRequest(request);
+        updateUserContact(user, request);
 
-        Resume resume = Resume.create(user, position, null, request.name().trim() + " 이력서");
-        resumeRepository.save(resume);
+        Long resumeId = mongoSequenceService.nextResumeId();
+        String resumeName = request.name().trim() + " 이력서";
+        String profileSnapshot = buildSnapshotFromRequest(resumeId, request, user);
+        Instant now = Instant.now(clock);
 
         ResumeEventDocument event =
-                ResumeEventDocument.create(
-                        resume.getId(), 1, userId, ResumeVersionStatus.QUEUED, "{}");
-        event.succeed("{}", Instant.now(clock));
+                ResumeEventDocument.create(resumeId, 1, userId, ResumeVersionStatus.QUEUED, "{}");
+        event.succeed("{}", now);
         resumeEventMongoRepository.save(event);
-        persistProfileData(user, request);
-        saveProfileSnapshot(userId, resume);
-        return new ResumeProfileCreateResponse(resume.getId());
+
+        ResumeDocument projection =
+                ResumeDocument.create(
+                        resumeId,
+                        userId,
+                        position.getId(),
+                        position.getName(),
+                        null,
+                        null,
+                        resumeName,
+                        profileSnapshot);
+        resumeProjectionService.createProjection(projection);
+        resumeProjectionService.applyAiSuccess(resumeId, 1, true);
+        resumeProjectionService.applyProfileSnapshotUpdate(resumeId, profileSnapshot);
+
+        return new ResumeProfileCreateResponse(resumeId);
     }
 
     @Transactional
     public ResumeProfileUpdateResponse updateProfile(
             Long userId, Long resumeId, ResumeProfileRequest request) {
-        Resume resume = resumeFinder.getByIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        User user = userFinder.getByIdOrThrow(userId);
         validateProfileRequest(request);
-        persistProfileData(resume.getUser(), request);
-        saveProfileSnapshot(userId, resume);
-        resume.touchUpdatedAtNow();
+        updateUserContact(user, request);
+        String snapshot = buildSnapshotFromRequest(resumeId, request, user);
+        resumeProjectionService.applyProfileSnapshotUpdate(resumeId, snapshot);
         return new ResumeProfileUpdateResponse(resumeId, Instant.now(clock));
     }
 
@@ -119,34 +131,36 @@ public class ResumeProfileService {
             Long userId, ResumeProfileRequest request) {
         User user = userFinder.getByIdOrThrow(userId);
         validateProfileRequest(request);
-        persistProfileData(user, request);
+        updateUserContact(user, request);
         Long latestResumeId =
-                resumeRepository
-                        .findTopByUser_IdOrderByUpdatedAtDescIdDesc(userId)
-                        .map(Resume::getId)
+                resumeMongoRepository
+                        .findTopByUserIdOrderByUpdatedAtDescResumeIdDesc(userId)
+                        .map(ResumeDocument::getResumeId)
                         .orElse(null);
         return new ResumeProfileUpdateResponse(latestResumeId, Instant.now(clock));
     }
 
     @Transactional
     public ResumeProfileResponse getProfile(Long userId) {
-        return resumeRepository
-                .findTopByUser_IdOrderByUpdatedAtDescIdDesc(userId)
-                .map(resume -> getProfile(userId, resume.getId(), resume.getProfileSnapshot()))
+        return resumeMongoRepository
+                .findTopByUserIdOrderByUpdatedAtDescResumeIdDesc(userId)
+                .map(doc -> getProfile(userId, doc.getResumeId(), doc.getProfileSnapshot()))
                 .orElseGet(() -> buildEmptyProfileResponse(userId));
     }
 
     @Transactional
     public ResumeProfileResponse getProfile(Long userId, Long resumeId) {
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
+        ResumeDocument doc =
+                resumeMongoRepository
+                        .findByResumeId(resumeId)
+                        .filter(d -> d.getUserId().equals(userId))
                         .or(
                                 () ->
-                                        resumeRepository.findTopByUser_IdOrderByUpdatedAtDescIdDesc(
-                                                userId))
+                                        resumeMongoRepository
+                                                .findTopByUserIdOrderByUpdatedAtDescResumeIdDesc(
+                                                        userId))
                         .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
-        return getProfile(userId, resume.getId(), resume.getProfileSnapshot());
+        return getProfile(userId, doc.getResumeId(), doc.getProfileSnapshot());
     }
 
     @Transactional
@@ -156,11 +170,6 @@ public class ResumeProfileService {
             return withResumeId(resumeId, snapshotResponse);
         }
         return buildLiveProfileResponse(userId, resumeId);
-    }
-
-    @Transactional
-    public ResumeProfileResponse getProfile(Long userId, Resume resume) {
-        return getProfile(userId, resume.getId(), resume.getProfileSnapshot());
     }
 
     private ResumeProfileResponse buildEmptyProfileResponse(Long userId) {
@@ -206,15 +215,110 @@ public class ResumeProfileService {
                 resumeProfileMapper.toCertificateResponses(certificates));
     }
 
-    private void saveProfileSnapshot(Long userId, Resume resume) {
-        ResumeProfileResponse snapshot = buildLiveProfileResponse(userId, resume.getId());
+    private String buildSnapshotFromRequest(
+            Long resumeId, ResumeProfileRequest request, User user) {
+        List<ResumeProfileResponse.TechStackResponse> techStackResponses = new ArrayList<>();
+        if (request.techStacks() != null) {
+            int idx = 0;
+            for (ResumeProfileRequest.TechStackRequest req : request.techStacks()) {
+                if (req == null || req.name() == null || req.name().isBlank()) {
+                    continue;
+                }
+                techStackResponses.add(
+                        new ResumeProfileResponse.TechStackResponse(
+                                (long) (idx + 1), req.name().trim()));
+                idx++;
+            }
+        }
+
+        List<ResumeProfileResponse.ExperienceResponse> experienceResponses = new ArrayList<>();
+        if (request.experiences() != null) {
+            for (int i = 0; i < request.experiences().size(); i++) {
+                ResumeProfileRequest.ExperienceRequest req = request.experiences().get(i);
+                validateExperienceRequest(req);
+                boolean isCurrent = Boolean.TRUE.equals(req.isCurrentlyWorking());
+                experienceResponses.add(
+                        new ResumeProfileResponse.ExperienceResponse(
+                                (long) (i + 1),
+                                req.companyName().trim(),
+                                req.position().trim(),
+                                normalizeNullable(req.department()),
+                                req.startAt(),
+                                isCurrent ? null : req.endAt(),
+                                isCurrent,
+                                parseEmploymentType(req.employmentType()).name(),
+                                req.responsibilities()));
+            }
+        }
+
+        List<ResumeProfileResponse.EducationResponse> educationResponses = new ArrayList<>();
+        if (request.educations() != null) {
+            for (int i = 0; i < request.educations().size(); i++) {
+                ResumeProfileRequest.EducationRequest req = request.educations().get(i);
+                validateEducationRequest(req);
+                educationResponses.add(
+                        new ResumeProfileResponse.EducationResponse(
+                                (long) (i + 1),
+                                parseEducationType(req.educationType()).name(),
+                                req.institution().trim(),
+                                req.major().trim(),
+                                parseEducationStatus(req.status()).name(),
+                                req.startAt(),
+                                req.endAt()));
+            }
+        }
+
+        List<ResumeProfileResponse.ActivityResponse> activityResponses = new ArrayList<>();
+        if (request.activities() != null) {
+            for (int i = 0; i < request.activities().size(); i++) {
+                ResumeProfileRequest.ActivityRequest req = request.activities().get(i);
+                validateActivityRequest(req);
+                activityResponses.add(
+                        new ResumeProfileResponse.ActivityResponse(
+                                (long) (i + 1),
+                                req.title().trim(),
+                                req.organization().trim(),
+                                req.year(),
+                                req.description()));
+            }
+        }
+
+        List<ResumeProfileResponse.CertificateResponse> certificateResponses = new ArrayList<>();
+        if (request.certificates() != null) {
+            for (int i = 0; i < request.certificates().size(); i++) {
+                ResumeProfileRequest.CertificateRequest req = request.certificates().get(i);
+                validateCertificateRequest(req);
+                certificateResponses.add(
+                        new ResumeProfileResponse.CertificateResponse(
+                                (long) (i + 1),
+                                req.name().trim(),
+                                req.score(),
+                                req.issuer(),
+                                req.issuedAt()));
+            }
+        }
+
+        ResumeProfileResponse snapshot =
+                new ResumeProfileResponse(
+                        resumeId,
+                        request.name().trim(),
+                        request.profileImageUrl(),
+                        normalizeNullable(request.phoneCountryCode()),
+                        normalizeNullable(request.phoneNumber()),
+                        normalizeNullable(request.introduction()),
+                        techStackResponses,
+                        experienceResponses,
+                        educationResponses,
+                        activityResponses,
+                        certificateResponses);
+
         try {
-            resume.updateProfileSnapshot(objectMapper.writeValueAsString(snapshot));
+            return objectMapper.writeValueAsString(snapshot);
         } catch (Exception e) {
             log.warn(
                     "[RESUME_PROFILE] snapshot_serialize_failed userId={} resumeId={} error={}",
-                    userId,
-                    resume.getId(),
+                    user.getId(),
+                    resumeId,
                     e.getMessage());
             throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
@@ -257,21 +361,6 @@ public class ResumeProfileService {
                                         ResumeProfile.create(user, null, null, null)));
     }
 
-    private void persistProfileData(User user, ResumeProfileRequest request) {
-        ResumeProfile profile =
-                resumeProfileRepository
-                        .findById(user.getId())
-                        .orElseGet(() -> ResumeProfile.create(user, null, null, null));
-        updateResumeProfile(profile, request);
-        resumeProfileRepository.save(profile);
-        updateUserContact(user, request);
-        syncTechStacks(user, request.techStacks());
-        syncExperiences(user, request.experiences());
-        syncEducations(user, request.educations());
-        syncActivities(user, request.activities());
-        syncCertificates(user, request.certificates());
-    }
-
     private void updateUserContact(User user, ResumeProfileRequest request) {
         String userName = request.name().trim();
         String normalizedPhoneNumber = normalizeNullable(request.phoneNumber());
@@ -282,87 +371,6 @@ public class ResumeProfileService {
         } catch (UserProfileValidationException ex) {
             throw validationExceptionMapper.toBusinessException(ex);
         }
-    }
-
-    private void syncTechStacks(User user, List<ResumeProfileRequest.TechStackRequest> requests) {
-        userTechStackRepository.deleteAllByUser_Id(user.getId());
-        if (requests == null || requests.isEmpty()) {
-            return;
-        }
-
-        LinkedHashMap<String, String> normalizedToName = new LinkedHashMap<>();
-        for (ResumeProfileRequest.TechStackRequest req : requests) {
-            if (req == null || req.name() == null || req.name().isBlank()) {
-                continue;
-            }
-            String normalized = normalizeTechName(req.name());
-            if (normalized.isEmpty() || normalizedToName.containsKey(normalized)) {
-                continue;
-            }
-            normalizedToName.put(normalized, req.name().trim());
-            if (normalizedToName.size() >= 30) {
-                break;
-            }
-        }
-
-        Map<String, TechStack> techStackByNormalized =
-                toTechStackByNormalized(
-                        techStackRepository.findAllByNameNormalizedIn(normalizedToName.keySet()));
-        Map<String, TechStack> techStackByName =
-                toTechStackByName(
-                        techStackRepository.findAllByNameIn(
-                                new LinkedHashSet<>(normalizedToName.values())));
-
-        List<TechStackUpsertRow> missingTechStacks = new ArrayList<>();
-        for (Map.Entry<String, String> entry : normalizedToName.entrySet()) {
-            if (techStackByNormalized.containsKey(entry.getKey())
-                    || techStackByName.containsKey(entry.getValue())) {
-                continue;
-            }
-            missingTechStacks.add(new TechStackUpsertRow(entry.getValue(), entry.getKey()));
-        }
-
-        if (!missingTechStacks.isEmpty()) {
-            techStackRepository.upsertAll(missingTechStacks);
-            techStackByNormalized.putAll(
-                    toTechStackByNormalized(
-                            techStackRepository.findAllByNameNormalizedIn(
-                                    normalizedToName.keySet())));
-            techStackByName.putAll(
-                    toTechStackByName(
-                            techStackRepository.findAllByNameIn(
-                                    new LinkedHashSet<>(normalizedToName.values()))));
-        }
-
-        List<UserTechStack> userTechStacks = new ArrayList<>();
-        for (Map.Entry<String, String> entry : normalizedToName.entrySet()) {
-            TechStack techStack = techStackByNormalized.get(entry.getKey());
-            if (techStack == null) {
-                techStack = techStackByName.get(entry.getValue());
-            }
-            if (techStack != null) {
-                userTechStacks.add(UserTechStack.create(user, techStack));
-            }
-        }
-        if (!userTechStacks.isEmpty()) {
-            userTechStackRepository.saveAll(userTechStacks);
-        }
-    }
-
-    private Map<String, TechStack> toTechStackByNormalized(List<TechStack> techStacks) {
-        Map<String, TechStack> techStackByNormalized = new HashMap<>();
-        for (TechStack techStack : techStacks) {
-            techStackByNormalized.put(techStack.getNameNormalized(), techStack);
-        }
-        return techStackByNormalized;
-    }
-
-    private Map<String, TechStack> toTechStackByName(List<TechStack> techStacks) {
-        Map<String, TechStack> techStackByName = new HashMap<>();
-        for (TechStack techStack : techStacks) {
-            techStackByName.put(techStack.getName(), techStack);
-        }
-        return techStackByName;
     }
 
     private void syncExperiences(User user, List<ResumeProfileRequest.ExperienceRequest> requests) {
