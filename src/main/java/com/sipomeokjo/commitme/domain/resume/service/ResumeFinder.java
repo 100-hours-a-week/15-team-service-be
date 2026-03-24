@@ -2,8 +2,8 @@ package com.sipomeokjo.commitme.domain.resume.service;
 
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
-import com.sipomeokjo.commitme.domain.resume.entity.Resume;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,17 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ResumeFinder {
 
-    private final ResumeRepository resumeRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
 
-    public Resume getByIdAndUserIdOrThrow(Long resumeId, Long userId) {
-        return resumeRepository
-                .findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
-    }
-
-    public Resume getByIdAndUserIdWithLockOrThrow(Long resumeId, Long userId) {
-        return resumeRepository
-                .findByIdAndUserIdWithLock(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+    public ResumeDocument getDocumentByResumeIdAndUserIdOrThrow(Long resumeId, Long userId) {
+        ResumeDocument doc =
+                resumeMongoRepository
+                        .findByResumeId(resumeId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        if (!doc.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
+        }
+        return doc;
     }
 }
