@@ -312,7 +312,6 @@ public class ResumeProfileService {
                         activityResponses,
                         certificateResponses);
 
-
         try {
             return objectMapper.writeValueAsString(snapshot);
         } catch (Exception e) {
