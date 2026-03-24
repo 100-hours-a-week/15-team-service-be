@@ -17,10 +17,10 @@ import com.sipomeokjo.commitme.domain.interview.repository.InterviewMessageRepos
 import com.sipomeokjo.commitme.domain.interview.repository.InterviewRepository;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.service.UserFinder;
 import java.time.Instant;
@@ -40,9 +40,8 @@ public class InterviewCommandTransactionService {
     private final UserFinder userFinder;
     private final PositionFinder positionFinder;
     private final CompanyRepository companyRepository;
-    private final ResumeVersionRepository resumeVersionRepository;
-    private final ResumeRepository resumeRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
 
     @Transactional
     public InterviewResponse updateName(Long userId, Long interviewId, String name) {
@@ -125,7 +124,7 @@ public class InterviewCommandTransactionService {
                         prepared.interviewName(),
                         prepared.interviewType());
         if (prepared.resumeId() != null) {
-            interview.updateResume(resumeRepository.getReferenceById(prepared.resumeId()));
+            interview.updateResumeId(prepared.resumeId());
         }
         interviewRepository.save(interview);
         interview.updateAiSessionId(aiResponse.aiSessionId());
@@ -213,9 +212,14 @@ public class InterviewCommandTransactionService {
             throw new BusinessException(ErrorCode.INTERVIEW_ALREADY_ENDED);
         }
 
-        Long resumeId = interview.getResume() != null ? interview.getResume().getId() : null;
+        Long resumeId = interview.getResumeId();
         String profileSnapshot =
-                interview.getResume() != null ? interview.getResume().getProfileSnapshot() : null;
+                resumeId != null
+                        ? resumeMongoRepository
+                                .findByResumeId(resumeId)
+                                .map(ResumeDocument::getProfileSnapshot)
+                                .orElse(null)
+                        : null;
 
         return new EndPrepared(
                 interview.getId(),
@@ -289,26 +293,6 @@ public class InterviewCommandTransactionService {
     }
 
     private ResumeContent resolveResumeContent(InterviewCreateRequest request) {
-        if (request.resumeVersionId() != null) {
-            return resumeVersionRepository
-                    .findById(request.resumeVersionId())
-                    .flatMap(
-                            v ->
-                                    resumeEventMongoRepository
-                                            .findByResumeIdAndVersionNo(
-                                                    v.getResume().getId(), v.getVersionNo())
-                                            .filter(
-                                                    e ->
-                                                            e.getStatus()
-                                                                    == ResumeVersionStatus
-                                                                            .SUCCEEDED)
-                                            .map(
-                                                    e ->
-                                                            new ResumeContent(
-                                                                    v.getResume().getId(),
-                                                                    e.getSnapshot())))
-                    .orElse(null);
-        }
         if (request.resumeId() != null && request.resumeVersionNo() != null) {
             return resumeEventMongoRepository
                     .findByResumeIdAndVersionNo(request.resumeId(), request.resumeVersionNo())

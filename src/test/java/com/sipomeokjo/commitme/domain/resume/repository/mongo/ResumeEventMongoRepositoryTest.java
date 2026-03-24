@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.IndexInfo;
@@ -22,13 +23,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @DataMongoTest
 @ActiveProfiles("test")
-@Import({MongoConfig.class, ResumeEventQueryRepository.class})
+@Import(MongoConfig.class)
 class ResumeEventMongoRepositoryTest {
 
     @MockitoBean private JpaMetamodelMappingContext jpaMetamodelMappingContext;
 
     @Autowired private ResumeEventMongoRepository resumeEventMongoRepository;
-    @Autowired private ResumeEventQueryRepository resumeEventQueryRepository;
     @Autowired private MongoTemplate mongoTemplate;
 
     @AfterEach
@@ -77,7 +77,7 @@ class ResumeEventMongoRepositoryTest {
     }
 
     @Test
-    void findLatestSucceededByResumeId_returnsHighestSucceededVersion() {
+    void findFirstByResumeIdAndStatusOrderByVersionNoDesc_returnsHighestSucceededVersion() {
         resumeEventMongoRepository.save(createEvent(1L, 1, 10L, ResumeVersionStatus.FAILED, "{}"));
         resumeEventMongoRepository.save(
                 createEvent(1L, 2, 10L, ResumeVersionStatus.SUCCEEDED, "{\"v\":2}"));
@@ -85,14 +85,18 @@ class ResumeEventMongoRepositoryTest {
                 createEvent(1L, 3, 10L, ResumeVersionStatus.SUCCEEDED, "{\"v\":3}"));
 
         ResumeEventDocument found =
-                resumeEventQueryRepository.findLatestSucceededByResumeId(1L).orElseThrow();
+                resumeEventMongoRepository
+                        .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
+                                1L, ResumeVersionStatus.SUCCEEDED)
+                        .orElseThrow();
 
         assertThat(found.getVersionNo()).isEqualTo(3);
         assertThat(found.getSnapshot()).isEqualTo("{\"v\":3}");
     }
 
     @Test
-    void findLatestUnseenPreviewByResumeId_returnsHighestUncommittedAndUnseenSucceededVersion() {
+    void
+            findFirstByResumeIdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNull_returnsHighestUnseenPreview() {
         ResumeEventDocument oldPreview =
                 createEvent(1L, 2, 10L, ResumeVersionStatus.SUCCEEDED, "{\"v\":2}");
         oldPreview.markPreviewShown(Instant.parse("2026-03-17T00:10:00Z"));
@@ -107,13 +111,17 @@ class ResumeEventMongoRepositoryTest {
                 createEvent(1L, 4, 10L, ResumeVersionStatus.SUCCEEDED, "{\"v\":4}"));
 
         ResumeEventDocument found =
-                resumeEventQueryRepository.findLatestUnseenPreviewByResumeId(1L).orElseThrow();
+                resumeEventMongoRepository
+                        .findFirstByResumeIdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
+                                1L, ResumeVersionStatus.SUCCEEDED)
+                        .orElseThrow();
 
         assertThat(found.getVersionNo()).isEqualTo(4);
     }
 
     @Test
-    void findProcessingByUserIds_returnsLimitedProcessingEventsOrderedByCreatedAt() {
+    void
+            findByUserIdInAndStatusOrderByCreatedAtAsc_returnsLimitedProcessingEventsOrderedByCreatedAt() {
         ResumeEventDocument first = createEvent(11L, 1, 100L, ResumeVersionStatus.QUEUED, "{}");
         first.startProcessing("job-11", Instant.parse("2026-03-17T00:00:00Z"));
         resumeEventMongoRepository.save(first);
@@ -127,7 +135,8 @@ class ResumeEventMongoRepositoryTest {
         resumeEventMongoRepository.save(third);
 
         List<ResumeEventDocument> found =
-                resumeEventQueryRepository.findProcessingByUserIds(List.of(100L, 101L), 2);
+                resumeEventMongoRepository.findByUserIdInAndStatusOrderByCreatedAtAsc(
+                        List.of(100L, 101L), ResumeVersionStatus.PROCESSING, PageRequest.of(0, 2));
 
         assertThat(found).hasSize(2);
         assertThat(found).extracting(ResumeEventDocument::getResumeId).containsExactly(11L, 12L);

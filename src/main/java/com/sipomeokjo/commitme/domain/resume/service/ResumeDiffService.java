@@ -4,12 +4,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeVersionDiffDto;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeVersionDiffDto.DiffItem;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +25,7 @@ public class ResumeDiffService {
 
     private static final String BASE_CURRENT = "current";
 
-    private final ResumeRepository resumeRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ObjectMapper objectMapper;
 
@@ -34,7 +35,6 @@ public class ResumeDiffService {
 
         int baseVersionNo = resolveBaseVersionNo(userId, resumeId, baseParam);
 
-        // Validate target
         ResumeEventDocument targetEvent =
                 resumeEventMongoRepository
                         .findByResumeIdAndVersionNo(resumeId, targetVersionNo)
@@ -52,7 +52,6 @@ public class ResumeDiffService {
             return new ResumeVersionDiffDto(resumeId, baseVersionNo, targetVersionNo, List.of());
         }
 
-        // Validate base
         ResumeEventDocument baseEvent =
                 resumeEventMongoRepository
                         .findByResumeIdAndVersionNo(resumeId, baseVersionNo)
@@ -84,36 +83,35 @@ public class ResumeDiffService {
 
     private int resolveBaseVersionNo(Long userId, Long resumeId, String baseParam) {
         if (BASE_CURRENT.equalsIgnoreCase(baseParam) || baseParam == null || baseParam.isBlank()) {
-            return resumeRepository
-                    .findByIdAndUser_Id(resumeId, userId)
-                    .map(
-                            resume -> {
-                                if (resume.getCurrentVersionNo() == null) {
-                                    throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND);
-                                }
-                                return resume.getCurrentVersionNo();
-                            })
-                    .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+            ResumeDocument doc =
+                    resumeMongoRepository
+                            .findByResumeId(resumeId)
+                            .filter(d -> d.getUserId().equals(userId))
+                            .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+            if (doc.getCurrentVersionNo() == null) {
+                throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND);
+            }
+            return doc.getCurrentVersionNo();
         }
-        // Numeric base version
+
         try {
             int vno = Integer.parseInt(baseParam.trim());
-            if (!resumeRepository.existsByIdAndUser_Id(resumeId, userId)) {
-                throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
-            }
+            resumeMongoRepository
+                    .findByResumeId(resumeId)
+                    .filter(doc -> doc.getUserId().equals(userId))
+                    .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
             return vno;
         } catch (NumberFormatException e) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> parseSnapshot(String snapshot, Long resumeId, int versionNo) {
         if (snapshot == null || snapshot.isBlank() || "{}".equals(snapshot)) {
             return Map.of();
         }
         try {
-            return objectMapper.readValue(snapshot, new TypeReference<Map<String, Object>>() {});
+            return objectMapper.readValue(snapshot, new TypeReference<>() {});
         } catch (Exception e) {
             log.warn(
                     "[DIFF] snapshot_parse_failed resumeId={} versionNo={} error={}",
