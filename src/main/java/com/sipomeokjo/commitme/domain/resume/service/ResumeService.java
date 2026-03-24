@@ -9,25 +9,34 @@ import com.sipomeokjo.commitme.api.validation.KeywordValidator;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
 import com.sipomeokjo.commitme.domain.outbox.dto.OutboxEventTypes;
+import com.sipomeokjo.commitme.domain.outbox.repository.OutboxEventRepository;
 import com.sipomeokjo.commitme.domain.outbox.service.OutboxEventService;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
 import com.sipomeokjo.commitme.domain.position.service.PositionFinder;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
-import com.sipomeokjo.commitme.domain.resume.dto.*;
-import com.sipomeokjo.commitme.domain.resume.entity.Resume;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeCreateRequest;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeDetailDto;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditRequest;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeEditResponse;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeProfileResponse;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeRenameRequest;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeSortBy;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeSummaryDto;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeVersionDto;
+import com.sipomeokjo.commitme.domain.resume.dto.ResumeVersionSummaryDto;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.event.ResumeGenerateOutboxPayload;
 import com.sipomeokjo.commitme.domain.resume.mapper.ResumeMapper;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
-import com.sipomeokjo.commitme.domain.user.entity.User;
-import com.sipomeokjo.commitme.domain.user.service.UserFinder;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoQueryRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
+import com.sipomeokjo.commitme.global.mongo.MongoSequenceService;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -40,19 +49,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @Slf4j
 public class ResumeService {
-    private final ResumeRepository resumeRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
+    private final ResumeMongoQueryRepository resumeMongoQueryRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
-    private final ResumeVersionRepository resumeVersionRepository;
-    private final UserFinder userFinder;
+    private final ResumeFinder resumeFinder;
+    private final MongoSequenceService mongoSequenceService;
     private final PositionFinder positionFinder;
     private final CompanyRepository companyRepository;
     private final CursorParser cursorParser;
     private final ResumeMapper resumeMapper;
     private final ResumeProfileService resumeProfileService;
 
+    private final OutboxEventRepository outboxEventRepository;
     private final OutboxEventService outboxEventService;
     private final ResumeAiRequestService resumeAiRequestService;
     private final ResumeEditTransactionService resumeEditTransactionService;
+    private final ResumeProjectionService resumeProjectionService;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public CursorResponse<ResumeSummaryDto> list(
@@ -63,72 +76,36 @@ public class ResumeService {
         int size = CursorRequest.resolveLimit(request, 10);
         String normalizedKeyword = KeywordValidator.normalize(keyword, 30);
 
-        Set<Long> succeededIds =
-                resumeEventMongoRepository
-                        .findResumeIdsByUserIdAndStatus(userId, ResumeVersionStatus.SUCCEEDED)
-                        .stream()
-                        .map(ResumeEventDocument::getResumeId)
-                        .collect(Collectors.toSet());
-
-        if (succeededIds.isEmpty()) {
-            return new CursorResponse<>(List.of(), null, null);
-        }
-
-        List<Resume> resumes =
+        List<ResumeDocument> docs =
                 (sortBy == ResumeSortBy.UPDATED_ASC)
-                        ? resumeRepository.findSucceededByUserIdWithCursorAsc(
-                                succeededIds,
-                                normalizedKeyword,
-                                cursor.createdAt(),
-                                cursor.id(),
-                                PageRequest.of(0, size + 1))
-                        : resumeRepository.findSucceededByUserIdWithCursorDesc(
-                                succeededIds,
-                                normalizedKeyword,
-                                cursor.createdAt(),
-                                cursor.id(),
-                                PageRequest.of(0, size + 1));
-
-        boolean hasMore = resumes.size() > size;
-        List<Resume> pageResumes = hasMore ? resumes.subList(0, size) : resumes;
-
-        Set<Long> editingResumeIds =
-                resumeEventMongoRepository
-                        .findByUserIdAndStatusIn(
+                        ? resumeMongoQueryRepository.findByUserIdWithCursorAsc(
                                 userId,
-                                List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING))
-                        .stream()
-                        .map(ResumeEventDocument::getResumeId)
-                        .collect(Collectors.toSet());
+                                normalizedKeyword,
+                                cursor.createdAt(),
+                                cursor.id(),
+                                size + 1)
+                        : resumeMongoQueryRepository.findByUserIdWithCursorDesc(
+                                userId,
+                                normalizedKeyword,
+                                cursor.createdAt(),
+                                cursor.id(),
+                                size + 1);
+
+        boolean hasMore = docs.size() > size;
+        List<ResumeDocument> page = hasMore ? docs.subList(0, size) : docs;
 
         List<ResumeSummaryDto> items =
-                pageResumes.stream()
-                        .map(
-                                resume ->
-                                        resumeMapper.toSummaryDto(
-                                                resume, editingResumeIds.contains(resume.getId())))
-                        .toList();
+                page.stream().map(resumeMapper::toSummaryDtoFromDocument).toList();
 
-        String next =
-                hasMore && !pageResumes.isEmpty() ? encodeCursor(pageResumes.getLast()) : null;
+        String next = hasMore && !page.isEmpty() ? encodeCursor(page.getLast()) : null;
         return new CursorResponse<>(items, null, next);
     }
 
-    private String encodeCursor(Resume resume) {
-        return resume.getUpdatedAt() + "|" + resume.getId();
+    private String encodeCursor(ResumeDocument doc) {
+        return doc.getUpdatedAt() + "|" + doc.getResumeId();
     }
 
     public Long create(Long userId, ResumeCreateRequest req) {
-
-        User user = userFinder.getByIdWithLockOrThrow(userId);
-
-        boolean hasPending =
-                resumeEventMongoRepository.existsByUserIdAndStatusIn(
-                        userId,
-                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
-        if (hasPending) {
-            throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
-        }
 
         if (req.getRepoUrls() == null || req.getRepoUrls().isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
@@ -138,21 +115,6 @@ public class ResumeService {
             throw new BusinessException(ErrorCode.POSITION_SELECTION_REQUIRED);
         Position position = positionFinder.getByIdOrThrow(req.getPositionId());
 
-        String name = (req.getName() == null) ? "" : req.getName().trim();
-        if (name.isEmpty()) {
-            java.time.LocalDateTime now = java.time.LocalDateTime.now();
-            name =
-                    String.format(
-                            "%04d%02d%02d%02d:%02d%s",
-                            now.getYear(),
-                            now.getMonthValue(),
-                            now.getDayOfMonth(),
-                            now.getHour(),
-                            now.getMinute(),
-                            position.getName());
-        }
-        if (name.length() > 30) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
-
         Company company = null;
         if (req.getCompanyId() != null) {
             company =
@@ -161,120 +123,170 @@ public class ResumeService {
                             .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         }
 
-        Resume resume = Resume.create(user, position, company, name);
-        Resume saved = resumeRepository.save(resume);
+        String name = (req.getName() == null) ? "" : req.getName().trim();
+        if (name.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now(clock);
+            String base =
+                    String.format(
+                            "%04d%02d%02d_%02d:%02d_%s",
+                            now.getYear(),
+                            now.getMonthValue(),
+                            now.getDayOfMonth(),
+                            now.getHour(),
+                            now.getMinute(),
+                            position.getName());
+            name = (company != null) ? base + "_" + company.getName() : base;
+        }
+        if (name.length() > 30) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
+
+        Long resumeId = mongoSequenceService.nextResumeId();
 
         ResumeEventDocument event =
-                ResumeEventDocument.create(
-                        saved.getId(), 1, userId, ResumeVersionStatus.QUEUED, "{}");
-        resumeEventMongoRepository.save(event);
+                ResumeEventDocument.create(resumeId, 1, userId, ResumeVersionStatus.QUEUED, "{}");
+
+        ResumeDocument projection =
+                ResumeDocument.create(
+                        resumeId,
+                        userId,
+                        position.getId(),
+                        position.getName(),
+                        company != null ? company.getId() : null,
+                        company != null ? company.getName() : null,
+                        name,
+                        null);
+
+        resumeProjectionService.createProjectionIfNoPendingOrThrow(userId, projection, event);
 
         outboxEventService.enqueue(
                 OutboxEventTypes.AI_JOB_REQUESTED,
                 "RESUME_EVENT",
-                String.valueOf(saved.getId()),
+                String.valueOf(resumeId),
                 new ResumeGenerateOutboxPayload(
-                        saved.getId(), 1, userId, position.getName(), req.getRepoUrls()));
+                        resumeId, 1, userId, position.getName(), req.getRepoUrls()));
 
-        return saved.getId();
+        return resumeId;
     }
 
+    @Transactional
     public ResumeDetailDto get(Long userId, Long resumeId) {
 
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
-
+        ResumeDocument doc = resumeFinder.getDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
         ResumeProfileResponse profileResponse =
                 resumeProfileService.getProfile(
-                        userId, resume.getId(), resume.getProfileSnapshot());
-
+                        userId, doc.getResumeId(), doc.getProfileSnapshot());
         boolean isEditing =
                 resumeEventMongoRepository.existsByResumeIdAndStatusIn(
-                        resumeId,
+                        doc.getResumeId(),
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
+
+        ResumeEventDocument previewEvent =
+                resumeEventMongoRepository
+                        .findFirstByResumeIdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
+                                doc.getResumeId(), ResumeVersionStatus.SUCCEEDED)
+                        .filter(v -> !v.getVersionNo().equals(doc.getCurrentVersionNo()))
+                        .orElse(null);
+
+        if (previewEvent != null) {
+            previewEvent.markPreviewShown(Instant.now());
+            resumeEventMongoRepository.save(previewEvent);
+            resumeProjectionService.applyPreviewShown(doc.getResumeId());
+            return resumeMapper.toDetailDtoFromDocument(
+                    doc, previewEvent, isEditing, profileResponse);
+        }
 
         ResumeEventDocument event =
                 resumeEventMongoRepository
-                        .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
-                                resumeId, ResumeVersionStatus.SUCCEEDED)
+                        .findByResumeIdAndVersionNo(doc.getResumeId(), doc.getCurrentVersionNo())
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
-        return resumeMapper.toDetailDto(resume, event, isEditing, profileResponse);
-    }
+        if (event.getStatus() != ResumeVersionStatus.SUCCEEDED) {
+            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
+        }
 
-    @Transactional(readOnly = true)
-    public boolean existsByResumeIdAndUserId(Long resumeId, Long userId) {
-        return resumeRepository.existsByIdAndUser_Id(resumeId, userId);
+        return resumeMapper.toDetailDtoFromDocument(doc, event, isEditing, profileResponse);
     }
 
     @Transactional(readOnly = true)
     public CursorResponse<ResumeVersionSummaryDto> getVersionList(
             Long userId, Long resumeId, CursorRequest request) {
 
-        resumeRepository
-                .findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
 
         int size = CursorRequest.resolveLimit(request, 50);
 
-        List<ResumeVersionSummaryDto> committed =
+        Integer cursorVersionNo = null;
+        if (request != null && request.next() != null) {
+            try {
+                cursorVersionNo = Integer.parseInt(request.next());
+            } catch (NumberFormatException e) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST);
+            }
+        }
+
+        boolean isFirstPage = (cursorVersionNo == null);
+
+        List<ResumeEventDocument> events;
+        if (isFirstPage) {
+            events =
+                    resumeEventMongoRepository
+                            .findByResumeIdAndStatusAndCommittedAtIsNotNullOrderByVersionNoDesc(
+                                    resumeId,
+                                    ResumeVersionStatus.SUCCEEDED,
+                                    PageRequest.of(0, size + 1));
+        } else {
+            events =
+                    resumeEventMongoRepository
+                            .findByResumeIdAndStatusAndCommittedAtIsNotNullAndVersionNoLessThanOrderByVersionNoDesc(
+                                    resumeId,
+                                    ResumeVersionStatus.SUCCEEDED,
+                                    cursorVersionNo,
+                                    PageRequest.of(0, size + 1));
+        }
+
+        boolean hasMore = events.size() > size;
+        List<ResumeEventDocument> page = hasMore ? events.subList(0, size) : events;
+
+        List<ResumeVersionSummaryDto> items =
                 new ArrayList<>(
-                        resumeEventMongoRepository
-                                .findByResumeIdOrderByVersionNoAsc(resumeId)
-                                .stream()
-                                .filter(
-                                        e ->
-                                                e.getStatus() == ResumeVersionStatus.SUCCEEDED
-                                                        && e.getCommittedAt() != null)
+                        page.stream()
                                 .map(
                                         e ->
                                                 new ResumeVersionSummaryDto(
                                                         e.getVersionNo(), e.getCommittedAt()))
                                 .toList());
 
-        resumeEventMongoRepository
-                .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
-                        resumeId, ResumeVersionStatus.SUCCEEDED)
-                .ifPresent(
-                        e -> {
-                            if (e.getCommittedAt() == null) {
-                                committed.addFirst(
-                                        new ResumeVersionSummaryDto(e.getVersionNo(), null));
-                            }
-                        });
-
-        int cursorVersionNo = 0;
-        if (request != null && request.next() != null) {
-            try {
-                cursorVersionNo = Integer.parseInt(request.next());
-            } catch (NumberFormatException ignored) {
-            }
+        if (isFirstPage) {
+            resumeEventMongoRepository
+                    .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
+                            resumeId, ResumeVersionStatus.SUCCEEDED)
+                    .ifPresent(
+                            e -> {
+                                if (e.getCommittedAt() == null) {
+                                    items.addFirst(
+                                            new ResumeVersionSummaryDto(e.getVersionNo(), null));
+                                }
+                            });
         }
 
-        final int finalCursor = cursorVersionNo;
-        List<ResumeVersionSummaryDto> filtered =
-                committed.stream().filter(dto -> dto.versionNo() > finalCursor).toList();
-
-        boolean hasMore = filtered.size() > size;
-        List<ResumeVersionSummaryDto> result = hasMore ? filtered.subList(0, size) : filtered;
         String next =
-                hasMore && !result.isEmpty() ? String.valueOf(result.getLast().versionNo()) : null;
-
-        return new CursorResponse<>(result, null, next);
+                hasMore && !page.isEmpty() ? String.valueOf(page.getLast().getVersionNo()) : null;
+        return new CursorResponse<>(items, null, next);
     }
 
+    @Transactional(readOnly = true)
+    public boolean existsByResumeIdAndUserId(Long resumeId, Long userId) {
+        return resumeMongoRepository.existsByResumeIdAndUserId(resumeId, userId);
+    }
+
+    @Transactional
     public ResumeVersionDto getVersion(Long userId, Long resumeId, int versionNo) {
 
-        resumeRepository
-                .findByIdAndUser_Id(resumeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        ResumeDocument doc = resumeFinder.getDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
 
         ResumeEventDocument event =
                 resumeEventMongoRepository
-                        .findByResumeIdAndVersionNo(resumeId, versionNo)
+                        .findByResumeIdAndVersionNo(doc.getResumeId(), versionNo)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
@@ -284,7 +296,7 @@ public class ResumeService {
         }
 
         return new ResumeVersionDto(
-                resumeId,
+                doc.getResumeId(),
                 event.getVersionNo(),
                 event.getStatus(),
                 event.getSnapshot(),
@@ -303,12 +315,8 @@ public class ResumeService {
         if (name.isEmpty() || name.length() > 30)
             throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
-
-        resume.rename(name);
+        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.applyNameChange(resumeId, name);
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -364,12 +372,10 @@ public class ResumeService {
                 errorMessage);
     }
 
+    @Transactional
     public void saveVersion(Long userId, Long resumeId, int versionNo) {
 
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
 
         ResumeEventDocument event =
                 resumeEventMongoRepository
@@ -383,18 +389,15 @@ public class ResumeService {
 
         event.markCommitted(Instant.now());
         resumeEventMongoRepository.save(event);
-        resume.setCurrentVersionNo(versionNo);
+        resumeProjectionService.applyVersionCommitted(resumeId, versionNo);
     }
 
+    @Transactional
     public void delete(Long userId, Long resumeId) {
+        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
 
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        outboxEventRepository.deleteByAggregateId(String.valueOf(resumeId));
 
-        resumeEventMongoRepository.deleteByResumeId(resumeId);
-        resumeVersionRepository.deleteByResume_Id(resumeId);
-        resumeRepository.delete(resume);
+        resumeProjectionService.deleteProjectionAndEvents(resumeId);
     }
 }

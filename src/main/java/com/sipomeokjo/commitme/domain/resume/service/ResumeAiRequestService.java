@@ -10,52 +10,22 @@ import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeEditRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeEditResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateResponse;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
-import com.sipomeokjo.commitme.domain.resume.event.ResumeAiGenerateEvent;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.client.RestClient;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ResumeAiRequestService {
-    private final ResumeVersionRepository resumeVersionRepository;
     private final AuthRepository authRepository;
     private final AccessTokenCipher accessTokenCipher;
     private final RestClient aiClient;
     private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
-
-    @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleGenerate(ResumeAiGenerateEvent event) {
-        if (event == null || event.resumeVersionId() == null) {
-            return;
-        }
-
-        ResumeVersion version =
-                resumeVersionRepository
-                        .findById(event.resumeVersionId())
-                        .orElseThrow(
-                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
-
-        DispatchResult dispatchResult =
-                requestGenerateJob(event.userId(), event.positionName(), event.repoUrls());
-        if (dispatchResult.success()) {
-            version.startProcessing(dispatchResult.jobId());
-            return;
-        }
-
-        version.failNow(dispatchResult.errorCode(), dispatchResult.errorMessage());
-    }
 
     public DispatchResult requestGenerateJob(
             Long userId, String positionName, List<String> repoUrls) {

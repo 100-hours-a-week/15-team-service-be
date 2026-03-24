@@ -31,7 +31,6 @@ public interface InterviewRepository extends JpaRepository<Interview, Long> {
             "SELECT i FROM Interview i "
                     + "JOIN FETCH i.position "
                     + "LEFT JOIN FETCH i.company "
-                    + "LEFT JOIN FETCH i.resume "
                     + "WHERE i.id = :id AND i.user.id = :userId")
     Optional<Interview> findByIdAndUserIdWithResume(
             @Param("id") Long id, @Param("userId") Long userId);
