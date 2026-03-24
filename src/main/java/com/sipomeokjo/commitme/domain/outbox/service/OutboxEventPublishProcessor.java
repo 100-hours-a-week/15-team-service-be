@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -35,6 +36,23 @@ public class OutboxEventPublishProcessor {
     private final TransactionTemplate transactionTemplate;
 
     @Transactional
+    public void recoverStuckProcessingEvents(int batchSize, Duration lockTimeout) {
+        Instant lockedBefore = Instant.now().minus(lockTimeout);
+        List<OutboxEvent> stuckEvents =
+                outboxEventRepository.findStuckProcessingEventsWithLock(lockedBefore, batchSize);
+        for (OutboxEvent event : stuckEvents) {
+            Instant nextAttemptAt = Instant.now().plusSeconds(backoffSeconds(event));
+            event.markRetryOrFailed("stuck_processing_recovered", nextAttemptAt);
+        }
+        if (!stuckEvents.isEmpty()) {
+            log.warn("[OUTBOX] stuck_processing_recovered size={}", stuckEvents.size());
+            meterRegistry
+                    .counter("outbox_stuck_recovery_total", "result", "recovered")
+                    .increment(stuckEvents.size());
+        }
+    }
+
+    @Transactional
     public List<Long> claimReadyEventIds(int batchSize) {
         Instant now = Instant.now();
         List<OutboxEvent> events =
@@ -50,6 +68,7 @@ public class OutboxEventPublishProcessor {
         return events.stream().map(OutboxEvent::getId).toList();
     }
 
+    @Async("outboxPublishExecutor")
     public void publishClaimedEvent(Long outboxEventId) {
         PublishSnapshot snapshot = loadPublishSnapshot(outboxEventId);
         if (snapshot == null) {

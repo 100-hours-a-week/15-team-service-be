@@ -56,22 +56,22 @@ import com.sipomeokjo.commitme.domain.refreshToken.entity.RefreshToken;
 import com.sipomeokjo.commitme.domain.refreshToken.repository.RefreshTokenRepository;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.resume.config.AiProperties;
+import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.dto.ResumeCreateRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeCallbackRequest;
-import com.sipomeokjo.commitme.domain.resume.entity.Resume;
-import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersion;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeRepository;
-import com.sipomeokjo.commitme.domain.resume.repository.ResumeVersionRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiCallbackService;
+import com.sipomeokjo.commitme.domain.resume.service.ResumeProjectionService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
 import com.sipomeokjo.commitme.domain.user.repository.ResumeProfileRepository;
 import com.sipomeokjo.commitme.domain.user.repository.UserRepository;
 import com.sipomeokjo.commitme.domain.userSetting.entity.UserSetting;
 import com.sipomeokjo.commitme.domain.userSetting.repository.UserSettingRepository;
+import com.sipomeokjo.commitme.global.mongo.MongoSequenceService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -114,9 +114,10 @@ public class LoadtestService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final RefreshTokenCacheService refreshTokenCacheService;
     private final AuthSessionIssueService authSessionIssueService;
-    private final ResumeRepository resumeRepository;
-    private final ResumeVersionRepository resumeVersionRepository;
+    private final ResumeMongoRepository resumeMongoRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
+    private final MongoSequenceService mongoSequenceService;
+    private final ResumeProjectionService resumeProjectionService;
     private final ResumeProfileRepository resumeProfileRepository;
     private final ResumeAiCallbackService resumeAiCallbackService;
     private final NotificationRepository notificationRepository;
@@ -384,15 +385,14 @@ public class LoadtestService {
         int deletedAuthCount = 0;
         int deletedUserCount = 0;
 
-        List<Resume> resumes = resumeRepository.findByUser_IdIn(userIds);
-        List<Long> resumeIds = resumes.stream().map(Resume::getId).toList();
+        List<ResumeDocument> resumes = resumeMongoRepository.findByUserIdIn(userIds);
+        List<Long> resumeIds = resumes.stream().map(ResumeDocument::getResumeId).toList();
 
         if (deleteResumes && !resumeIds.isEmpty()) {
+            deletedVersionCount = (int) resumeEventMongoRepository.countByResumeIdIn(resumeIds);
             resumeEventMongoRepository.deleteByResumeIdIn(resumeIds);
-            deletedVersionCount = resumeVersionRepository.findAllByResume_IdIn(resumeIds).size();
-            resumeVersionRepository.deleteByResume_IdIn(resumeIds);
             deletedResumeCount = resumes.size();
-            resumeRepository.deleteAllInBatch(resumes);
+            resumeMongoRepository.deleteAll(resumes);
         }
 
         if (deleteNotifications || deleteUsers) {
@@ -508,13 +508,18 @@ public class LoadtestService {
             int sequence = startIndex + userOffset;
 
             for (int resumeIndex = 1; resumeIndex <= resumesPerUser; resumeIndex++) {
-                Resume resume =
-                        resumeRepository.save(
-                                Resume.create(
-                                        user,
-                                        position,
+                Long resumeId = mongoSequenceService.nextResumeId();
+                ResumeDocument resumeDoc =
+                        resumeMongoRepository.save(
+                                ResumeDocument.create(
+                                        resumeId,
+                                        user.getId(),
+                                        position.getId(),
+                                        position.getName(),
                                         null,
-                                        buildResumeSeedName(sequence, resumeIndex)));
+                                        null,
+                                        buildResumeSeedName(sequence, resumeIndex),
+                                        null));
 
                 int versionNo = 1;
                 Instant seedTime = Instant.now(clock);
@@ -522,12 +527,9 @@ public class LoadtestService {
                     String content =
                             buildSeedResumeContentJson(
                                     runId, sequence, resumeIndex, versionNo, "success");
-                    ResumeVersion version = createAndSaveResumeVersion(resume, versionNo, content);
-                    version.succeed(content);
-
                     ResumeEventDocument doc =
                             ResumeEventDocument.create(
-                                    resume.getId(),
+                                    resumeId,
                                     versionNo,
                                     user.getId(),
                                     ResumeVersionStatus.QUEUED,
@@ -546,7 +548,6 @@ public class LoadtestService {
                     String content =
                             buildSeedResumeContentJson(
                                     runId, sequence, resumeIndex, versionNo, "failed");
-                    ResumeVersion version = createAndSaveResumeVersion(resume, versionNo, content);
                     String errorMessage =
                             "loadtest seeded failed version runId="
                                     + runId
@@ -556,11 +557,9 @@ public class LoadtestService {
                                     + resumeIndex
                                     + " versionNo="
                                     + versionNo;
-                    version.failNow(LOADTEST_SEED_ERROR_CODE, errorMessage);
-
                     ResumeEventDocument doc =
                             ResumeEventDocument.create(
-                                    resume.getId(),
+                                    resumeId,
                                     versionNo,
                                     user.getId(),
                                     ResumeVersionStatus.QUEUED,
@@ -574,19 +573,16 @@ public class LoadtestService {
 
                 for (int count = 0; count < pendingVersionsPerResume; count++) {
                     String aiTaskId = buildSeedAiTaskId(runId, sequence, resumeIndex, versionNo);
-                    ResumeVersion version = createAndSaveResumeVersion(resume, versionNo, "{}");
-                    version.startProcessing(aiTaskId);
                     Instant processStartedAt = Instant.now(clock);
                     if (pendingStartedMinutesAgo > 0) {
                         processStartedAt =
                                 processStartedAt.minus(
                                         Duration.ofMinutes(pendingStartedMinutesAgo));
-                        version.overrideProcessingStartedAt(processStartedAt);
                     }
 
                     ResumeEventDocument doc =
                             ResumeEventDocument.create(
-                                    resume.getId(),
+                                    resumeId,
                                     versionNo,
                                     user.getId(),
                                     ResumeVersionStatus.QUEUED,
@@ -598,7 +594,6 @@ public class LoadtestService {
                     versionNo++;
                 }
 
-                resume.setCurrentVersionNo(totalVersionsPerResume);
                 createdResumeCount++;
 
                 if (seedNotifications) {
@@ -607,7 +602,7 @@ public class LoadtestService {
                                     user,
                                     NotificationType.RESUME,
                                     buildSeedNotificationPayload(
-                                            runId, resume.getId(), sequence, resumeIndex)));
+                                            runId, resumeId, sequence, resumeIndex)));
                     createdNotificationCount++;
                 }
             }
@@ -643,10 +638,11 @@ public class LoadtestService {
                         ? null
                         : normalizeRunId(request.runId());
 
-        List<ResumeVersion> targetVersions = resolveReplayTargets(request, runId, replayLimit);
+        List<ResumeEventDocument> targetVersions =
+                resolveReplayTargets(request, runId, replayLimit);
         int replayedCallbackCount = 0;
 
-        for (ResumeVersion version : targetVersions) {
+        for (ResumeEventDocument version : targetVersions) {
             for (int attempt = 0; attempt < duplicateCount; attempt++) {
                 AiResumeCallbackRequest callbackRequest =
                         buildCallbackReplayRequest(version, resultStatus, attempt);
@@ -689,15 +685,14 @@ public class LoadtestService {
             return new LoadtestResumeResetResponse(runId, 0, 0, 0, 0);
         }
 
-        List<Resume> resumes = resumeRepository.findByUser_IdIn(userIds);
-        List<Long> resumeIds = resumes.stream().map(Resume::getId).toList();
+        List<ResumeDocument> resumes = resumeMongoRepository.findByUserIdIn(userIds);
+        List<Long> resumeIds = resumes.stream().map(ResumeDocument::getResumeId).toList();
         int deletedVersionCount = 0;
 
         if (!resumeIds.isEmpty()) {
+            deletedVersionCount = (int) resumeEventMongoRepository.countByResumeIdIn(resumeIds);
             resumeEventMongoRepository.deleteByResumeIdIn(resumeIds);
-            deletedVersionCount = resumeVersionRepository.findAllByResume_IdIn(resumeIds).size();
-            resumeVersionRepository.deleteByResume_IdIn(resumeIds);
-            resumeRepository.deleteAllInBatch(resumes);
+            resumeMongoRepository.deleteAll(resumes);
         }
 
         int deletedNotificationCount =
@@ -777,14 +772,11 @@ public class LoadtestService {
         Long userId = request.userId();
         Long resumeId = request.resumeId();
 
-        Resume resume =
-                resumeRepository
-                        .findByIdAndUser_Id(resumeId, userId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
 
         boolean hasPending =
                 resumeEventMongoRepository.existsByResumeIdAndStatusIn(
-                        resume.getId(),
+                        resumeId,
                         List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
         if (hasPending) {
             throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
@@ -793,13 +785,13 @@ public class LoadtestService {
         ResumeEventDocument latestSucceeded =
                 resumeEventMongoRepository
                         .findFirstByResumeIdAndStatusOrderByVersionNoDesc(
-                                resume.getId(), ResumeVersionStatus.SUCCEEDED)
+                                resumeId, ResumeVersionStatus.SUCCEEDED)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
 
         int nextVersionNo =
                 resumeEventMongoRepository
-                        .findTopByResumeIdOrderByVersionNoDesc(resume.getId())
+                        .findTopByResumeIdOrderByVersionNoDesc(resumeId)
                         .map(e -> e.getVersionNo() + 1)
                         .orElse(1);
 
@@ -812,17 +804,13 @@ public class LoadtestService {
 
         ResumeEventDocument next =
                 ResumeEventDocument.create(
-                        resume.getId(),
-                        nextVersionNo,
-                        userId,
-                        ResumeVersionStatus.QUEUED,
-                        snapshot);
+                        resumeId, nextVersionNo, userId, ResumeVersionStatus.QUEUED, snapshot);
         next.startProcessing(fakeTaskId, now);
         next.succeed(snapshot, now);
         next.markCommitted(now);
         resumeEventMongoRepository.save(next);
 
-        resume.setCurrentVersionNo(nextVersionNo);
+        resumeProjectionService.applyVersionCommitted(resumeId, nextVersionNo);
 
         return new LoadtestResumeForceEditResponse(resumeId, nextVersionNo);
     }
@@ -890,14 +878,6 @@ public class LoadtestService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.POSITION_NOT_FOUND));
     }
 
-    private ResumeVersion createAndSaveResumeVersion(Resume resume, int versionNo, String content) {
-        ResumeVersion version =
-                versionNo == 1
-                        ? ResumeVersion.createV1(resume, content)
-                        : ResumeVersion.createNext(resume, versionNo, content);
-        return resumeVersionRepository.save(version);
-    }
-
     private String buildResumeSeedName(int userSequence, int resumeIndex) {
         return "lt-rs-" + userSequence + "-" + resumeIndex;
     }
@@ -943,11 +923,16 @@ public class LoadtestService {
         }
     }
 
-    private List<ResumeVersion> resolveReplayTargets(
+    private List<ResumeEventDocument> resolveReplayTargets(
             LoadtestResumeCallbackReplayRequest request, String runId, int replayLimit) {
         if (request.versionIds() != null && !request.versionIds().isEmpty()) {
-            return resumeVersionRepository.findAllById(request.versionIds()).stream()
-                    .filter(version -> StringUtils.hasText(version.getAiTaskId()))
+            return resumeEventMongoRepository
+                    .findByResumeIdInAndStatusIn(
+                            request.versionIds(),
+                            List.of(ResumeVersionStatus.PROCESSING, ResumeVersionStatus.QUEUED),
+                            PageRequest.of(0, replayLimit))
+                    .stream()
+                    .filter(event -> StringUtils.hasText(event.getAiTaskId()))
                     .toList();
         }
 
@@ -960,12 +945,14 @@ public class LoadtestService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        return resumeVersionRepository.findByResume_User_IdInAndStatusOrderByIdAsc(
+        return resumeEventMongoRepository.findByUserIdInAndStatusOrderByCreatedAtAsc(
                 userIds, ResumeVersionStatus.PROCESSING, PageRequest.of(0, replayLimit));
     }
 
     private AiResumeCallbackRequest buildCallbackReplayRequest(
-            ResumeVersion version, LoadtestResumeReplayResultStatus resultStatus, int attempt) {
+            ResumeEventDocument version,
+            LoadtestResumeReplayResultStatus resultStatus,
+            int attempt) {
         if (!StringUtils.hasText(version.getAiTaskId())) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
@@ -987,7 +974,7 @@ public class LoadtestService {
                         List.of("Java", "Spring", "k6"),
                         List.of(
                                 new AiResumeCallbackRequest.ProjectPayload(
-                                        "loadtest-project-" + version.getId(),
+                                        "loadtest-project-" + version.getResumeId(),
                                         "https://github.com/openai/openai-openapi",
                                         "loadtest replay callback payload attempt=" + attempt,
                                         List.of("Java", "Spring")))),

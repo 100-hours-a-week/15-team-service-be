@@ -2,37 +2,49 @@ package com.sipomeokjo.commitme.domain.resume.repository.mongo;
 
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
-import java.util.List;
+import java.time.Instant;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
 public class ResumeEventQueryRepository {
-    private final ResumeEventMongoRepository resumeEventMongoRepository;
+    private final MongoTemplate mongoTemplate;
 
-    public Optional<ResumeEventDocument> findLatestSucceededByResumeId(Long resumeId) {
-        return resumeEventMongoRepository.findFirstByResumeIdAndStatusOrderByVersionNoDesc(
-                resumeId, ResumeVersionStatus.SUCCEEDED);
-    }
+    public Optional<ResumeEventDocument> transitionToTerminalIfPossible(
+            String aiTaskId,
+            ResumeVersionStatus target,
+            String snapshot,
+            String errorLog,
+            Instant finishedAt,
+            Instant committedAt) {
+        Criteria criteria =
+                Criteria.where("ai_task_id")
+                        .is(aiTaskId)
+                        .and("status")
+                        .nin(ResumeVersionStatus.SUCCEEDED, ResumeVersionStatus.FAILED);
 
-    public Optional<ResumeEventDocument> findLatestUnseenPreviewByResumeId(Long resumeId) {
-        return resumeEventMongoRepository
-                .findFirstByResumeIdAndStatusAndCommittedAtIsNullAndPreviewShownAtIsNullOrderByVersionNoDesc(
-                        resumeId, ResumeVersionStatus.SUCCEEDED);
-    }
+        Update update =
+                new Update()
+                        .set("status", target)
+                        .set("finished_at", finishedAt)
+                        .set("updated_at", finishedAt);
+        if (snapshot != null) update.set("snapshot", snapshot);
+        if (errorLog != null) update.set("error_log", errorLog);
+        if (committedAt != null) update.set("committed_at", committedAt);
 
-    public List<ResumeEventDocument> findProcessingByUserIds(List<Long> userIds, int limit) {
-        if (userIds == null || userIds.isEmpty() || limit <= 0) {
-            return List.of();
-        }
-        return resumeEventMongoRepository.findByUserIdInAndStatusOrderByCreatedAtAsc(
-                userIds, ResumeVersionStatus.PROCESSING, PageRequest.of(0, limit));
-    }
-
-    public boolean existsByUserIdAndStatusIn(Long userId, List<ResumeVersionStatus> statuses) {
-        return resumeEventMongoRepository.existsByUserIdAndStatusIn(userId, statuses);
+        ResumeEventDocument result =
+                mongoTemplate.findAndModify(
+                        Query.query(criteria),
+                        update,
+                        FindAndModifyOptions.options().returnNew(true),
+                        ResumeEventDocument.class);
+        return Optional.ofNullable(result);
     }
 }
