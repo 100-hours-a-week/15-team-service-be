@@ -11,14 +11,12 @@ import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeEditResponse;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateRequest;
 import com.sipomeokjo.commitme.domain.resume.dto.ai.AiResumeGenerateResponse;
 import com.sipomeokjo.commitme.security.jwt.AccessTokenCipher;
-import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
 import java.net.SocketTimeoutException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -26,6 +24,7 @@ import org.springframework.web.client.RestClientException;
 @RequiredArgsConstructor
 @Slf4j
 public class ResumeAiRequestService {
+
     private final AuthRepository authRepository;
     private final AccessTokenCipher accessTokenCipher;
     private final RestClient aiClient;
@@ -86,19 +85,6 @@ public class ResumeAiRequestService {
         }
     }
 
-    private DispatchResult requestGenerateJobFallback(
-            Long userId, String positionName, List<String> repoUrls, CallNotPermittedException e) {
-        log.warn("[AI_RESUME] circuit_breaker_open action=generate");
-        return DispatchResult.failed(
-                "AI_CIRCUIT_BREAKER_OPEN", "AI service temporarily unavailable");
-    }
-
-    private DispatchResult requestGenerateJobFallback(
-            Long userId, String positionName, List<String> repoUrls, Exception e) {
-        log.error("[AI_RESUME] fallback_triggered action=generate", e);
-        return DispatchResult.failed("AI_GENERATE_FAILED", e.getMessage());
-    }
-
     private String getConnectionErrorMessage(ResourceAccessException e) {
         Throwable cause = e.getCause();
         if (cause instanceof SocketTimeoutException) {
@@ -107,8 +93,6 @@ public class ResumeAiRequestService {
         return "AI server connection failed";
     }
 
-    @CircuitBreaker(name = AI_SERVICE, fallbackMethod = "requestEditFallback")
-    @Retry(name = AI_SERVICE)
     public String requestEdit(Long resumeId, String resumeJson, String requestMessage) {
         if (resumeJson == null || resumeJson.isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
@@ -149,21 +133,6 @@ public class ResumeAiRequestService {
             log.error("[AI_EDIT] failed reason=unexpected_error", e);
             throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
         }
-    }
-
-    private String requestEditFallback(
-            Long resumeId, String resumeJson, String requestMessage, CallNotPermittedException e) {
-        log.warn("[AI_EDIT] circuit_breaker_open");
-        throw new BusinessException(ErrorCode.AI_CIRCUIT_BREAKER_OPEN);
-    }
-
-    private String requestEditFallback(
-            Long resumeId, String resumeJson, String requestMessage, Exception e) {
-        log.error("[AI_EDIT] fallback_triggered", e);
-        if (e instanceof BusinessException) {
-            throw (BusinessException) e;
-        }
-        throw new BusinessException(ErrorCode.AI_SERVICE_UNAVAILABLE);
     }
 
     private BusinessException handleResourceAccessException(ResourceAccessException e) {
