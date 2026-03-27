@@ -65,6 +65,7 @@ public class ResumeService {
     private final ResumeAiRequestService resumeAiRequestService;
     private final ResumeEditTransactionService resumeEditTransactionService;
     private final ResumeProjectionService resumeProjectionService;
+    private final ResumeLockService resumeLockService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -141,28 +142,38 @@ public class ResumeService {
 
         Long resumeId = mongoSequenceService.nextResumeId();
 
-        ResumeEventDocument event =
-                ResumeEventDocument.create(resumeId, 1, userId, ResumeVersionStatus.QUEUED, "{}");
+        if (!resumeLockService.tryAcquireCreateLock(userId, resumeId)) {
+            throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
+        }
 
-        ResumeDocument projection =
-                ResumeDocument.create(
-                        resumeId,
-                        userId,
-                        position.getId(),
-                        position.getName(),
-                        company != null ? company.getId() : null,
-                        company != null ? company.getName() : null,
-                        name,
-                        null);
+        try {
+            ResumeEventDocument event =
+                    ResumeEventDocument.create(
+                            resumeId, 1, userId, ResumeVersionStatus.QUEUED, "{}");
 
-        resumeProjectionService.createProjectionIfNoPendingOrThrow(userId, projection, event);
+            ResumeDocument projection =
+                    ResumeDocument.create(
+                            resumeId,
+                            userId,
+                            position.getId(),
+                            position.getName(),
+                            company != null ? company.getId() : null,
+                            company != null ? company.getName() : null,
+                            name,
+                            null);
 
-        outboxEventService.enqueue(
-                OutboxEventTypes.AI_JOB_REQUESTED,
-                "RESUME_EVENT",
-                String.valueOf(resumeId),
-                new ResumeGenerateOutboxPayload(
-                        resumeId, 1, userId, position.getName(), req.getRepoUrls()));
+            resumeProjectionService.createProjectionIfNoPendingOrThrow(userId, projection, event);
+
+            outboxEventService.enqueue(
+                    OutboxEventTypes.AI_JOB_REQUESTED,
+                    "RESUME_EVENT",
+                    String.valueOf(resumeId),
+                    new ResumeGenerateOutboxPayload(
+                            resumeId, 1, userId, position.getName(), req.getRepoUrls()));
+        } catch (Exception e) {
+            resumeLockService.releaseCreateLock(userId, resumeId);
+            throw e;
+        }
 
         return resumeId;
     }
@@ -326,8 +337,17 @@ public class ResumeService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        ResumeEditTransactionService.EditPrepared prepared =
-                resumeEditTransactionService.prepareEdit(userId, resumeId);
+        if (!resumeLockService.tryAcquireEditLock(resumeId)) {
+            throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
+        }
+
+        ResumeEditTransactionService.EditPrepared prepared;
+        try {
+            prepared = resumeEditTransactionService.prepareEdit(userId, resumeId);
+        } catch (Exception e) {
+            resumeLockService.releaseEditLock(resumeId);
+            throw e;
+        }
 
         try {
             String jobId =
@@ -350,9 +370,12 @@ public class ResumeService {
                     updated.getUpdatedAt());
         } catch (BusinessException e) {
             markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
+            // AI 요청 실패 시 콜백이 오지 않으므로 직접 해제
+            resumeLockService.releaseEditLock(resumeId);
             throw e;
         } catch (Exception e) {
             markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
+            resumeLockService.releaseEditLock(resumeId);
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
