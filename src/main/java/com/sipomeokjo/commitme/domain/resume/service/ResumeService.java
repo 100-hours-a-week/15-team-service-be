@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -140,16 +141,26 @@ public class ResumeService {
         }
         if (name.length() > 30) throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
-        Long resumeId = mongoSequenceService.nextResumeId();
-
+        String createLockToken = UUID.randomUUID().toString();
         ResumeLockService.LockAcquireResult lockAcquireResult =
-                resumeLockService.tryAcquireCreateLock(userId, resumeId);
+                resumeLockService.tryAcquireCreateLock(userId, createLockToken);
         if (lockAcquireResult == ResumeLockService.LockAcquireResult.BUSY) {
             throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
         }
 
+        Long resumeId = null;
         boolean projectionCreated = false;
+        boolean redisLockBoundToResumeId = false;
         try {
+            resumeId = mongoSequenceService.nextResumeId();
+            if (lockAcquireResult == ResumeLockService.LockAcquireResult.ACQUIRED) {
+                redisLockBoundToResumeId =
+                        resumeLockService.bindCreateLockOwner(userId, createLockToken, resumeId);
+                if (!redisLockBoundToResumeId) {
+                    throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+                }
+            }
+
             ResumeEventDocument event =
                     ResumeEventDocument.create(
                             resumeId, 1, userId, ResumeVersionStatus.QUEUED, "{}");
@@ -183,7 +194,13 @@ public class ResumeService {
             if (projectionCreated) {
                 markCreateFailedAndLog(userId, resumeId, e.getMessage());
             }
-            resumeLockService.releaseCreateLock(userId, resumeId);
+            if (lockAcquireResult == ResumeLockService.LockAcquireResult.ACQUIRED) {
+                if (redisLockBoundToResumeId && resumeId != null) {
+                    resumeLockService.releaseCreateLock(userId, resumeId);
+                } else {
+                    resumeLockService.releaseCreateLockByToken(userId, createLockToken);
+                }
+            }
             throw e;
         }
 
@@ -349,26 +366,39 @@ public class ResumeService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        int previewNextVersionNo = resumeEditTransactionService.peekNextVersionNo(resumeId);
+        String editLockToken = UUID.randomUUID().toString();
         ResumeLockService.LockAcquireResult lockAcquireResult =
-                resumeLockService.tryAcquireEditLock(resumeId, previewNextVersionNo);
+                resumeLockService.tryAcquireEditLock(resumeId, editLockToken);
         boolean redisLockHeld = lockAcquireResult == ResumeLockService.LockAcquireResult.ACQUIRED;
         if (lockAcquireResult == ResumeLockService.LockAcquireResult.BUSY) {
             throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
         }
 
         ResumeEditTransactionService.EditPrepared prepared;
+        Integer previewNextVersionNo = null;
+        boolean redisLockBoundToVersion = false;
         try {
             if (lockAcquireResult == ResumeLockService.LockAcquireResult.FALLBACK) {
                 prepared = resumeEditTransactionService.prepareEdit(userId, resumeId);
             } else {
+                previewNextVersionNo = resumeEditTransactionService.peekNextVersionNo(resumeId);
+                redisLockBoundToVersion =
+                        resumeLockService.bindEditLockOwner(
+                                resumeId, editLockToken, previewNextVersionNo);
+                if (!redisLockBoundToVersion) {
+                    throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+                }
                 prepared =
                         resumeEditTransactionService.prepareEditWithPreAcquiredLock(
                                 userId, resumeId, previewNextVersionNo);
             }
         } catch (Exception e) {
             if (redisLockHeld) {
-                resumeLockService.releaseEditLock(resumeId, previewNextVersionNo);
+                if (redisLockBoundToVersion && previewNextVersionNo != null) {
+                    resumeLockService.releaseEditLock(resumeId, previewNextVersionNo);
+                } else {
+                    resumeLockService.releaseEditLockByToken(resumeId, editLockToken);
+                }
             }
             throw e;
         }

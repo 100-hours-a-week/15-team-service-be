@@ -16,15 +16,12 @@ import org.springframework.stereotype.Service;
 public class ResumeLockService {
 
     private static final String CREATE_KEY_PREFIX = "resume:lock:create:";
-    private static final String CREATE_TIME_KEY_PREFIX = "resume:lock:create:time:";
     private static final String EDIT_KEY_PREFIX = "resume:lock:edit:";
 
     private static final Duration LOCK_TTL = Duration.ofMinutes(5);
-    private static final Duration META_TTL = LOCK_TTL.plusSeconds(60);
 
-    private static final DefaultRedisScript<Long> CREATE_ACQUIRE_SCRIPT;
-    private static final DefaultRedisScript<String> CREATE_RELEASE_SCRIPT;
-    private static final DefaultRedisScript<Long> EDIT_RELEASE_SCRIPT;
+    private static final DefaultRedisScript<Long> BIND_OWNER_SCRIPT;
+    private static final DefaultRedisScript<Long> RELEASE_SCRIPT;
 
     public enum LockAcquireResult {
         ACQUIRED,
@@ -33,81 +30,71 @@ public class ResumeLockService {
     }
 
     static {
-        CREATE_ACQUIRE_SCRIPT = new DefaultRedisScript<>();
-        CREATE_ACQUIRE_SCRIPT.setScriptText(
-                "if redis.call('exists', KEYS[1]) == 1 then "
-                        + "  return 0 "
-                        + "end "
-                        + "redis.call('set', KEYS[1], ARGV[1], 'PX', ARGV[2]) "
-                        + "redis.call('set', KEYS[2], ARGV[3], 'PX', ARGV[4]) "
-                        + "return 1");
-        CREATE_ACQUIRE_SCRIPT.setResultType(Long.class);
-
-        CREATE_RELEASE_SCRIPT = new DefaultRedisScript<>();
-        CREATE_RELEASE_SCRIPT.setScriptText(
+        BIND_OWNER_SCRIPT = new DefaultRedisScript<>();
+        BIND_OWNER_SCRIPT.setScriptText(
                 "if redis.call('get', KEYS[1]) == ARGV[1] then "
-                        + "  local acquiredAt = redis.call('get', KEYS[2]) "
-                        + "  redis.call('del', KEYS[1]) "
-                        + "  redis.call('del', KEYS[2]) "
-                        + "  if acquiredAt then "
-                        + "    return acquiredAt "
+                        + "  local ttl = redis.call('pttl', KEYS[1]) "
+                        + "  if ttl > 0 then "
+                        + "    redis.call('psetex', KEYS[1], ttl, ARGV[2]) "
+                        + "  else "
+                        + "    redis.call('set', KEYS[1], ARGV[2]) "
                         + "  end "
-                        + "  return 'RELEASED' "
+                        + "  return 1 "
                         + "end "
-                        + "return 'MISMATCH'");
-        CREATE_RELEASE_SCRIPT.setResultType(String.class);
+                        + "return 0");
+        BIND_OWNER_SCRIPT.setResultType(Long.class);
 
-        EDIT_RELEASE_SCRIPT = new DefaultRedisScript<>();
-        EDIT_RELEASE_SCRIPT.setScriptText(
+        RELEASE_SCRIPT = new DefaultRedisScript<>();
+        RELEASE_SCRIPT.setScriptText(
                 "if redis.call('get', KEYS[1]) == ARGV[1] then "
                         + "  return redis.call('del', KEYS[1]) "
                         + "end "
                         + "return 0");
-        EDIT_RELEASE_SCRIPT.setResultType(Long.class);
+        RELEASE_SCRIPT.setResultType(Long.class);
     }
 
     private final StringRedisTemplate stringRedisTemplate;
     private final MeterRegistry meterRegistry;
 
-    public LockAcquireResult tryAcquireCreateLock(Long userId, Long resumeId) {
-        String lockKey = CREATE_KEY_PREFIX + userId;
-        String timeKey = CREATE_TIME_KEY_PREFIX + userId;
-        try {
-            Long scriptResult =
-                    stringRedisTemplate.execute(
-                            CREATE_ACQUIRE_SCRIPT,
-                            List.of(lockKey, timeKey),
-                            String.valueOf(resumeId),
-                            String.valueOf(LOCK_TTL.toMillis()),
-                            String.valueOf(System.currentTimeMillis()),
-                            String.valueOf(META_TTL.toMillis()));
-            return toAcquireResult(scriptResult);
-        } catch (Exception e) {
-            log.warn(
-                    "[RESUME_LOCK] create_acquire_error userId={} — fall-through to DB", userId, e);
-            meterRegistry.counter("resume.lock.fallback.total", "kind", "create").increment();
-            return LockAcquireResult.FALLBACK;
-        }
+    public LockAcquireResult tryAcquireCreateLock(Long userId, String ownerToken) {
+        return tryAcquireLock(CREATE_KEY_PREFIX + userId, ownerToken, "create", "userId", userId);
+    }
+
+    public boolean bindCreateLockOwner(Long userId, String expectedToken, Long resumeId) {
+        return bindOwner(CREATE_KEY_PREFIX + userId, expectedToken, String.valueOf(resumeId));
     }
 
     public void releaseCreateLock(Long userId, Long resumeId) {
-        String lockKey = CREATE_KEY_PREFIX + userId;
-        String timeKey = CREATE_TIME_KEY_PREFIX + userId;
-        try {
-            stringRedisTemplate.execute(
-                    CREATE_RELEASE_SCRIPT, List.of(lockKey, timeKey), String.valueOf(resumeId));
-        } catch (Exception e) {
-            log.warn(
-                    "[RESUME_LOCK] create_release_error userId={} resumeId={} — TTL 만료 대기",
-                    userId,
-                    resumeId,
-                    e);
-        }
+        releaseCreateLockByToken(userId, String.valueOf(resumeId));
     }
 
-    public LockAcquireResult tryAcquireEditLock(Long resumeId, Integer versionNo) {
-        String lockKey = EDIT_KEY_PREFIX + resumeId;
-        String ownerToken = buildEditLockToken(resumeId, versionNo);
+    public void releaseCreateLockByToken(Long userId, String ownerToken) {
+        releaseLock(CREATE_KEY_PREFIX + userId, ownerToken, "create", "userId", userId);
+    }
+
+    public LockAcquireResult tryAcquireEditLock(Long resumeId, String ownerToken) {
+        return tryAcquireLock(EDIT_KEY_PREFIX + resumeId, ownerToken, "edit", "resumeId", resumeId);
+    }
+
+    public boolean bindEditLockOwner(Long resumeId, String expectedToken, Integer versionNo) {
+        return bindOwner(
+                EDIT_KEY_PREFIX + resumeId, expectedToken, buildEditLockToken(resumeId, versionNo));
+    }
+
+    public void releaseEditLock(Long resumeId, Integer versionNo) {
+        releaseEditLockByToken(resumeId, buildEditLockToken(resumeId, versionNo));
+    }
+
+    public void releaseEditLockByToken(Long resumeId, String ownerToken) {
+        releaseLock(EDIT_KEY_PREFIX + resumeId, ownerToken, "edit", "resumeId", resumeId);
+    }
+
+    private LockAcquireResult tryAcquireLock(
+            String lockKey,
+            String ownerToken,
+            String kind,
+            String subjectName,
+            Object subjectValue) {
         try {
             ValueOperations<String, String> valueOperations = stringRedisTemplate.opsForValue();
             Boolean acquired = valueOperations.setIfAbsent(lockKey, ownerToken, LOCK_TTL);
@@ -120,29 +107,13 @@ public class ResumeLockService {
             return LockAcquireResult.FALLBACK;
         } catch (Exception e) {
             log.warn(
-                    "[RESUME_LOCK] edit_acquire_error resumeId={} — fall-through to DB",
-                    resumeId,
+                    "[RESUME_LOCK] {}_acquire_error {}={} — fall-through to DB",
+                    kind,
+                    subjectName,
+                    subjectValue,
                     e);
-            meterRegistry.counter("resume.lock.fallback.total", "kind", "edit").increment();
+            meterRegistry.counter("resume.lock.fallback.total", "kind", kind).increment();
             return LockAcquireResult.FALLBACK;
-        }
-    }
-
-    public void releaseEditLock(Long resumeId, Integer versionNo) {
-        String lockKey = EDIT_KEY_PREFIX + resumeId;
-        String ownerToken = buildEditLockToken(resumeId, versionNo);
-        try {
-            Long released =
-                    stringRedisTemplate.execute(EDIT_RELEASE_SCRIPT, List.of(lockKey), ownerToken);
-            if (!Long.valueOf(1L).equals(released)) {
-                meterRegistry.counter("resume.lock.release.meta_missing.total").increment();
-                log.warn(
-                        "[RESUME_LOCK] edit_release_token_mismatch resumeId={} versionNo={} — 이미 만료 또는 미존재",
-                        resumeId,
-                        versionNo);
-            }
-        } catch (Exception e) {
-            log.warn("[RESUME_LOCK] edit_release_error resumeId={} — TTL 만료 대기", resumeId, e);
         }
     }
 
@@ -150,13 +121,43 @@ public class ResumeLockService {
         return resumeId + ":" + versionNo;
     }
 
-    private LockAcquireResult toAcquireResult(Long scriptResult) {
-        if (Long.valueOf(1L).equals(scriptResult)) {
-            return LockAcquireResult.ACQUIRED;
+    private boolean bindOwner(String lockKey, String expectedToken, String boundOwnerToken) {
+        try {
+            Long bound =
+                    stringRedisTemplate.execute(
+                            BIND_OWNER_SCRIPT, List.of(lockKey), expectedToken, boundOwnerToken);
+            return Long.valueOf(1L).equals(bound);
+        } catch (Exception e) {
+            log.warn("[RESUME_LOCK] owner_bind_error key={}", lockKey, e);
+            return false;
         }
-        if (Long.valueOf(0L).equals(scriptResult)) {
-            return LockAcquireResult.BUSY;
+    }
+
+    private void releaseLock(
+            String lockKey,
+            String ownerToken,
+            String kind,
+            String subjectName,
+            Object subjectValue) {
+        try {
+            Long released =
+                    stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(lockKey), ownerToken);
+            if (!Long.valueOf(1L).equals(released)) {
+                meterRegistry.counter("resume.lock.release.meta_missing.total").increment();
+                log.warn(
+                        "[RESUME_LOCK] {}_release_token_mismatch {}={} owner={} — 이미 만료 또는 미존재",
+                        kind,
+                        subjectName,
+                        subjectValue,
+                        ownerToken);
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "[RESUME_LOCK] {}_release_error {}={} — TTL 만료 대기",
+                    kind,
+                    subjectName,
+                    subjectValue,
+                    e);
         }
-        return LockAcquireResult.FALLBACK;
     }
 }

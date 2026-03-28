@@ -2,9 +2,11 @@ package com.sipomeokjo.commitme.domain.resume.service;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -35,6 +37,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -88,12 +91,18 @@ class ResumeServiceLockRoutingTest {
         ResumeCreateRequest request = createRequest();
         given(positionFinder.getByIdOrThrow(3L))
                 .willReturn(Position.builder().id(3L).name("Backend").build());
-        given(mongoSequenceService.nextResumeId()).willReturn(100L);
-        given(resumeLockService.tryAcquireCreateLock(11L, 100L))
+        given(resumeLockService.tryAcquireCreateLock(eq(11L), anyString()))
                 .willReturn(ResumeLockService.LockAcquireResult.ACQUIRED);
+        given(mongoSequenceService.nextResumeId()).willReturn(100L);
+        given(resumeLockService.bindCreateLockOwner(eq(11L), anyString(), eq(100L)))
+                .willReturn(true);
 
         resumeService.create(11L, request);
 
+        InOrder inOrder = inOrder(resumeLockService, mongoSequenceService);
+        inOrder.verify(resumeLockService).tryAcquireCreateLock(eq(11L), anyString());
+        inOrder.verify(mongoSequenceService).nextResumeId();
+        verify(resumeLockService).bindCreateLockOwner(eq(11L), anyString(), eq(100L));
         verify(resumeProjectionService).createProjectionWithPreAcquiredLock(any(), any());
         verify(resumeProjectionService, never())
                 .createProjectionIfNoPendingOrThrow(any(), any(), any());
@@ -104,14 +113,15 @@ class ResumeServiceLockRoutingTest {
         ResumeCreateRequest request = createRequest();
         given(positionFinder.getByIdOrThrow(3L))
                 .willReturn(Position.builder().id(3L).name("Backend").build());
-        given(mongoSequenceService.nextResumeId()).willReturn(100L);
-        given(resumeLockService.tryAcquireCreateLock(11L, 100L))
+        given(resumeLockService.tryAcquireCreateLock(eq(11L), anyString()))
                 .willReturn(ResumeLockService.LockAcquireResult.FALLBACK);
+        given(mongoSequenceService.nextResumeId()).willReturn(100L);
 
         resumeService.create(11L, request);
 
         verify(resumeProjectionService).createProjectionIfNoPendingOrThrow(eq(11L), any(), any());
         verify(resumeProjectionService, never()).createProjectionWithPreAcquiredLock(any(), any());
+        verify(resumeLockService, never()).bindCreateLockOwner(eq(11L), anyString(), eq(100L));
     }
 
     @Test
@@ -119,8 +129,7 @@ class ResumeServiceLockRoutingTest {
         ResumeCreateRequest request = createRequest();
         given(positionFinder.getByIdOrThrow(3L))
                 .willReturn(Position.builder().id(3L).name("Backend").build());
-        given(mongoSequenceService.nextResumeId()).willReturn(100L);
-        given(resumeLockService.tryAcquireCreateLock(11L, 100L))
+        given(resumeLockService.tryAcquireCreateLock(eq(11L), anyString()))
                 .willReturn(ResumeLockService.LockAcquireResult.BUSY);
 
         assertThatThrownBy(() -> resumeService.create(11L, request))
@@ -131,6 +140,7 @@ class ResumeServiceLockRoutingTest {
         verify(resumeProjectionService, never()).createProjectionWithPreAcquiredLock(any(), any());
         verify(resumeProjectionService, never())
                 .createProjectionIfNoPendingOrThrow(any(), any(), any());
+        verify(mongoSequenceService, never()).nextResumeId();
     }
 
     @Test
@@ -140,9 +150,11 @@ class ResumeServiceLockRoutingTest {
                 ResumeEventDocument.create(100L, 1, 11L, ResumeVersionStatus.QUEUED, "{}");
         given(positionFinder.getByIdOrThrow(3L))
                 .willReturn(Position.builder().id(3L).name("Backend").build());
-        given(mongoSequenceService.nextResumeId()).willReturn(100L);
-        given(resumeLockService.tryAcquireCreateLock(11L, 100L))
+        given(resumeLockService.tryAcquireCreateLock(eq(11L), anyString()))
                 .willReturn(ResumeLockService.LockAcquireResult.ACQUIRED);
+        given(mongoSequenceService.nextResumeId()).willReturn(100L);
+        given(resumeLockService.bindCreateLockOwner(eq(11L), anyString(), eq(100L)))
+                .willReturn(true);
         given(resumeEventMongoRepository.findByResumeIdAndVersionNo(100L, 1))
                 .willReturn(Optional.of(queued));
         doThrow(new RuntimeException("enqueue failed"))
@@ -166,9 +178,10 @@ class ResumeServiceLockRoutingTest {
                 ResumeEventDocument.create(100L, 2, 11L, ResumeVersionStatus.QUEUED, "{}");
         updated.startProcessing("job-1", Instant.parse("2026-03-27T00:00:05Z"));
 
-        given(resumeEditTransactionService.peekNextVersionNo(100L)).willReturn(2);
-        given(resumeLockService.tryAcquireEditLock(100L, 2))
+        given(resumeLockService.tryAcquireEditLock(eq(100L), anyString()))
                 .willReturn(ResumeLockService.LockAcquireResult.ACQUIRED);
+        given(resumeEditTransactionService.peekNextVersionNo(100L)).willReturn(2);
+        given(resumeLockService.bindEditLockOwner(eq(100L), anyString(), eq(2))).willReturn(true);
         given(resumeEditTransactionService.prepareEditWithPreAcquiredLock(11L, 100L, 2))
                 .willReturn(prepared);
         given(resumeAiRequestService.requestEdit(100L, "{}", "update summary")).willReturn("job-1");
@@ -176,6 +189,10 @@ class ResumeServiceLockRoutingTest {
 
         resumeService.edit(11L, 100L, new ResumeEditRequest("update summary"));
 
+        InOrder inOrder = inOrder(resumeLockService, resumeEditTransactionService);
+        inOrder.verify(resumeLockService).tryAcquireEditLock(eq(100L), anyString());
+        inOrder.verify(resumeEditTransactionService).peekNextVersionNo(100L);
+        verify(resumeLockService).bindEditLockOwner(eq(100L), anyString(), eq(2));
         verify(resumeEditTransactionService).prepareEditWithPreAcquiredLock(11L, 100L, 2);
         verify(resumeEditTransactionService, never()).prepareEdit(11L, 100L);
     }
@@ -188,8 +205,7 @@ class ResumeServiceLockRoutingTest {
                 ResumeEventDocument.create(100L, 2, 11L, ResumeVersionStatus.QUEUED, "{}");
         updated.startProcessing("job-1", Instant.parse("2026-03-27T00:00:05Z"));
 
-        given(resumeEditTransactionService.peekNextVersionNo(100L)).willReturn(2);
-        given(resumeLockService.tryAcquireEditLock(100L, 2))
+        given(resumeLockService.tryAcquireEditLock(eq(100L), anyString()))
                 .willReturn(ResumeLockService.LockAcquireResult.FALLBACK);
         given(resumeEditTransactionService.prepareEdit(11L, 100L)).willReturn(prepared);
         given(resumeAiRequestService.requestEdit(100L, "{}", "update summary")).willReturn("job-1");
@@ -199,12 +215,12 @@ class ResumeServiceLockRoutingTest {
 
         verify(resumeEditTransactionService).prepareEdit(11L, 100L);
         verify(resumeEditTransactionService, never()).prepareEditWithPreAcquiredLock(11L, 100L, 2);
+        verify(resumeEditTransactionService, never()).peekNextVersionNo(100L);
     }
 
     @Test
     void edit_whenRedisReportsBusy_throwsConflict() {
-        given(resumeEditTransactionService.peekNextVersionNo(100L)).willReturn(2);
-        given(resumeLockService.tryAcquireEditLock(100L, 2))
+        given(resumeLockService.tryAcquireEditLock(eq(100L), anyString()))
                 .willReturn(ResumeLockService.LockAcquireResult.BUSY);
 
         assertThatThrownBy(
@@ -215,6 +231,7 @@ class ResumeServiceLockRoutingTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(ErrorCode.RESUME_EDIT_IN_PROGRESS);
 
+        verify(resumeEditTransactionService, never()).peekNextVersionNo(100L);
         verify(resumeEditTransactionService, never()).prepareEdit(11L, 100L);
         verify(resumeEditTransactionService, never()).prepareEditWithPreAcquiredLock(11L, 100L, 2);
     }

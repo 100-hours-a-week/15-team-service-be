@@ -36,13 +36,13 @@ class ResumeLockServiceTest {
     }
 
     @Test
-    void tryAcquireCreateLock_whenScriptSucceeds_returnsAcquired() {
-        doReturn(1L)
-                .when(stringRedisTemplate)
-                .execute(any(DefaultRedisScript.class), anyList(), any(), any(), any(), any());
+    void tryAcquireCreateLock_whenSetIfAbsentSucceeds_returnsAcquired() {
+        doReturn(true)
+                .when(valueOperations)
+                .setIfAbsent("resume:lock:create:7", "temp-token", Duration.ofMinutes(5));
 
         ResumeLockService.LockAcquireResult result =
-                resumeLockService.tryAcquireCreateLock(7L, 99L);
+                resumeLockService.tryAcquireCreateLock(7L, "temp-token");
 
         assertThat(result).isEqualTo(ResumeLockService.LockAcquireResult.ACQUIRED);
     }
@@ -51,9 +51,10 @@ class ResumeLockServiceTest {
     void tryAcquireEditLock_whenSetIfAbsentReportsBusy_returnsBusy() {
         doReturn(false)
                 .when(valueOperations)
-                .setIfAbsent("resume:lock:edit:42", "42:3", Duration.ofMinutes(5));
+                .setIfAbsent("resume:lock:edit:42", "temp-token", Duration.ofMinutes(5));
 
-        ResumeLockService.LockAcquireResult result = resumeLockService.tryAcquireEditLock(42L, 3);
+        ResumeLockService.LockAcquireResult result =
+                resumeLockService.tryAcquireEditLock(42L, "temp-token");
 
         assertThat(result).isEqualTo(ResumeLockService.LockAcquireResult.BUSY);
     }
@@ -62,9 +63,10 @@ class ResumeLockServiceTest {
     void tryAcquireEditLock_whenRedisFails_returnsFallbackAndRecordsMetric() {
         doThrow(new IllegalStateException("redis down"))
                 .when(valueOperations)
-                .setIfAbsent("resume:lock:edit:42", "42:3", Duration.ofMinutes(5));
+                .setIfAbsent("resume:lock:edit:42", "temp-token", Duration.ofMinutes(5));
 
-        ResumeLockService.LockAcquireResult result = resumeLockService.tryAcquireEditLock(42L, 3);
+        ResumeLockService.LockAcquireResult result =
+                resumeLockService.tryAcquireEditLock(42L, "temp-token");
 
         assertThat(result).isEqualTo(ResumeLockService.LockAcquireResult.FALLBACK);
         assertThat(
@@ -74,6 +76,17 @@ class ResumeLockServiceTest {
                                 .counter()
                                 .count())
                 .isEqualTo(1.0);
+    }
+
+    @Test
+    void bindCreateLockOwner_whenScriptSucceeds_returnsTrue() {
+        doReturn(1L)
+                .when(stringRedisTemplate)
+                .execute(any(DefaultRedisScript.class), anyList(), any(), any());
+
+        boolean bound = resumeLockService.bindCreateLockOwner(7L, "temp-token", 99L);
+
+        assertThat(bound).isTrue();
     }
 
     @Test
