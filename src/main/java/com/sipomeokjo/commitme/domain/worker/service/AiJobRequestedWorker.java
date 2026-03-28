@@ -5,6 +5,8 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiRequestService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiRequestService.DispatchResult;
+import com.sipomeokjo.commitme.domain.resume.service.ResumeLockService;
+import com.sipomeokjo.commitme.domain.resume.service.ResumeProjectionService;
 import com.sipomeokjo.commitme.domain.worker.dto.AiJobRequestedPayload;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Service;
 public class AiJobRequestedWorker {
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ResumeAiRequestService resumeAiRequestService;
+    private final ResumeProjectionService resumeProjectionService;
+    private final ResumeLockService resumeLockService;
 
     public WorkerHandleResult handle(AiJobRequestedPayload payload) {
         if (payload == null
@@ -66,6 +70,10 @@ public class AiJobRequestedWorker {
             fresh.fail(dispatchResult.errorMessage(), Instant.now());
         }
         resumeEventMongoRepository.save(fresh);
+        if (!dispatchResult.success()) {
+            resumeProjectionService.applyAiFailure(payload.resumeId(), payload.versionNo());
+            resumeLockService.releaseCreateLock(payload.userId(), payload.resumeId());
+        }
 
         log.debug(
                 "[AI_JOB_REQUESTED_WORKER] handled resumeId={} versionNo={} userId={}",

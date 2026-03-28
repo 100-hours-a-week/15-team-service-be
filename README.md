@@ -3,7 +3,7 @@
 ## 프로젝트 소개
 
 **CommitMe**는 GitHub Repository를 기반으로 AI가 이력서를 자동 생성하고, 모의 면접까지 연습할 수 있는 취업 준비 플랫폼입니다. <br />
-개발자가 자신의 GitHub 레포지토리를 선택하면 AI가 프로젝트 내역을 분석해 이력서 초안을 작성해줍니다. AI 채팅으로 해당 이력서룰 수정하거나 면접 질문을 받아 모의 면접을 진행할 수 있습니다.
+개발자가 자신의 GitHub 레포지토리를 선택하면 AI가 프로젝트 내역을 분석해 이력서 초안을 작성해줍니다. AI 채팅으로 이력서를 수정하거나 면접 질문을 받아 모의 면접을 진행할 수 있습니다.
 
 ### [Wiki 링크](https://github.com/100-hours-a-week/15-team-service-wiki/wiki)
 ### [Backend wiki 링크](https://github.com/100-hours-a-week/15-team-service-wiki/wiki/Backend-Wiki)
