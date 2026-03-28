@@ -64,6 +64,7 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiCallbackService;
+import com.sipomeokjo.commitme.domain.resume.service.ResumeLockService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeProjectionService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
@@ -121,6 +122,7 @@ public class LoadtestService {
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final MongoSequenceService mongoSequenceService;
     private final ResumeProjectionService resumeProjectionService;
+    private final ResumeLockService resumeLockService;
     private final ResumeProfileRepository resumeProfileRepository;
     private final ResumeAiCallbackService resumeAiCallbackService;
     private final NotificationRepository notificationRepository;
@@ -609,10 +611,8 @@ public class LoadtestService {
                     versionNo++;
                 }
 
-                if (lastSucceededVersionNo > 0 && pendingVersionsPerResume == 0) {
-                    resumeProjectionService.applyAiSuccess(resumeId, lastSucceededVersionNo, true);
-                    resumeProjectionService.applyVersionCommitted(resumeId, lastSucceededVersionNo);
-                }
+                alignSeedProjectionState(
+                        resumeId, lastSucceededVersionNo, versionNo - 1, pendingVersionsPerResume);
 
                 createdResumeCount++;
 
@@ -744,6 +744,7 @@ public class LoadtestService {
         Instant now = Instant.now(clock);
         int completedCount = 0;
         for (ResumeEventDocument doc : targets) {
+            String originalAiTaskId = doc.getAiTaskId();
             if (resultStatus == LoadtestResumeReplayResultStatus.FAILED) {
                 doc.failNow("LOADTEST_FORCE_COMPLETE", "loadtest force-complete");
                 resumeEventMongoRepository.save(doc);
@@ -762,6 +763,7 @@ public class LoadtestService {
                 resumeProjectionService.applyVersionCommitted(
                         doc.getResumeId(), doc.getVersionNo());
             }
+            releaseLoadtestLockIfNeeded(doc, originalAiTaskId);
             completedCount++;
         }
         return new LoadtestResumeForceCompleteResponse(
@@ -798,12 +800,9 @@ public class LoadtestService {
         Long userId = request.userId();
         Long resumeId = request.resumeId();
 
-        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.findDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
 
-        boolean hasPending =
-                resumeEventMongoRepository.existsByResumeIdAndStatusIn(
-                        resumeId,
-                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
+        boolean hasPending = resumeEventMongoRepository.existsByResumeIdAndIsPendingTrue(resumeId);
         if (hasPending) {
             throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
         }
@@ -915,6 +914,42 @@ public class LoadtestService {
 
     private String buildResumeSeedName(int userSequence, int resumeIndex) {
         return "lt-rs-" + userSequence + "-" + resumeIndex;
+    }
+
+    private void alignSeedProjectionState(
+            Long resumeId,
+            int lastSucceededVersionNo,
+            int lastVersionNo,
+            int pendingVersionsPerResume) {
+        if (lastSucceededVersionNo > 0) {
+            resumeProjectionService.applyAiSuccess(resumeId, lastSucceededVersionNo, true);
+            resumeProjectionService.applyVersionCommitted(resumeId, lastSucceededVersionNo);
+        }
+
+        if (pendingVersionsPerResume > 0) {
+            resumeProjectionService.setPendingWorkStarted(resumeId);
+            return;
+        }
+
+        if (lastVersionNo > lastSucceededVersionNo) {
+            resumeProjectionService.applyAiFailure(resumeId, lastVersionNo);
+        }
+    }
+
+    private void releaseLoadtestLockIfNeeded(ResumeEventDocument doc, String originalAiTaskId) {
+        if (!shouldReleaseLoadtestLock(originalAiTaskId) || doc.getVersionNo() == null) {
+            return;
+        }
+
+        if (doc.getVersionNo() <= 1) {
+            resumeLockService.releaseCreateLock(doc.getUserId(), doc.getResumeId());
+            return;
+        }
+        resumeLockService.releaseEditLock(doc.getResumeId(), doc.getVersionNo());
+    }
+
+    private boolean shouldReleaseLoadtestLock(String aiTaskId) {
+        return !StringUtils.hasText(aiTaskId) || !aiTaskId.startsWith("lt-");
     }
 
     private String buildSeedAiTaskId(String runId, int sequence, int resumeIndex, int versionNo) {

@@ -33,6 +33,7 @@ public class ResumeEventQueryRepository {
         Update update =
                 new Update()
                         .set("status", target)
+                        .set("is_pending", false)
                         .set("finished_at", finishedAt)
                         .set("updated_at", finishedAt);
         if (snapshot != null) update.set("snapshot", snapshot);

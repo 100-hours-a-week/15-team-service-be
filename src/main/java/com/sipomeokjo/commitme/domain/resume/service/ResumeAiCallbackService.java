@@ -89,7 +89,7 @@ public class ResumeAiCallbackService {
             if (isCreate) {
                 resumeLockService.releaseCreateLock(event.getUserId(), event.getResumeId());
             } else {
-                resumeLockService.releaseEditLock(event.getResumeId());
+                resumeLockService.releaseEditLock(event.getResumeId(), event.getVersionNo());
             }
         }
     }
