@@ -27,15 +27,15 @@ import org.springframework.data.mongodb.core.mapping.Field;
             unique = true,
             partialFilter = "{'ai_task_id': {'$exists': true}}"),
     @CompoundIndex(
+            name = "ux_resume_events_pending_per_resume",
+            def = "{'resume_id': 1}",
+            unique = true,
+            partialFilter = "{'is_pending': true}"),
+    @CompoundIndex(
             name = "ix_resume_events_preview_lookup",
             def =
                     "{'resume_id': 1, 'status': 1, 'committed_at': 1, 'preview_shown_at': 1, 'version_no': -1}"),
-    @CompoundIndex(
-            name = "ix_resume_events_pending_lookup",
-            def = "{'status': 1, 'started_at': 1, 'created_at': 1}"),
-    @CompoundIndex(
-            name = "ix_resume_events_user_status_created",
-            def = "{'user_id': 1, 'status': 1, 'created_at': 1}")
+    @CompoundIndex(name = "ix_resume_events_pending_lookup", def = "{'status': 1}")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ResumeEventDocument {
@@ -53,6 +53,9 @@ public class ResumeEventDocument {
 
     @Field("status")
     private ResumeVersionStatus status;
+
+    @Field("is_pending")
+    private boolean isPending;
 
     @Field("snapshot")
     private String snapshot;
@@ -94,12 +97,14 @@ public class ResumeEventDocument {
         document.versionNo = versionNo;
         document.userId = userId;
         document.status = status;
+        document.isPending = isPendingStatus(status);
         document.snapshot = normalizeSnapshot(snapshot);
         return document;
     }
 
     public void startProcessing(String aiTaskId, Instant startedAt) {
         this.status = ResumeVersionStatus.PROCESSING;
+        this.isPending = true;
         this.aiTaskId = aiTaskId;
         this.startedAt = startedAt;
         this.finishedAt = null;
@@ -108,6 +113,7 @@ public class ResumeEventDocument {
 
     public void succeed(String snapshot, Instant finishedAt) {
         this.status = ResumeVersionStatus.SUCCEEDED;
+        this.isPending = false;
         this.snapshot = normalizeSnapshot(snapshot);
         this.finishedAt = finishedAt;
         this.errorLog = null;
@@ -115,6 +121,7 @@ public class ResumeEventDocument {
 
     public void fail(String errorLog, Instant finishedAt) {
         this.status = ResumeVersionStatus.FAILED;
+        this.isPending = false;
         this.finishedAt = finishedAt;
         this.errorLog = errorLog;
     }
@@ -150,5 +157,9 @@ public class ResumeEventDocument {
             return "{}";
         }
         return snapshot;
+    }
+
+    private static boolean isPendingStatus(ResumeVersionStatus status) {
+        return status == ResumeVersionStatus.QUEUED || status == ResumeVersionStatus.PROCESSING;
     }
 }

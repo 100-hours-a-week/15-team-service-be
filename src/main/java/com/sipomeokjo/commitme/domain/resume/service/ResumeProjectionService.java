@@ -36,6 +36,13 @@ public class ResumeProjectionService {
     }
 
     @Transactional("mongoTransactionManager")
+    public void createProjectionWithPreAcquiredLock(
+            ResumeDocument projection, ResumeEventDocument event) {
+        resumeMongoRepository.save(projection);
+        resumeEventMongoRepository.save(event);
+    }
+
+    @Transactional("mongoTransactionManager")
     public void createProjectionIfNoPendingOrThrow(
             Long userId, ResumeDocument projection, ResumeEventDocument event) {
         if (resumeMongoRepository.existsByUserIdAndHasPendingWorkTrue(userId)) {
@@ -45,20 +52,19 @@ public class ResumeProjectionService {
         resumeEventMongoRepository.save(event);
     }
 
-    public ResumeDocument markPendingIfIdleOrThrow(Long resumeId, Long userId) {
-        if (!resumeMongoRepository.existsByResumeIdAndUserId(resumeId, userId)) {
+    public ResumeDocument findDocumentByResumeIdAndUserIdOrThrow(Long resumeId, Long userId) {
+        ResumeDocument doc = getByResumeIdOrThrow(resumeId);
+        if (!doc.getUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
         }
+        return doc;
+    }
 
-        Criteria criteria =
-                Criteria.where("resume_id").is(resumeId).and("has_pending_work").is(false);
-        Update update = new Update().set("has_pending_work", true).set("updated_at", Instant.now());
-        ResumeDocument prev =
-                mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
-        if (prev == null) {
-            throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
-        }
-        return prev;
+    public void setPendingWorkStarted(Long resumeId) {
+        mongoTemplate.updateFirst(
+                Query.query(Criteria.where("resume_id").is(resumeId)),
+                new Update().set("has_pending_work", true).set("updated_at", Instant.now()),
+                ResumeDocument.class);
     }
 
     @Retryable(
@@ -208,12 +214,5 @@ public class ResumeProjectionService {
         return resumeMongoRepository
                 .findByResumeId(resumeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
-    }
-
-    public void getByResumeIdAndUserIdOrThrow(Long resumeId, Long userId) {
-        ResumeDocument doc = getByResumeIdOrThrow(resumeId);
-        if (!doc.getUserId().equals(userId)) {
-            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
-        }
     }
 }

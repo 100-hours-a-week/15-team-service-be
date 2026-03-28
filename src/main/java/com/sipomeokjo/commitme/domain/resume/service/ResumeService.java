@@ -142,10 +142,13 @@ public class ResumeService {
 
         Long resumeId = mongoSequenceService.nextResumeId();
 
-        if (!resumeLockService.tryAcquireCreateLock(userId, resumeId)) {
+        ResumeLockService.LockAcquireResult lockAcquireResult =
+                resumeLockService.tryAcquireCreateLock(userId, resumeId);
+        if (lockAcquireResult == ResumeLockService.LockAcquireResult.BUSY) {
             throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
         }
 
+        boolean projectionCreated = false;
         try {
             ResumeEventDocument event =
                     ResumeEventDocument.create(
@@ -162,7 +165,13 @@ public class ResumeService {
                             name,
                             null);
 
-            resumeProjectionService.createProjectionIfNoPendingOrThrow(userId, projection, event);
+            if (lockAcquireResult == ResumeLockService.LockAcquireResult.FALLBACK) {
+                resumeProjectionService.createProjectionIfNoPendingOrThrow(
+                        userId, projection, event);
+            } else {
+                resumeProjectionService.createProjectionWithPreAcquiredLock(projection, event);
+            }
+            projectionCreated = true;
 
             outboxEventService.enqueue(
                     OutboxEventTypes.AI_JOB_REQUESTED,
@@ -171,6 +180,9 @@ public class ResumeService {
                     new ResumeGenerateOutboxPayload(
                             resumeId, 1, userId, position.getName(), req.getRepoUrls()));
         } catch (Exception e) {
+            if (projectionCreated) {
+                markCreateFailedAndLog(userId, resumeId, e.getMessage());
+            }
             resumeLockService.releaseCreateLock(userId, resumeId);
             throw e;
         }
@@ -186,9 +198,9 @@ public class ResumeService {
                 resumeProfileService.getProfile(
                         userId, doc.getResumeId(), doc.getProfileSnapshot());
         boolean isEditing =
-                resumeEventMongoRepository.existsByResumeIdAndStatusIn(
-                        doc.getResumeId(),
-                        List.of(ResumeVersionStatus.QUEUED, ResumeVersionStatus.PROCESSING));
+                doc.isHasPendingWork()
+                        || resumeEventMongoRepository.existsByResumeIdAndIsPendingTrue(
+                                doc.getResumeId());
 
         ResumeEventDocument previewEvent =
                 resumeEventMongoRepository
@@ -222,7 +234,7 @@ public class ResumeService {
     public CursorResponse<ResumeVersionSummaryDto> getVersionList(
             Long userId, Long resumeId, CursorRequest request) {
 
-        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.findDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
 
         int size = CursorRequest.resolveLimit(request, 50);
 
@@ -326,7 +338,7 @@ public class ResumeService {
         if (name.isEmpty() || name.length() > 30)
             throw new BusinessException(ErrorCode.INVALID_RESUME_NAME);
 
-        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.findDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
         resumeProjectionService.applyNameChange(resumeId, name);
     }
 
@@ -337,15 +349,27 @@ public class ResumeService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        if (!resumeLockService.tryAcquireEditLock(resumeId)) {
+        int previewNextVersionNo = resumeEditTransactionService.peekNextVersionNo(resumeId);
+        ResumeLockService.LockAcquireResult lockAcquireResult =
+                resumeLockService.tryAcquireEditLock(resumeId, previewNextVersionNo);
+        boolean redisLockHeld = lockAcquireResult == ResumeLockService.LockAcquireResult.ACQUIRED;
+        if (lockAcquireResult == ResumeLockService.LockAcquireResult.BUSY) {
             throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
         }
 
         ResumeEditTransactionService.EditPrepared prepared;
         try {
-            prepared = resumeEditTransactionService.prepareEdit(userId, resumeId);
+            if (lockAcquireResult == ResumeLockService.LockAcquireResult.FALLBACK) {
+                prepared = resumeEditTransactionService.prepareEdit(userId, resumeId);
+            } else {
+                prepared =
+                        resumeEditTransactionService.prepareEditWithPreAcquiredLock(
+                                userId, resumeId, previewNextVersionNo);
+            }
         } catch (Exception e) {
-            resumeLockService.releaseEditLock(resumeId);
+            if (redisLockHeld) {
+                resumeLockService.releaseEditLock(resumeId, previewNextVersionNo);
+            }
             throw e;
         }
 
@@ -370,12 +394,15 @@ public class ResumeService {
                     updated.getUpdatedAt());
         } catch (BusinessException e) {
             markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
-            // AI 요청 실패 시 콜백이 오지 않으므로 직접 해제
-            resumeLockService.releaseEditLock(resumeId);
+            if (redisLockHeld) {
+                resumeLockService.releaseEditLock(resumeId, prepared.versionNo());
+            }
             throw e;
         } catch (Exception e) {
             markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
-            resumeLockService.releaseEditLock(resumeId);
+            if (redisLockHeld) {
+                resumeLockService.releaseEditLock(resumeId, prepared.versionNo());
+            }
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
     }
@@ -395,10 +422,31 @@ public class ResumeService {
                 errorMessage);
     }
 
+    private void markCreateFailedAndLog(Long userId, Long resumeId, String errorMessage) {
+        resumeEventMongoRepository
+                .findByResumeIdAndVersionNo(resumeId, 1)
+                .ifPresentOrElse(
+                        event -> {
+                            event.failNow("AI_GENERATE_FAILED", errorMessage);
+                            resumeEventMongoRepository.save(event);
+                            resumeProjectionService.applyAiFailure(resumeId, event.getVersionNo());
+                        },
+                        () ->
+                                log.error(
+                                        "[RESUME_CREATE] mark_failed_event_not_found userId={} resumeId={}",
+                                        userId,
+                                        resumeId));
+        log.warn(
+                "[RESUME_CREATE] ai_request_enqueue_failed userId={} resumeId={} error={}",
+                userId,
+                resumeId,
+                errorMessage);
+    }
+
     @Transactional
     public void saveVersion(Long userId, Long resumeId, int versionNo) {
 
-        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.findDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
 
         ResumeEventDocument event =
                 resumeEventMongoRepository
@@ -417,7 +465,7 @@ public class ResumeService {
 
     @Transactional
     public void delete(Long userId, Long resumeId) {
-        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.findDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
 
         outboxEventRepository.deleteByAggregateId(String.valueOf(resumeId));
 

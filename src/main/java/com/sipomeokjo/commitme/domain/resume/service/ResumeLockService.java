@@ -1,11 +1,12 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
@@ -15,58 +16,86 @@ import org.springframework.stereotype.Service;
 public class ResumeLockService {
 
     private static final String CREATE_KEY_PREFIX = "resume:lock:create:";
+    private static final String CREATE_TIME_KEY_PREFIX = "resume:lock:create:time:";
     private static final String EDIT_KEY_PREFIX = "resume:lock:edit:";
-    private static final String EDIT_META_KEY_PREFIX = "resume:lock:edit:meta:";
 
     private static final Duration LOCK_TTL = Duration.ofMinutes(5);
     private static final Duration META_TTL = LOCK_TTL.plusSeconds(60);
 
-    /** Lua Script — 락 보유자만 삭제 가능 (원자적 검증 + 삭제). TTL 만료 후 새 락이 생성된 경우 이전 보유자의 해제 시도를 무시한다. */
-    private static final DefaultRedisScript<Long> RELEASE_SCRIPT;
+    private static final DefaultRedisScript<Long> CREATE_ACQUIRE_SCRIPT;
+    private static final DefaultRedisScript<String> CREATE_RELEASE_SCRIPT;
+    private static final DefaultRedisScript<Long> EDIT_RELEASE_SCRIPT;
+
+    public enum LockAcquireResult {
+        ACQUIRED,
+        BUSY,
+        FALLBACK
+    }
 
     static {
-        RELEASE_SCRIPT = new DefaultRedisScript<>();
-        RELEASE_SCRIPT.setScriptText(
+        CREATE_ACQUIRE_SCRIPT = new DefaultRedisScript<>();
+        CREATE_ACQUIRE_SCRIPT.setScriptText(
+                "if redis.call('exists', KEYS[1]) == 1 then "
+                        + "  return 0 "
+                        + "end "
+                        + "redis.call('set', KEYS[1], ARGV[1], 'PX', ARGV[2]) "
+                        + "redis.call('set', KEYS[2], ARGV[3], 'PX', ARGV[4]) "
+                        + "return 1");
+        CREATE_ACQUIRE_SCRIPT.setResultType(Long.class);
+
+        CREATE_RELEASE_SCRIPT = new DefaultRedisScript<>();
+        CREATE_RELEASE_SCRIPT.setScriptText(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then "
+                        + "  local acquiredAt = redis.call('get', KEYS[2]) "
+                        + "  redis.call('del', KEYS[1]) "
+                        + "  redis.call('del', KEYS[2]) "
+                        + "  if acquiredAt then "
+                        + "    return acquiredAt "
+                        + "  end "
+                        + "  return 'RELEASED' "
+                        + "end "
+                        + "return 'MISMATCH'");
+        CREATE_RELEASE_SCRIPT.setResultType(String.class);
+
+        EDIT_RELEASE_SCRIPT = new DefaultRedisScript<>();
+        EDIT_RELEASE_SCRIPT.setScriptText(
                 "if redis.call('get', KEYS[1]) == ARGV[1] then "
                         + "  return redis.call('del', KEYS[1]) "
-                        + "else "
-                        + "  return 0 "
-                        + "end");
-        RELEASE_SCRIPT.setResultType(Long.class);
+                        + "end "
+                        + "return 0");
+        EDIT_RELEASE_SCRIPT.setResultType(Long.class);
     }
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final MeterRegistry meterRegistry;
 
-    /**
-     * CREATE 락 획득.
-     *
-     * <p>lockValue = resumeId — 콜백이 resumeId를 알고 있으므로 별도 저장 불필요.
-     *
-     * @return true: 락 획득 성공 / false: 이미 선점됨 (→ 즉시 409) Redis 장애 시 true 반환 → MongoDB 체크로 위임
-     */
-    public boolean tryAcquireCreateLock(Long userId, Long resumeId) {
-        String key = CREATE_KEY_PREFIX + userId;
-        String value = String.valueOf(resumeId);
+    public LockAcquireResult tryAcquireCreateLock(Long userId, Long resumeId) {
+        String lockKey = CREATE_KEY_PREFIX + userId;
+        String timeKey = CREATE_TIME_KEY_PREFIX + userId;
         try {
-            Boolean acquired = stringRedisTemplate.opsForValue().setIfAbsent(key, value, LOCK_TTL);
-            return Boolean.TRUE.equals(acquired);
+            Long scriptResult =
+                    stringRedisTemplate.execute(
+                            CREATE_ACQUIRE_SCRIPT,
+                            List.of(lockKey, timeKey),
+                            String.valueOf(resumeId),
+                            String.valueOf(LOCK_TTL.toMillis()),
+                            String.valueOf(System.currentTimeMillis()),
+                            String.valueOf(META_TTL.toMillis()));
+            return toAcquireResult(scriptResult);
         } catch (Exception e) {
             log.warn(
                     "[RESUME_LOCK] create_acquire_error userId={} — fall-through to DB", userId, e);
-            return true;
+            meterRegistry.counter("resume.lock.fallback.total", "kind", "create").increment();
+            return LockAcquireResult.FALLBACK;
         }
     }
 
-    /**
-     * CREATE 락 해제 (Lua Script).
-     *
-     * <p>resumeId 값이 일치하는 경우에만 삭제 → TTL 만료 후 새 생성 요청의 락을 삭제하지 않는다.
-     */
     public void releaseCreateLock(Long userId, Long resumeId) {
-        String key = CREATE_KEY_PREFIX + userId;
-        String value = String.valueOf(resumeId);
+        String lockKey = CREATE_KEY_PREFIX + userId;
+        String timeKey = CREATE_TIME_KEY_PREFIX + userId;
         try {
-            stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(key), value);
+            stringRedisTemplate.execute(
+                    CREATE_RELEASE_SCRIPT, List.of(lockKey, timeKey), String.valueOf(resumeId));
         } catch (Exception e) {
             log.warn(
                     "[RESUME_LOCK] create_release_error userId={} resumeId={} — TTL 만료 대기",
@@ -76,54 +105,58 @@ public class ResumeLockService {
         }
     }
 
-    /**
-     * EDIT 락 획득.
-     *
-     * <p>lockValue = UUID — 콜백이 UUID를 알 수 없으므로 메타 키에 별도 저장.
-     *
-     * @return true: 락 획득 성공 / false: 이미 선점됨 (→ 즉시 409) Redis 장애 시 true 반환 → MongoDB findAndModify로
-     *     위임
-     */
-    public boolean tryAcquireEditLock(Long resumeId) {
-        String key = EDIT_KEY_PREFIX + resumeId;
-        String metaKey = EDIT_META_KEY_PREFIX + resumeId;
-        String uuid = UUID.randomUUID().toString();
+    public LockAcquireResult tryAcquireEditLock(Long resumeId, Integer versionNo) {
+        String lockKey = EDIT_KEY_PREFIX + resumeId;
+        String ownerToken = buildEditLockToken(resumeId, versionNo);
         try {
-            Boolean acquired = stringRedisTemplate.opsForValue().setIfAbsent(key, uuid, LOCK_TTL);
-            if (!Boolean.TRUE.equals(acquired)) {
-                return false;
+            ValueOperations<String, String> valueOperations = stringRedisTemplate.opsForValue();
+            Boolean acquired = valueOperations.setIfAbsent(lockKey, ownerToken, LOCK_TTL);
+            if (Boolean.TRUE.equals(acquired)) {
+                return LockAcquireResult.ACQUIRED;
             }
-            stringRedisTemplate.opsForValue().set(metaKey, uuid, META_TTL);
-            return true;
+            if (Boolean.FALSE.equals(acquired)) {
+                return LockAcquireResult.BUSY;
+            }
+            return LockAcquireResult.FALLBACK;
         } catch (Exception e) {
             log.warn(
                     "[RESUME_LOCK] edit_acquire_error resumeId={} — fall-through to DB",
                     resumeId,
                     e);
-            return true;
+            meterRegistry.counter("resume.lock.fallback.total", "kind", "edit").increment();
+            return LockAcquireResult.FALLBACK;
         }
     }
 
-    /**
-     * EDIT 락 해제 (메타 키로 UUID 조회 → Lua Script).
-     *
-     * <p>메타 키가 없으면 이미 TTL 만료된 것으로 간주하고 종료.
-     */
-    public void releaseEditLock(Long resumeId) {
-        String key = EDIT_KEY_PREFIX + resumeId;
-        String metaKey = EDIT_META_KEY_PREFIX + resumeId;
+    public void releaseEditLock(Long resumeId, Integer versionNo) {
+        String lockKey = EDIT_KEY_PREFIX + resumeId;
+        String ownerToken = buildEditLockToken(resumeId, versionNo);
         try {
-            String uuid = stringRedisTemplate.opsForValue().get(metaKey);
-            if (uuid == null) {
+            Long released =
+                    stringRedisTemplate.execute(EDIT_RELEASE_SCRIPT, List.of(lockKey), ownerToken);
+            if (!Long.valueOf(1L).equals(released)) {
+                meterRegistry.counter("resume.lock.release.meta_missing.total").increment();
                 log.warn(
-                        "[RESUME_LOCK] edit_release_meta_missing resumeId={} — 이미 만료 또는 미존재",
-                        resumeId);
-                return;
+                        "[RESUME_LOCK] edit_release_token_mismatch resumeId={} versionNo={} — 이미 만료 또는 미존재",
+                        resumeId,
+                        versionNo);
             }
-            stringRedisTemplate.execute(RELEASE_SCRIPT, List.of(key), uuid);
-            stringRedisTemplate.delete(metaKey);
         } catch (Exception e) {
             log.warn("[RESUME_LOCK] edit_release_error resumeId={} — TTL 만료 대기", resumeId, e);
         }
+    }
+
+    public String buildEditLockToken(Long resumeId, Integer versionNo) {
+        return resumeId + ":" + versionNo;
+    }
+
+    private LockAcquireResult toAcquireResult(Long scriptResult) {
+        if (Long.valueOf(1L).equals(scriptResult)) {
+            return LockAcquireResult.ACQUIRED;
+        }
+        if (Long.valueOf(0L).equals(scriptResult)) {
+            return LockAcquireResult.BUSY;
+        }
+        return LockAcquireResult.FALLBACK;
     }
 }
