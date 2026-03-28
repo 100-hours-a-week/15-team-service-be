@@ -17,7 +17,6 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.index.IndexField;
 import org.springframework.data.mongodb.core.index.IndexInfo;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -47,19 +46,9 @@ class ResumeEventMongoRepositoryTest {
                 .contains(
                         "ux_resume_events_resume_version",
                         "ux_resume_events_ai_task_id",
-                        "ux_resume_events_pending_per_resume",
                         "ix_resume_events_preview_lookup",
-                        "ix_resume_events_pending_lookup");
-
-        IndexInfo pendingLookup =
-                indexInfos.stream()
-                        .filter(index -> index.getName().equals("ix_resume_events_pending_lookup"))
-                        .findFirst()
-                        .orElseThrow();
-
-        assertThat(pendingLookup.getIndexFields())
-                .extracting(IndexField::getKey)
-                .containsExactly("status");
+                        "ix_resume_events_pending_lookup",
+                        "ix_resume_events_user_status_created");
     }
 
     @Test

@@ -19,7 +19,6 @@ public class ResumeVersionTimeoutService {
 
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ResumeProjectionService resumeProjectionService;
-    private final ResumeLockService resumeLockService;
 
     @Scheduled(fixedDelayString = "${app.resume.timeout-sweep-delay-ms:60000}")
     public void sweepTimeoutVersions() {
@@ -32,23 +31,11 @@ public class ResumeVersionTimeoutService {
                 event.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
                 resumeEventMongoRepository.save(event);
                 resumeProjectionService.applyAiFailure(event.getResumeId(), event.getVersionNo());
-                releaseTimedOutLock(event);
                 timeoutCount++;
             }
         }
         if (timeoutCount > 0) {
             log.info("[RESUME_TIMEOUT] timeout_failed count={}", timeoutCount);
         }
-    }
-
-    private void releaseTimedOutLock(ResumeEventDocument event) {
-        if (event.getVersionNo() == null) {
-            return;
-        }
-        if (event.getVersionNo() <= 1) {
-            resumeLockService.releaseCreateLock(event.getUserId(), event.getResumeId());
-            return;
-        }
-        resumeLockService.releaseEditLock(event.getResumeId(), event.getVersionNo());
     }
 }

@@ -29,8 +29,6 @@ public interface ResumeEventMongoRepository extends MongoRepository<ResumeEventD
 
     boolean existsByResumeIdAndStatusIn(Long resumeId, List<ResumeVersionStatus> statuses);
 
-    boolean existsByResumeIdAndIsPendingTrue(Long resumeId);
-
     Optional<ResumeEventDocument> findTopByResumeIdOrderByVersionNoDesc(Long resumeId);
 
     List<ResumeEventDocument> findByResumeIdOrderByVersionNoAsc(Long resumeId);

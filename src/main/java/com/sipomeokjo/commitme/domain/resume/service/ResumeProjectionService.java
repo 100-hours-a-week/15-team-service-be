@@ -36,13 +36,6 @@ public class ResumeProjectionService {
     }
 
     @Transactional("mongoTransactionManager")
-    public void createProjectionWithPreAcquiredLock(
-            ResumeDocument projection, ResumeEventDocument event) {
-        resumeMongoRepository.save(projection);
-        resumeEventMongoRepository.save(event);
-    }
-
-    @Transactional("mongoTransactionManager")
     public void createProjectionIfNoPendingOrThrow(
             Long userId, ResumeDocument projection, ResumeEventDocument event) {
         if (resumeMongoRepository.existsByUserIdAndHasPendingWorkTrue(userId)) {
@@ -50,6 +43,22 @@ public class ResumeProjectionService {
         }
         resumeMongoRepository.save(projection);
         resumeEventMongoRepository.save(event);
+    }
+
+    public ResumeDocument markPendingIfIdleOrThrow(Long resumeId, Long userId) {
+        if (!resumeMongoRepository.existsByResumeIdAndUserId(resumeId, userId)) {
+            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
+        }
+
+        Criteria criteria =
+                Criteria.where("resume_id").is(resumeId).and("has_pending_work").is(false);
+        Update update = new Update().set("has_pending_work", true).set("updated_at", Instant.now());
+        ResumeDocument prev =
+                mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
+        if (prev == null) {
+            throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
+        }
+        return prev;
     }
 
     public ResumeDocument findDocumentByResumeIdAndUserIdOrThrow(Long resumeId, Long userId) {
@@ -214,5 +223,9 @@ public class ResumeProjectionService {
         return resumeMongoRepository
                 .findByResumeId(resumeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+    }
+
+    public void getByResumeIdAndUserIdOrThrow(Long resumeId, Long userId) {
+        findDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
     }
 }

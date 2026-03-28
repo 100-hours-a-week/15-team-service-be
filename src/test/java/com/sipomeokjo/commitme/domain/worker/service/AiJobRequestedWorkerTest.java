@@ -7,7 +7,6 @@ import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiRequestService;
-import com.sipomeokjo.commitme.domain.resume.service.ResumeLockService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeProjectionService;
 import com.sipomeokjo.commitme.domain.worker.dto.AiJobRequestedPayload;
 import java.util.List;
@@ -24,7 +23,6 @@ class AiJobRequestedWorkerTest {
     @Mock private ResumeEventMongoRepository resumeEventMongoRepository;
     @Mock private ResumeAiRequestService resumeAiRequestService;
     @Mock private ResumeProjectionService resumeProjectionService;
-    @Mock private ResumeLockService resumeLockService;
 
     private AiJobRequestedWorker aiJobRequestedWorker;
 
@@ -34,12 +32,11 @@ class AiJobRequestedWorkerTest {
                 new AiJobRequestedWorker(
                         resumeEventMongoRepository,
                         resumeAiRequestService,
-                        resumeProjectionService,
-                        resumeLockService);
+                        resumeProjectionService);
     }
 
     @Test
-    void handle_whenDispatchFails_clearsPendingAndReleasesCreateLock() {
+    void handle_whenDispatchFails_clearsPending() {
         AiJobRequestedPayload payload =
                 new AiJobRequestedPayload(100L, 1, 11L, "Backend", List.of("https://github.com/x"));
         ResumeEventDocument queued =
@@ -56,6 +53,5 @@ class AiJobRequestedWorkerTest {
 
         verify(resumeEventMongoRepository).save(queued);
         verify(resumeProjectionService).applyAiFailure(100L, 1);
-        verify(resumeLockService).releaseCreateLock(11L, 100L);
     }
 }

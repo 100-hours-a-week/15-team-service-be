@@ -35,7 +35,6 @@ import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeAiCallbackService;
-import com.sipomeokjo.commitme.domain.resume.service.ResumeLockService;
 import com.sipomeokjo.commitme.domain.resume.service.ResumeProjectionService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
@@ -74,7 +73,6 @@ class LoadtestServiceTest {
     @Mock private ResumeEventMongoRepository resumeEventMongoRepository;
     @Mock private MongoSequenceService mongoSequenceService;
     @Mock private ResumeProjectionService resumeProjectionService;
-    @Mock private ResumeLockService resumeLockService;
     @Mock private ResumeProfileRepository resumeProfileRepository;
     @Mock private ResumeAiCallbackService resumeAiCallbackService;
     @Mock private NotificationRepository notificationRepository;
@@ -137,7 +135,7 @@ class LoadtestServiceTest {
     }
 
     @Test
-    void forceCompleteResumes_whenFailedActualCreate_releasesCreateLock() {
+    void forceCompleteResumes_whenFailedActualCreate_marksFailure() {
         ResumeEventDocument doc =
                 ResumeEventDocument.create(100L, 1, 11L, ResumeVersionStatus.QUEUED, "{}");
         doc.startProcessing("real-job", Instant.parse("2026-03-28T00:00:00Z"));
@@ -152,11 +150,10 @@ class LoadtestServiceTest {
                         null, List.of(100L), 10, LoadtestResumeReplayResultStatus.FAILED));
 
         verify(resumeProjectionService).applyAiFailure(100L, 1);
-        verify(resumeLockService).releaseCreateLock(11L, 100L);
     }
 
     @Test
-    void forceCompleteResumes_whenSeedPending_skipsLockRelease() {
+    void forceCompleteResumes_whenSeedPending_appliesSuccessOnly() {
         ResumeEventDocument doc =
                 ResumeEventDocument.create(100L, 2, 11L, ResumeVersionStatus.QUEUED, "{}");
         doc.startProcessing("lt-seed-job", Instant.parse("2026-03-28T00:00:00Z"));
@@ -172,13 +169,17 @@ class LoadtestServiceTest {
 
         verify(resumeProjectionService).applyAiSuccess(100L, 2, false);
         verify(resumeProjectionService).applyVersionCommitted(100L, 2);
-        verify(resumeLockService, never()).releaseCreateLock(any(), any());
-        verify(resumeLockService, never()).releaseEditLock(any(), any());
     }
 
     @Test
     void forceEdit_whenIsPendingTrue_throwsConflict() {
-        given(resumeEventMongoRepository.existsByResumeIdAndIsPendingTrue(100L)).willReturn(true);
+        given(
+                        resumeEventMongoRepository.existsByResumeIdAndStatusIn(
+                                100L,
+                                List.of(
+                                        ResumeVersionStatus.QUEUED,
+                                        ResumeVersionStatus.PROCESSING)))
+                .willReturn(true);
 
         assertThatThrownBy(
                         () ->

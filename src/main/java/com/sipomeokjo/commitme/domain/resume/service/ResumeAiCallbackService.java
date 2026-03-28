@@ -29,7 +29,6 @@ public class ResumeAiCallbackService {
     private final ObjectMapper objectMapper;
     private final OutboxEventService outboxEventService;
     private final ResumeProjectionService resumeProjectionService;
-    private final ResumeLockService resumeLockService;
 
     @Transactional
     public void handleCallback(AiResumeCallbackRequest req) {
@@ -78,19 +77,11 @@ public class ResumeAiCallbackService {
     }
 
     private void applyProjection(ResumeEventDocument event, boolean isCreate) {
-        try {
-            if (event.getStatus() == ResumeVersionStatus.SUCCEEDED) {
-                resumeProjectionService.applyAiSuccess(
-                        event.getResumeId(), event.getVersionNo(), isCreate);
-            } else {
-                resumeProjectionService.applyAiFailure(event.getResumeId(), event.getVersionNo());
-            }
-        } finally {
-            if (isCreate) {
-                resumeLockService.releaseCreateLock(event.getUserId(), event.getResumeId());
-            } else {
-                resumeLockService.releaseEditLock(event.getResumeId(), event.getVersionNo());
-            }
+        if (event.getStatus() == ResumeVersionStatus.SUCCEEDED) {
+            resumeProjectionService.applyAiSuccess(
+                    event.getResumeId(), event.getVersionNo(), isCreate);
+        } else {
+            resumeProjectionService.applyAiFailure(event.getResumeId(), event.getVersionNo());
         }
     }
 

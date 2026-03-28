@@ -18,7 +18,6 @@ class ResumeVersionTimeoutServiceTest {
 
     @Mock private ResumeEventMongoRepository resumeEventMongoRepository;
     @Mock private ResumeProjectionService resumeProjectionService;
-    @Mock private ResumeLockService resumeLockService;
 
     private ResumeVersionTimeoutService resumeVersionTimeoutService;
 
@@ -26,11 +25,11 @@ class ResumeVersionTimeoutServiceTest {
     void setUp() {
         resumeVersionTimeoutService =
                 new ResumeVersionTimeoutService(
-                        resumeEventMongoRepository, resumeProjectionService, resumeLockService);
+                        resumeEventMongoRepository, resumeProjectionService);
     }
 
     @Test
-    void sweepTimeoutVersions_whenCreateEventTimesOut_clearsPendingAndReleasesCreateLock() {
+    void sweepTimeoutVersions_whenCreateEventTimesOut_clearsPending() {
         ResumeEventDocument event = org.mockito.Mockito.mock(ResumeEventDocument.class);
         given(
                         resumeEventMongoRepository.findByStatusIn(
@@ -44,17 +43,15 @@ class ResumeVersionTimeoutServiceTest {
                 .willReturn(true);
         given(event.getResumeId()).willReturn(100L);
         given(event.getVersionNo()).willReturn(1);
-        given(event.getUserId()).willReturn(11L);
 
         resumeVersionTimeoutService.sweepTimeoutVersions();
 
         verify(resumeEventMongoRepository).save(event);
         verify(resumeProjectionService).applyAiFailure(100L, 1);
-        verify(resumeLockService).releaseCreateLock(11L, 100L);
     }
 
     @Test
-    void sweepTimeoutVersions_whenEditEventTimesOut_clearsPendingAndReleasesEditLock() {
+    void sweepTimeoutVersions_whenEditEventTimesOut_clearsPending() {
         ResumeEventDocument event = org.mockito.Mockito.mock(ResumeEventDocument.class);
         given(
                         resumeEventMongoRepository.findByStatusIn(
@@ -71,6 +68,5 @@ class ResumeVersionTimeoutServiceTest {
 
         verify(resumeEventMongoRepository).save(event);
         verify(resumeProjectionService).applyAiFailure(100L, 3);
-        verify(resumeLockService).releaseEditLock(100L, 3);
     }
 }
