@@ -8,9 +8,11 @@ import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoQueryRepository;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeMongoRepository;
+import java.time.Clock;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -30,6 +32,7 @@ public class ResumeProjectionService {
     private final ResumeMongoQueryRepository resumeMongoQueryRepository;
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final MongoTemplate mongoTemplate;
+    private final Clock clock;
 
     public void createProjection(ResumeDocument document) {
         resumeMongoRepository.save(document);
@@ -41,21 +44,34 @@ public class ResumeProjectionService {
         if (resumeMongoRepository.existsByUserIdAndHasPendingWorkTrue(userId)) {
             throw new BusinessException(ErrorCode.RESUME_GENERATION_IN_PROGRESS);
         }
-        resumeMongoRepository.save(projection);
-        resumeEventMongoRepository.save(event);
+        try {
+            resumeMongoRepository.save(projection);
+            resumeEventMongoRepository.save(event);
+        } catch (DuplicateKeyException e) {
+            throw translateDuplicateKeyException(e, ErrorCode.RESUME_GENERATION_IN_PROGRESS);
+        }
     }
 
     public ResumeDocument markPendingIfIdleOrThrow(Long resumeId, Long userId) {
-        if (!resumeMongoRepository.existsByResumeIdAndUserId(resumeId, userId)) {
-            throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
-        }
-
         Criteria criteria =
-                Criteria.where("resume_id").is(resumeId).and("has_pending_work").is(false);
-        Update update = new Update().set("has_pending_work", true).set("updated_at", Instant.now());
-        ResumeDocument prev =
-                mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
+                Criteria.where("resume_id")
+                        .is(resumeId)
+                        .and("user_id")
+                        .is(userId)
+                        .and("has_pending_work")
+                        .is(false);
+        Update update =
+                new Update().set("has_pending_work", true).set("updated_at", Instant.now(clock));
+        ResumeDocument prev;
+        try {
+            prev = mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
+        } catch (DuplicateKeyException e) {
+            throw translateDuplicateKeyException(e, ErrorCode.RESUME_EDIT_IN_PROGRESS);
+        }
         if (prev == null) {
+            if (!resumeMongoRepository.existsByResumeIdAndUserId(resumeId, userId)) {
+                throw new BusinessException(ErrorCode.RESUME_NOT_FOUND);
+            }
             throw new BusinessException(ErrorCode.RESUME_EDIT_IN_PROGRESS);
         }
         return prev;
@@ -72,7 +88,7 @@ public class ResumeProjectionService {
     public void setPendingWorkStarted(Long resumeId) {
         mongoTemplate.updateFirst(
                 Query.query(Criteria.where("resume_id").is(resumeId)),
-                new Update().set("has_pending_work", true).set("updated_at", Instant.now()),
+                new Update().set("has_pending_work", true).set("updated_at", Instant.now(clock)),
                 ResumeDocument.class);
     }
 
@@ -97,7 +113,7 @@ public class ResumeProjectionService {
                         .set("has_unseen_preview", true)
                         .set("has_pending_work", false)
                         .set("last_applied_version_no", versionNo)
-                        .set("updated_at", Instant.now());
+                        .set("updated_at", Instant.now(clock));
         if (isCreate) {
             update.set("current_version_no", versionNo);
         }
@@ -122,7 +138,7 @@ public class ResumeProjectionService {
                 new Update()
                         .set("has_pending_work", false)
                         .set("last_applied_version_no", versionNo)
-                        .set("updated_at", Instant.now());
+                        .set("updated_at", Instant.now(clock));
         mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
     }
 
@@ -136,7 +152,7 @@ public class ResumeProjectionService {
                 new Update()
                         .set("current_version_no", versionNo)
                         .max("last_applied_version_no", versionNo)
-                        .set("updated_at", Instant.now());
+                        .set("updated_at", Instant.now(clock));
         mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
     }
 
@@ -167,7 +183,9 @@ public class ResumeProjectionService {
         try {
             mongoTemplate.updateFirst(
                     Query.query(Criteria.where("resume_id").is(resumeId)),
-                    new Update().set("has_pending_work", false).set("updated_at", Instant.now()),
+                    new Update()
+                            .set("has_pending_work", false)
+                            .set("updated_at", Instant.now(clock)),
                     ResumeDocument.class);
             log.warn(
                     "[PROJECTION] hasPendingWork_cleared resumeId={} — rebuildForResume recommended",
@@ -190,7 +208,25 @@ public class ResumeProjectionService {
     }
 
     public void applyPreviewShown(Long resumeId) {
-        resumeMongoQueryRepository.clearUnseenPreviewIfPresent(resumeId);
+        ResumeDocument projection = getByResumeIdOrThrow(resumeId);
+        Integer latestPreviewVersionNo = projection.getLatestPreviewVersionNo();
+        if (latestPreviewVersionNo != null) {
+            resumeMongoQueryRepository.clearUnseenPreviewIfLatestVersion(
+                    resumeId, latestPreviewVersionNo);
+        }
+    }
+
+    @Transactional("mongoTransactionManager")
+    public void markPreviewShownAndClearUnseen(
+            Long resumeId, Integer versionNo, Instant previewShownAt) {
+        ResumeEventDocument event =
+                resumeEventMongoRepository
+                        .findByResumeIdAndVersionNo(resumeId, versionNo)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+        event.markPreviewShown(previewShownAt);
+        resumeEventMongoRepository.save(event);
+        resumeMongoQueryRepository.clearUnseenPreviewIfLatestVersion(resumeId, versionNo);
     }
 
     @Retryable(
@@ -199,7 +235,8 @@ public class ResumeProjectionService {
             backoff = @Backoff(delay = 100, multiplier = 2.0, random = true))
     public void applyProfileSnapshotUpdate(Long resumeId, String json) {
         Criteria criteria = Criteria.where("resume_id").is(resumeId);
-        Update update = new Update().set("profile_snapshot", json).set("updated_at", Instant.now());
+        Update update =
+                new Update().set("profile_snapshot", json).set("updated_at", Instant.now(clock));
         mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
     }
 
@@ -209,8 +246,45 @@ public class ResumeProjectionService {
             backoff = @Backoff(delay = 100, multiplier = 2.0, random = true))
     public void applyNameChange(Long resumeId, String name) {
         Criteria criteria = Criteria.where("resume_id").is(resumeId);
-        Update update = new Update().set("name", name).set("updated_at", Instant.now());
+        Update update = new Update().set("name", name).set("updated_at", Instant.now(clock));
         mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
+    }
+
+    @Transactional("mongoTransactionManager")
+    public void commitVersionAndApplyProjection(
+            Long resumeId, Integer versionNo, Instant committedAt) {
+        ResumeEventDocument event =
+                resumeEventMongoRepository
+                        .findByResumeIdAndVersionNo(resumeId, versionNo)
+                        .orElseThrow(
+                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
+        ResumeDocument projection =
+                resumeMongoRepository
+                        .findByResumeId(resumeId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
+
+        boolean isLatestPreviewVersion =
+                projection.getLatestPreviewVersionNo() != null
+                        && projection.getLatestPreviewVersionNo().equals(versionNo);
+        if (event.getCommittedAt() != null) {
+            return;
+        }
+        if (isLatestPreviewVersion) {
+            event.markPreviewShown(committedAt);
+        }
+        event.markCommitted(committedAt);
+        resumeEventMongoRepository.save(event);
+
+        Criteria criteria = Criteria.where("resume_id").is(resumeId);
+        Update update =
+                new Update()
+                        .set("current_version_no", versionNo)
+                        .max("last_applied_version_no", versionNo)
+                        .set("updated_at", Instant.now(clock));
+        mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
+        if (isLatestPreviewVersion) {
+            resumeMongoQueryRepository.clearUnseenPreviewIfLatestVersion(resumeId, versionNo);
+        }
     }
 
     @Transactional("mongoTransactionManager")
@@ -225,7 +299,50 @@ public class ResumeProjectionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESUME_NOT_FOUND));
     }
 
-    public void getByResumeIdAndUserIdOrThrow(Long resumeId, Long userId) {
+    public void validateOwnershipOrThrow(Long resumeId, Long userId) {
         findDocumentByResumeIdAndUserIdOrThrow(resumeId, userId);
+    }
+
+    @Transactional("mongoTransactionManager")
+    public void applyCreateCompensation(Long resumeId, int versionNo, String errorMessage) {
+        resumeEventMongoRepository
+                .findByResumeIdAndVersionNo(resumeId, versionNo)
+                .ifPresent(
+                        event -> {
+                            event.failNow("OUTBOX_ENQUEUE_FAILED", errorMessage);
+                            resumeEventMongoRepository.save(event);
+                        });
+        Criteria criteria =
+                Criteria.where("resume_id")
+                        .is(resumeId)
+                        .andOperator(
+                                new Criteria()
+                                        .orOperator(
+                                                Criteria.where("last_applied_version_no").isNull(),
+                                                Criteria.where("last_applied_version_no")
+                                                        .lt(versionNo)));
+        Update update =
+                new Update()
+                        .set("has_pending_work", false)
+                        .set("last_applied_version_no", versionNo)
+                        .set("updated_at", Instant.now(clock));
+        mongoTemplate.findAndModify(Query.query(criteria), update, ResumeDocument.class);
+    }
+
+    private BusinessException translateDuplicateKeyException(
+            DuplicateKeyException e, ErrorCode expectedConflictCode) {
+        if (isPendingUniqueViolation(e)) {
+            return new BusinessException(expectedConflictCode);
+        }
+        log.error("[PROJECTION] unexpected_duplicate_key", e);
+        return new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+    }
+
+    private boolean isPendingUniqueViolation(DuplicateKeyException e) {
+        String message = e.getMessage();
+        return message != null
+                && (message.contains("ux_resumes_user_pending_true")
+                        || message.contains("pending unique")
+                        || message.contains("has_pending_work"));
     }
 }

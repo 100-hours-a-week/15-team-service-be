@@ -117,7 +117,7 @@ public class ResumeProfileService {
     @Transactional
     public ResumeProfileUpdateResponse updateProfile(
             Long userId, Long resumeId, ResumeProfileRequest request) {
-        resumeProjectionService.getByResumeIdAndUserIdOrThrow(resumeId, userId);
+        resumeProjectionService.validateOwnershipOrThrow(resumeId, userId);
         User user = userFinder.getByIdOrThrow(userId);
         validateProfileRequest(request);
         updateUserContact(user, request);

@@ -6,6 +6,7 @@ import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
+import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventQueryRepository;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,9 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class ResumeEditTransactionService {
     private final ResumeEventMongoRepository resumeEventMongoRepository;
+    private final ResumeEventQueryRepository resumeEventQueryRepository;
     private final ResumeProjectionService resumeProjectionService;
 
-    @Transactional
+    @Transactional("mongoTransactionManager")
     public EditPrepared prepareEdit(Long userId, Long resumeId) {
         ResumeDocument doc = resumeProjectionService.markPendingIfIdleOrThrow(resumeId, userId);
 
@@ -60,16 +62,15 @@ public class ResumeEditTransactionService {
 
     @Transactional("mongoTransactionManager")
     public ResumeEventDocument markEditRequested(Long resumeId, Integer versionNo, String jobId) {
-        ResumeEventDocument event =
-                resumeEventMongoRepository
-                        .findByResumeIdAndVersionNo(resumeId, versionNo)
-                        .orElseThrow(
-                                () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
-        event.startProcessing(jobId, Instant.now());
-        return resumeEventMongoRepository.save(event);
+        return resumeEventQueryRepository
+                .bindAiTaskIdAndStartProcessing(resumeId, versionNo, jobId, Instant.now())
+                .orElseThrow(
+                        () ->
+                                new IllegalStateException(
+                                        "Failed to bind AI task id to resume edit event"));
     }
 
-    @Transactional
+    @Transactional("mongoTransactionManager")
     public void markEditFailed(Long resumeId, Integer versionNo, String errorMessage) {
         resumeEventMongoRepository
                 .findByResumeIdAndVersionNo(resumeId, versionNo)
@@ -77,6 +78,7 @@ public class ResumeEditTransactionService {
                         event -> {
                             event.failNow("AI_EDIT_FAILED", errorMessage);
                             resumeEventMongoRepository.save(event);
+                            resumeProjectionService.applyAiFailure(resumeId, versionNo);
                         },
                         () ->
                                 log.error(
