@@ -35,5 +35,8 @@ public interface OutboxEventRepository extends JpaRepository<OutboxEvent, Long> 
     List<OutboxEvent> findStuckProcessingEventsWithLock(
             @Param("lockedBefore") Instant lockedBefore, @Param("limit") int limit);
 
+    boolean existsByEventTypeAndAggregateTypeAndAggregateId(
+            String eventType, String aggregateType, String aggregateId);
+
     void deleteByAggregateId(String aggregateId);
 }

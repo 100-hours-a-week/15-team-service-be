@@ -47,4 +47,34 @@ public class ResumeEventQueryRepository {
                         ResumeEventDocument.class);
         return Optional.ofNullable(result);
     }
+
+    public Optional<ResumeEventDocument> bindAiTaskIdAndStartProcessing(
+            Long resumeId, Integer versionNo, String aiTaskId, Instant startedAt) {
+        Criteria criteria =
+                Criteria.where("resume_id")
+                        .is(resumeId)
+                        .and("version_no")
+                        .is(versionNo)
+                        .and("status")
+                        .is(ResumeVersionStatus.QUEUED)
+                        .and("ai_task_id")
+                        .is(null);
+
+        Update update =
+                new Update()
+                        .set("ai_task_id", aiTaskId)
+                        .set("status", ResumeVersionStatus.PROCESSING)
+                        .set("started_at", startedAt)
+                        .set("finished_at", null)
+                        .set("error_log", null)
+                        .set("updated_at", startedAt);
+
+        ResumeEventDocument result =
+                mongoTemplate.findAndModify(
+                        Query.query(criteria),
+                        update,
+                        FindAndModifyOptions.options().returnNew(true),
+                        ResumeEventDocument.class);
+        return Optional.ofNullable(result);
+    }
 }

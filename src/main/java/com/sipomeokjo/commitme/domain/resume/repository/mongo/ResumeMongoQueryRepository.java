@@ -65,13 +65,15 @@ public class ResumeMongoQueryRepository {
         return mongoTemplate.find(query, ResumeDocument.class);
     }
 
-    public void clearUnseenPreviewIfPresent(Long resumeId) {
+    public void clearUnseenPreviewIfLatestVersion(Long resumeId, Integer latestPreviewVersionNo) {
         Query query =
                 Query.query(
                         Criteria.where("resume_id")
                                 .is(resumeId)
                                 .and("has_unseen_preview")
-                                .is(true));
+                                .is(true)
+                                .and("latest_preview_version_no")
+                                .is(latestPreviewVersionNo));
         Update update = Update.update("has_unseen_preview", false);
         mongoTemplate.findAndModify(
                 query,

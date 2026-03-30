@@ -40,13 +40,7 @@ public class ResumeDiffService {
                         .findByResumeIdAndVersionNo(resumeId, targetVersionNo)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
-        if (targetEvent.getStatus() != ResumeVersionStatus.SUCCEEDED
-                || targetEvent.getCommittedAt() == null) {
-            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
-        }
-
-        Map<String, Object> targetSnapshot =
-                parseSnapshot(targetEvent.getSnapshot(), resumeId, targetVersionNo);
+        validateCommittedSucceeded(targetEvent);
 
         if (baseVersionNo == targetVersionNo) {
             return new ResumeVersionDiffDto(resumeId, baseVersionNo, targetVersionNo, List.of());
@@ -57,11 +51,10 @@ public class ResumeDiffService {
                         .findByResumeIdAndVersionNo(resumeId, baseVersionNo)
                         .orElseThrow(
                                 () -> new BusinessException(ErrorCode.RESUME_VERSION_NOT_FOUND));
-        if (baseEvent.getStatus() != ResumeVersionStatus.SUCCEEDED
-                || baseEvent.getCommittedAt() == null) {
-            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
-        }
+        validateCommittedSucceeded(baseEvent);
 
+        Map<String, Object> targetSnapshot =
+                parseSnapshot(targetEvent.getSnapshot(), resumeId, targetVersionNo);
         Map<String, Object> baseSnapshot =
                 parseSnapshot(baseEvent.getSnapshot(), resumeId, baseVersionNo);
 
@@ -79,6 +72,12 @@ public class ResumeDiffService {
                         .toList();
 
         return new ResumeVersionDiffDto(resumeId, baseVersionNo, targetVersionNo, diffs);
+    }
+
+    private void validateCommittedSucceeded(ResumeEventDocument event) {
+        if (event.getStatus() != ResumeVersionStatus.SUCCEEDED || event.getCommittedAt() == null) {
+            throw new BusinessException(ErrorCode.RESUME_VERSION_NOT_READY);
+        }
     }
 
     private int resolveBaseVersionNo(Long userId, Long resumeId, String baseParam) {
@@ -118,7 +117,7 @@ public class ResumeDiffService {
                     resumeId,
                     versionNo,
                     e.getMessage());
-            return Map.of();
+            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
 }

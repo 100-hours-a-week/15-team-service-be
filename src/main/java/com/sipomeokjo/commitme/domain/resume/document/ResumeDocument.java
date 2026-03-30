@@ -19,6 +19,11 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @CompoundIndexes({
     @CompoundIndex(name = "ux_resumes_resume_id", def = "{'resume_id': 1}", unique = true),
     @CompoundIndex(
+            name = "ux_resumes_user_pending_true",
+            def = "{'user_id': 1, 'has_pending_work': 1}",
+            unique = true,
+            partialFilter = "{'has_pending_work': true}"),
+    @CompoundIndex(
             name = "ix_resumes_user_updated_desc",
             def = "{'user_id': 1, 'updated_at': -1, 'resume_id': -1}"),
     @CompoundIndex(
