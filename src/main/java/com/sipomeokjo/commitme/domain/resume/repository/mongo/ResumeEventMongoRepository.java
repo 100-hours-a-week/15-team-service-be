@@ -2,6 +2,7 @@ package com.sipomeokjo.commitme.domain.resume.repository.mongo;
 
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -35,19 +36,12 @@ public interface ResumeEventMongoRepository extends MongoRepository<ResumeEventD
 
     List<ResumeEventDocument> findByStatusIn(List<ResumeVersionStatus> statuses);
 
+    List<ResumeEventDocument> findByVersionNoAndStatusAndAiTaskIdIsNullAndCreatedAtBefore(
+            Integer versionNo, ResumeVersionStatus status, Instant createdAtBefore);
+
     long countByResumeIdIn(List<Long> resumeIds);
 
     void deleteByResumeId(Long resumeId);
 
     void deleteByResumeIdIn(List<Long> resumeIds);
-
-    List<ResumeEventDocument> findByResumeIdAndStatusAndCommittedAtIsNotNullOrderByVersionNoDesc(
-            Long resumeId, ResumeVersionStatus status, Pageable pageable);
-
-    List<ResumeEventDocument>
-            findByResumeIdAndStatusAndCommittedAtIsNotNullAndVersionNoLessThanOrderByVersionNoDesc(
-                    Long resumeId,
-                    ResumeVersionStatus status,
-                    Integer versionNo,
-                    Pageable pageable);
 }
