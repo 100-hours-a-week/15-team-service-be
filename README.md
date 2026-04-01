@@ -62,4 +62,4 @@ be/
 | 이름                                                                                                                                               | 역할      | 담당 기능                          |
 |--------------------------------------------------------------------------------------------------------------------------------------------------|-------------|------------------------------------|
 | [<img src="https://avatars.githubusercontent.com/u/96182623?v=4" height=130 width=130> <br/> @tl1l1l1s](https://github.com/tl1l1l1s) **신윤지(Theta)**     | 풀스택  | 이력서, 채팅, 알림 <br /> **[담당 구현 내역 및 기술적 도전](./CONTRIBUTIONS.md)** |
-| [<img src="https://avatars.githubusercontent.com/u/145419432?v=4" height=130 width=130> <br/> @minzero0](https://github.com/minzero0) **안민영(Zero)**     | 풀스택  | 이력서, 모의면접 <br />  |
+| [<img src="https://avatars.githubusercontent.com/u/145419432?v=4" height=130 width=130> <br/> @minzer01](https://github.com/minzero0) **안민영(Zero)**     | 풀스택  | 이력서, 모의면접 <br />  |
