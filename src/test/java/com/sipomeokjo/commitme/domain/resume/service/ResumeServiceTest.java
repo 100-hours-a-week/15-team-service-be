@@ -122,6 +122,7 @@ class ResumeServiceTest {
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
         verify(aiCreditService).deduct(1L, 30L);
+        verify(aiCreditService).refund(1L, 30L);
         verify(resumeProjectionService).applyCreateCompensation(100L, 1, "enqueue failed");
     }
 
@@ -289,6 +290,7 @@ class ResumeServiceTest {
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
         verify(aiCreditService).deduct(1L, 3L);
+        verify(aiCreditService).refund(1L, 3L);
         verify(resumeEditTransactionService, never())
                 .markEditFailed(anyLong(), anyInt(), anyString());
     }

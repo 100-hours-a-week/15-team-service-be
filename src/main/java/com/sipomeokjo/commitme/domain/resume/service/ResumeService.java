@@ -167,9 +167,8 @@ public class ResumeService {
                         null);
 
         aiCreditService.deduct(userId, aiCreditProperties.getResumeGenerateCost());
-        resumeProjectionService.createProjectionIfNoPendingOrThrow(userId, projection, event);
-
         try {
+            resumeProjectionService.createProjectionIfNoPendingOrThrow(userId, projection, event);
             outboxEventService.enqueue(
                     OutboxEventTypes.AI_JOB_REQUESTED,
                     RESUME_EVENT_AGGREGATE_TYPE,
@@ -178,9 +177,13 @@ public class ResumeService {
                             resumeId, 1, userId, position.getName(), req.getRepoUrls()));
         } catch (BusinessException e) {
             compensateCreateFailure(resumeId, e.getMessage());
+            refundCreditSafely(
+                    userId, aiCreditProperties.getResumeGenerateCost(), "resume_generate_local");
             throw e;
         } catch (Exception e) {
             compensateCreateFailure(resumeId, e.getMessage());
+            refundCreditSafely(
+                    userId, aiCreditProperties.getResumeGenerateCost(), "resume_generate_local");
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
 
@@ -344,20 +347,34 @@ public class ResumeService {
         ResumeEditTransactionService.EditPrepared prepared =
                 resumeEditTransactionService.prepareEdit(userId, resumeId);
 
-        String jobId;
         try {
             aiCreditService.deduct(userId, aiCreditProperties.getResumeEditCost());
+        } catch (BusinessException e) {
+            markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
+            throw e;
+        }
+
+        String jobId;
+        try {
             jobId =
                     resumeAiRequestService.requestEdit(
                             prepared.resumeId(), prepared.baseContent(), message);
         } catch (BusinessException e) {
             markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
+            refundCreditSafely(userId, aiCreditProperties.getResumeEditCost(), "resume_edit_dispatch");
             throw e;
         } catch (Exception e) {
             markEditFailedAndLog(userId, resumeId, prepared, e.getMessage());
+            refundCreditSafely(userId, aiCreditProperties.getResumeEditCost(), "resume_edit_dispatch");
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
-        return markEditRequestedAndBuildResponse(userId, resumeId, prepared, jobId);
+
+        try {
+            return markEditRequestedAndBuildResponse(userId, resumeId, prepared, jobId);
+        } catch (RuntimeException e) {
+            refundCreditSafely(userId, aiCreditProperties.getResumeEditCost(), "resume_edit_bind_job");
+            throw e;
+        }
     }
 
     private ResumeEditResponse markEditRequestedAndBuildResponse(
@@ -456,6 +473,19 @@ public class ResumeService {
                     resumeId,
                     ex.getMessage(),
                     ex);
+        }
+    }
+
+    private void refundCreditSafely(Long userId, long amount, String operation) {
+        try {
+            aiCreditService.refund(userId, amount);
+        } catch (Exception e) {
+            log.error(
+                    "[AI_CREDIT] refund_failed operation={} userId={} amount={}",
+                    operation,
+                    userId,
+                    amount,
+                    e);
         }
     }
 }

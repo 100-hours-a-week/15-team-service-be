@@ -1,5 +1,7 @@
 package com.sipomeokjo.commitme.domain.resume.service;
 
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
@@ -19,6 +21,8 @@ public class ResumeVersionTimeoutService {
 
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ResumeProjectionService resumeProjectionService;
+    private final AiCreditService aiCreditService;
+    private final AiCreditProperties aiCreditProperties;
 
     @Scheduled(fixedDelayString = "${app.resume.timeout-sweep-delay-ms:60000}")
     public void sweepTimeoutVersions() {
@@ -31,11 +35,30 @@ public class ResumeVersionTimeoutService {
                 event.failNow("TIMEOUT", "AI 서버 응답 시간 초과");
                 resumeEventMongoRepository.save(event);
                 resumeProjectionService.applyAiFailure(event.getResumeId(), event.getVersionNo());
+                refundCreditSafely(event);
                 timeoutCount++;
             }
         }
         if (timeoutCount > 0) {
             log.info("[RESUME_TIMEOUT] timeout_failed count={}", timeoutCount);
+        }
+    }
+
+    private void refundCreditSafely(ResumeEventDocument event) {
+        long amount =
+                event.getVersionNo() == 1
+                        ? aiCreditProperties.getResumeGenerateCost()
+                        : aiCreditProperties.getResumeEditCost();
+        try {
+            aiCreditService.refund(event.getUserId(), amount);
+        } catch (Exception e) {
+            log.error(
+                    "[AI_CREDIT] refund_failed operation=resume_timeout userId={} resumeId={} versionNo={} amount={}",
+                    event.getUserId(),
+                    event.getResumeId(),
+                    event.getVersionNo(),
+                    amount,
+                    e);
         }
     }
 }

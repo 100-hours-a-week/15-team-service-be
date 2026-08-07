@@ -34,10 +34,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InterviewCommandService {
 
     private final InterviewMessageRepository interviewMessageRepository;
@@ -73,20 +75,25 @@ public class InterviewCommandService {
                         prepared.companyName());
 
         aiCreditService.deduct(userId, aiCreditProperties.getInterviewStartCost());
-        AiInterviewGenerateResponse aiResponse =
-                interviewAiService.generateInterview(generateRequest);
-        if (aiResponse == null || !"success".equalsIgnoreCase(aiResponse.status())) {
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
-        }
-        if (aiResponse.aiSessionId() == null || aiResponse.aiSessionId().isBlank()) {
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
-        }
-        if (aiResponse.questions() == null || aiResponse.questions().isEmpty()) {
-            throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
-        }
+        try {
+            AiInterviewGenerateResponse aiResponse =
+                    interviewAiService.generateInterview(generateRequest);
+            if (aiResponse == null || !"success".equalsIgnoreCase(aiResponse.status())) {
+                throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+            }
+            if (aiResponse.aiSessionId() == null || aiResponse.aiSessionId().isBlank()) {
+                throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+            }
+            if (aiResponse.questions() == null || aiResponse.questions().isEmpty()) {
+                throw new BusinessException(ErrorCode.INTERNAL_SERVER_ERROR);
+            }
 
-        var interview = interviewCommandTransactionService.createInterview(prepared, aiResponse);
-        return interviewMapper.toStartResponse(interview);
+            var interview = interviewCommandTransactionService.createInterview(prepared, aiResponse);
+            return interviewMapper.toStartResponse(interview);
+        } catch (RuntimeException e) {
+            refundCreditSafely(userId, aiCreditProperties.getInterviewStartCost());
+            throw e;
+        }
     }
 
     public void sendAnswer(Long userId, Long interviewId, InterviewAnswerRequest request) {
@@ -371,6 +378,18 @@ public class InterviewCommandService {
             return objectMapper.writeValueAsString(response);
         } catch (Exception e) {
             return "{\"status\":\"failed\"}";
+        }
+    }
+
+    private void refundCreditSafely(Long userId, long amount) {
+        try {
+            aiCreditService.refund(userId, amount);
+        } catch (Exception e) {
+            log.error(
+                    "[AI_CREDIT] refund_failed operation=interview_start userId={} amount={}",
+                    userId,
+                    amount,
+                    e);
         }
     }
 }

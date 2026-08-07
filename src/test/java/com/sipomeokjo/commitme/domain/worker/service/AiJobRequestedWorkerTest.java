@@ -3,6 +3,8 @@ package com.sipomeokjo.commitme.domain.worker.service;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
@@ -23,16 +25,21 @@ class AiJobRequestedWorkerTest {
     @Mock private ResumeEventMongoRepository resumeEventMongoRepository;
     @Mock private ResumeAiRequestService resumeAiRequestService;
     @Mock private ResumeProjectionService resumeProjectionService;
+    @Mock private AiCreditService aiCreditService;
+    private AiCreditProperties aiCreditProperties;
 
     private AiJobRequestedWorker aiJobRequestedWorker;
 
     @BeforeEach
     void setUp() {
+        aiCreditProperties = new AiCreditProperties();
         aiJobRequestedWorker =
                 new AiJobRequestedWorker(
                         resumeEventMongoRepository,
                         resumeAiRequestService,
-                        resumeProjectionService);
+                        resumeProjectionService,
+                        aiCreditService,
+                        aiCreditProperties);
     }
 
     @Test
@@ -53,5 +60,6 @@ class AiJobRequestedWorkerTest {
 
         verify(resumeEventMongoRepository).save(queued);
         verify(resumeProjectionService).applyAiFailure(100L, 1);
+        verify(aiCreditService).refund(11L, 30L);
     }
 }

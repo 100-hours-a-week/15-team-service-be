@@ -1,5 +1,7 @@
 package com.sipomeokjo.commitme.domain.worker.service;
 
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
@@ -19,6 +21,8 @@ public class AiJobRequestedWorker {
     private final ResumeEventMongoRepository resumeEventMongoRepository;
     private final ResumeAiRequestService resumeAiRequestService;
     private final ResumeProjectionService resumeProjectionService;
+    private final AiCreditService aiCreditService;
+    private final AiCreditProperties aiCreditProperties;
 
     public WorkerHandleResult handle(AiJobRequestedPayload payload) {
         if (payload == null
@@ -70,6 +74,7 @@ public class AiJobRequestedWorker {
         resumeEventMongoRepository.save(fresh);
         if (!dispatchResult.success()) {
             resumeProjectionService.applyAiFailure(payload.resumeId(), payload.versionNo());
+            refundCreditSafely(payload.userId());
         }
 
         log.debug(
@@ -78,5 +83,18 @@ public class AiJobRequestedWorker {
                 payload.versionNo(),
                 payload.userId());
         return WorkerHandleResult.success();
+    }
+
+    private void refundCreditSafely(Long userId) {
+        long amount = aiCreditProperties.getResumeGenerateCost();
+        try {
+            aiCreditService.refund(userId, amount);
+        } catch (Exception e) {
+            log.error(
+                    "[AI_CREDIT] refund_failed operation=resume_generate_dispatch userId={} amount={}",
+                    userId,
+                    amount,
+                    e);
+        }
     }
 }

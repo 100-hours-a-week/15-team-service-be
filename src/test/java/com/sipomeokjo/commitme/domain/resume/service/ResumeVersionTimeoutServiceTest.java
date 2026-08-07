@@ -3,6 +3,8 @@ package com.sipomeokjo.commitme.domain.resume.service;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeEventDocument;
 import com.sipomeokjo.commitme.domain.resume.entity.ResumeVersionStatus;
 import com.sipomeokjo.commitme.domain.resume.repository.mongo.ResumeEventMongoRepository;
@@ -18,14 +20,20 @@ class ResumeVersionTimeoutServiceTest {
 
     @Mock private ResumeEventMongoRepository resumeEventMongoRepository;
     @Mock private ResumeProjectionService resumeProjectionService;
+    @Mock private AiCreditService aiCreditService;
+    private AiCreditProperties aiCreditProperties;
 
     private ResumeVersionTimeoutService resumeVersionTimeoutService;
 
     @BeforeEach
     void setUp() {
+        aiCreditProperties = new AiCreditProperties();
         resumeVersionTimeoutService =
                 new ResumeVersionTimeoutService(
-                        resumeEventMongoRepository, resumeProjectionService);
+                        resumeEventMongoRepository,
+                        resumeProjectionService,
+                        aiCreditService,
+                        aiCreditProperties);
     }
 
     @Test
@@ -43,11 +51,13 @@ class ResumeVersionTimeoutServiceTest {
                 .willReturn(true);
         given(event.getResumeId()).willReturn(100L);
         given(event.getVersionNo()).willReturn(1);
+        given(event.getUserId()).willReturn(11L);
 
         resumeVersionTimeoutService.sweepTimeoutVersions();
 
         verify(resumeEventMongoRepository).save(event);
         verify(resumeProjectionService).applyAiFailure(100L, 1);
+        verify(aiCreditService).refund(11L, 30L);
     }
 
     @Test
@@ -63,10 +73,12 @@ class ResumeVersionTimeoutServiceTest {
                 .willReturn(true);
         given(event.getResumeId()).willReturn(100L);
         given(event.getVersionNo()).willReturn(3);
+        given(event.getUserId()).willReturn(11L);
 
         resumeVersionTimeoutService.sweepTimeoutVersions();
 
         verify(resumeEventMongoRepository).save(event);
         verify(resumeProjectionService).applyAiFailure(100L, 3);
+        verify(aiCreditService).refund(11L, 3L);
     }
 }

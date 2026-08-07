@@ -3,6 +3,8 @@ package com.sipomeokjo.commitme.domain.resume.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.outbox.dto.OutboxEventTypes;
 import com.sipomeokjo.commitme.domain.outbox.service.OutboxEventService;
 import com.sipomeokjo.commitme.domain.resume.document.ResumeDocument;
@@ -29,6 +31,8 @@ public class ResumeAiCallbackService {
     private final ObjectMapper objectMapper;
     private final OutboxEventService outboxEventService;
     private final ResumeProjectionService resumeProjectionService;
+    private final AiCreditService aiCreditService;
+    private final AiCreditProperties aiCreditProperties;
 
     @Transactional
     public void handleCallback(AiResumeCallbackRequest req) {
@@ -68,6 +72,9 @@ public class ResumeAiCallbackService {
                 .ifPresentOrElse(
                         event -> {
                             applyProjection(event, isCreate);
+                            if (event.getStatus() == ResumeVersionStatus.FAILED) {
+                                refundCreditSafely(event.getUserId(), callbackSource);
+                            }
                             publishCompletionEvent(buildResult(event, now), req, callbackSource);
                         },
                         () ->
@@ -82,6 +89,23 @@ public class ResumeAiCallbackService {
                     event.getResumeId(), event.getVersionNo(), isCreate);
         } else {
             resumeProjectionService.applyAiFailure(event.getResumeId(), event.getVersionNo());
+        }
+    }
+
+    private void refundCreditSafely(Long userId, ResumeCallbackSource source) {
+        long amount =
+                source == ResumeCallbackSource.CREATE
+                        ? aiCreditProperties.getResumeGenerateCost()
+                        : aiCreditProperties.getResumeEditCost();
+        try {
+            aiCreditService.refund(userId, amount);
+        } catch (Exception e) {
+            log.error(
+                    "[AI_CREDIT] refund_failed operation=resume_{}_callback userId={} amount={}",
+                    source.name().toLowerCase(),
+                    userId,
+                    amount,
+                    e);
         }
     }
 
