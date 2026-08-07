@@ -10,6 +10,7 @@ import com.sipomeokjo.commitme.domain.auth.dto.GithubUserResponse;
 import com.sipomeokjo.commitme.domain.auth.entity.Auth;
 import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.auth.repository.AuthRepository;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
@@ -42,6 +43,7 @@ public class AuthCommandService {
     private final AuthRepository authRepository;
     private final UserRepository userRepository;
     private final UserSettingRepository userSettingRepository;
+    private final AiCreditService aiCreditService;
     private final RefreshTokenCacheService refreshTokenCacheService;
     private final TransactionOperations transactionOperations;
     private final AuthSessionIssueService authSessionIssueService;
@@ -87,6 +89,7 @@ public class AuthCommandService {
         User user;
         if (auth == null) {
             user = userRepository.save(User.builder().status(UserStatus.PENDING).build());
+            aiCreditService.initialize(user);
             userSettingRepository.save(UserSetting.defaultSetting(user));
             Auth newAuth =
                     Auth.builder()
@@ -140,6 +143,7 @@ public class AuthCommandService {
         }
 
         User newUser = userRepository.save(User.builder().status(UserStatus.PENDING).build());
+        aiCreditService.initialize(newUser);
         userSettingRepository.save(UserSetting.defaultSetting(newUser));
         auth.rebindUser(newUser);
         log.info(

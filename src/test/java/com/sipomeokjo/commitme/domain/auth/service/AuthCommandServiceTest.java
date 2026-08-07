@@ -19,6 +19,7 @@ import com.sipomeokjo.commitme.domain.auth.dto.GithubUserResponse;
 import com.sipomeokjo.commitme.domain.auth.entity.Auth;
 import com.sipomeokjo.commitme.domain.auth.entity.AuthProvider;
 import com.sipomeokjo.commitme.domain.auth.repository.AuthRepository;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.refreshToken.service.RefreshTokenCacheService;
 import com.sipomeokjo.commitme.domain.user.entity.User;
 import com.sipomeokjo.commitme.domain.user.entity.UserStatus;
@@ -57,6 +58,7 @@ class AuthCommandServiceTest {
     @Mock private AuthRepository authRepository;
     @Mock private UserRepository userRepository;
     @Mock private UserSettingRepository userSettingRepository;
+    @Mock private AiCreditService aiCreditService;
     @Mock private RefreshTokenCacheService refreshTokenCacheService;
     @Mock private TransactionOperations transactionOperations;
     @Mock private AuthSessionIssueService authSessionIssueService;
@@ -83,6 +85,7 @@ class AuthCommandServiceTest {
                         authRepository,
                         userRepository,
                         userSettingRepository,
+                        aiCreditService,
                         refreshTokenCacheService,
                         transactionOperations,
                         authSessionIssueService,

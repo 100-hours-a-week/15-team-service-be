@@ -184,6 +184,10 @@ public enum ErrorCode implements ResponseCode {
             HttpStatus.SERVICE_UNAVAILABLE,
             "AI_CIRCUIT_BREAKER_OPEN",
             "AI 서버가 일시적으로 불안정합니다. 잠시 후 다시 시도해주세요."),
+    AI_CREDIT_INSUFFICIENT(
+            HttpStatus.PAYMENT_REQUIRED, "AI_CREDIT_INSUFFICIENT", "AI 크레딧이 부족합니다."),
+    AI_CREDIT_WALLET_NOT_FOUND(
+            HttpStatus.NOT_FOUND, "AI_CREDIT_WALLET_NOT_FOUND", "AI 크레딧 지갑을 찾을 수 없습니다."),
 
     // 전역
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "잘못된 요청입니다."),

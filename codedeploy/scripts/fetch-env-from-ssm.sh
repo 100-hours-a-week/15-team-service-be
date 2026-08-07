@@ -234,6 +234,9 @@ ai:
   stt-transcribe-path: "${AI_STT_TRANSCRIBE_PATH}"
 
   callback-secret: "dev-secret"
+
+ai-credit:
+  initial-credit: 100
     
 YAML
 
