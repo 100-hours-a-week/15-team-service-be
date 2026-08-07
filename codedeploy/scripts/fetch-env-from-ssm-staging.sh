@@ -207,6 +207,9 @@ ai:
 
 ai-credit:
   initial-credit: 100
+  interview-start-cost: 20
+  resume-generate-cost: 30
+  resume-edit-cost: 3
     
 YAML
 

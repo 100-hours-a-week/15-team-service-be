@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sipomeokjo.commitme.api.exception.BusinessException;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewAnswerRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewCreateRequest;
 import com.sipomeokjo.commitme.domain.interview.dto.InterviewResponse;
@@ -45,6 +47,8 @@ public class InterviewCommandService {
     private final InterviewSseEmitterManager sseEmitterManager;
     private final ObjectMapper objectMapper;
     private final ResumeProfileService resumeProfileService;
+    private final AiCreditService aiCreditService;
+    private final AiCreditProperties aiCreditProperties;
 
     public InterviewResponse updateName(
             Long userId, Long interviewId, InterviewUpdateNameRequest request) {
@@ -68,6 +72,7 @@ public class InterviewCommandService {
                         prepared.positionName(),
                         prepared.companyName());
 
+        aiCreditService.deduct(userId, aiCreditProperties.getInterviewStartCost());
         AiInterviewGenerateResponse aiResponse =
                 interviewAiService.generateInterview(generateRequest);
         if (aiResponse == null || !"success".equalsIgnoreCase(aiResponse.status())) {

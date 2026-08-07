@@ -8,6 +8,8 @@ import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.api.validation.KeywordValidator;
 import com.sipomeokjo.commitme.domain.company.entity.Company;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.outbox.dto.OutboxEventTypes;
 import com.sipomeokjo.commitme.domain.outbox.repository.OutboxEventRepository;
 import com.sipomeokjo.commitme.domain.outbox.service.OutboxEventService;
@@ -69,6 +71,8 @@ public class ResumeService {
     private final ResumeAiRequestService resumeAiRequestService;
     private final ResumeEditTransactionService resumeEditTransactionService;
     private final ResumeProjectionService resumeProjectionService;
+    private final AiCreditService aiCreditService;
+    private final AiCreditProperties aiCreditProperties;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -162,6 +166,7 @@ public class ResumeService {
                         name,
                         null);
 
+        aiCreditService.deduct(userId, aiCreditProperties.getResumeGenerateCost());
         resumeProjectionService.createProjectionIfNoPendingOrThrow(userId, projection, event);
 
         try {
@@ -341,6 +346,7 @@ public class ResumeService {
 
         String jobId;
         try {
+            aiCreditService.deduct(userId, aiCreditProperties.getResumeEditCost());
             jobId =
                     resumeAiRequestService.requestEdit(
                             prepared.resumeId(), prepared.baseContent(), message);

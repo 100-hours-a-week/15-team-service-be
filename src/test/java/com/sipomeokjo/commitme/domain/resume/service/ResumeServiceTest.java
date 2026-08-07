@@ -17,6 +17,8 @@ import com.sipomeokjo.commitme.api.pagination.CursorRequest;
 import com.sipomeokjo.commitme.api.pagination.CursorResponse;
 import com.sipomeokjo.commitme.api.response.ErrorCode;
 import com.sipomeokjo.commitme.domain.company.repository.CompanyRepository;
+import com.sipomeokjo.commitme.domain.credit.config.AiCreditProperties;
+import com.sipomeokjo.commitme.domain.credit.service.AiCreditService;
 import com.sipomeokjo.commitme.domain.outbox.repository.OutboxEventRepository;
 import com.sipomeokjo.commitme.domain.outbox.service.OutboxEventService;
 import com.sipomeokjo.commitme.domain.position.entity.Position;
@@ -67,11 +69,14 @@ class ResumeServiceTest {
     @Mock private ResumeAiRequestService resumeAiRequestService;
     @Mock private ResumeEditTransactionService resumeEditTransactionService;
     @Mock private ResumeProjectionService resumeProjectionService;
+    @Mock private AiCreditService aiCreditService;
+    private AiCreditProperties aiCreditProperties;
 
     private ResumeService resumeService;
 
     @BeforeEach
     void setUp() {
+        aiCreditProperties = new AiCreditProperties();
         resumeService =
                 new ResumeService(
                         resumeMongoRepository,
@@ -90,7 +95,10 @@ class ResumeServiceTest {
                         resumeAiRequestService,
                         resumeEditTransactionService,
                         resumeProjectionService,
+                        aiCreditService,
+                        aiCreditProperties,
                         Clock.fixed(Instant.parse("2026-03-29T00:00:00Z"), ZoneOffset.UTC));
+
     }
 
     @Test
@@ -113,6 +121,7 @@ class ResumeServiceTest {
                 assertThrows(BusinessException.class, () -> resumeService.create(1L, request));
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+        verify(aiCreditService).deduct(1L, 30L);
         verify(resumeProjectionService).applyCreateCompensation(100L, 1, "enqueue failed");
     }
 
@@ -279,6 +288,7 @@ class ResumeServiceTest {
                 assertThrows(BusinessException.class, () -> resumeService.edit(1L, 100L, request));
 
         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+        verify(aiCreditService).deduct(1L, 3L);
         verify(resumeEditTransactionService, never())
                 .markEditFailed(anyLong(), anyInt(), anyString());
     }
